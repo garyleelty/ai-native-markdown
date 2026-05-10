@@ -100,9 +100,17 @@ const readFile = async (filePath: string): Promise<string> => {
   if (!isTauri) return ''
   try { return await invoke('read_file', { path: filePath }) as string } catch { return '' }
 }
-const saveFile = async (filePath: string, content: string) => {
-  if (!isTauri) return
-  try { await invoke('write_file', { path: filePath, content }) } catch {}
+const saveFile = async (filePath: string, content: string): Promise<boolean> => {
+  if (!isTauri) return false
+  try {
+    await invoke('write_file', { path: filePath, content })
+    console.log('✅ 文件保存成功:', filePath)
+    return true
+  } catch (error) {
+    console.error('❌ 保存文件失败:', filePath, error)
+    alert(`保存文件失败:\n${filePath}\n\n错误: ${error}`)
+    return false
+  }
 }
 
 defineExpose({ readFile, saveFile })

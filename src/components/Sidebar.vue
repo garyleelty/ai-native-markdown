@@ -559,9 +559,33 @@ const handleCreateFolder = () => {
 // 树内新建/重命名事件
 const handleCreate = async (payload: { parentPath: string; name: string; isDirectory: boolean }) => {
   const { parentPath, name, isDirectory } = payload
-  const newPath = `${parentPath}/${name}`
 
   try {
+    // 验证 parentPath 是否为目录（而不是文件）
+    const parentMeta = await invoke('read_dir', { path: parentPath })
+    
+    // 如果 read_dir 失败，说明 parentPath 可能是文件或不存在
+    // 这里我们捕获错误并给出明确提示
+    
+    // 重名检查：检查是否已存在同名项
+    const existingEntries = parentMeta as any[]
+    const targetName = isDirectory ? name : (name.endsWith('.md') || name.endsWith('.markdown') ? name : name + '.md')
+    
+    const duplicate = existingEntries.find((e: any) => {
+      if (isDirectory) {
+        return e.is_dir && e.name === name
+      } else {
+        return !e.is_dir && (e.name === targetName || e.name === name)
+      }
+    })
+    
+    if (duplicate) {
+      const itemType = isDirectory ? '文件夹' : '文件'
+      throw new Error(`已存在同名${itemType} "${targetName}"`)
+    }
+    
+    // 执行创建
+    const newPath = `${parentPath}/${name}`
     if (isDirectory) {
       await invoke('create_dir', { path: newPath })
     } else {
@@ -576,6 +600,13 @@ const handleCreate = async (payload: { parentPath: string; name: string; isDirec
     }
   } catch (error: any) {
     console.error('创建失败:', error)
+    
+    // 检查是否是"路径不是目录"的错误
+    const errorMsg = error?.toString?.() || '创建失败'
+    if (errorMsg.includes('不是文件夹') || errorMsg.includes('Not a directory')) {
+      throw new Error('只能在文件夹内新建文件/文件夹，不能在文件下创建子项')
+    }
+    
     // 显示错误（临时节点的错误显示）
     const findNode = (nodes: TreeNode[] | undefined, targetPath: string): TreeNode | null => {
       if (!nodes) return null
@@ -588,9 +619,10 @@ const handleCreate = async (payload: { parentPath: string; name: string; isDirec
       }
       return null
     }
+    // 查找临时节点并显示错误
     const tempNode = findNode(treeRoot.value?.children, `${parentPath}/__new__`)
     if (tempNode) {
-      tempNode.error = error?.toString?.() || '创建失败'
+      tempNode.error = errorMsg
     }
   }
 }

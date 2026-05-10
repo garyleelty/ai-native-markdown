@@ -58,6 +58,12 @@
           rows="2"
           @keydown.enter.prevent="sendMessage"
         ></textarea>
+        <VoiceInputButton
+          :mode="settingsStore.voiceInputMode"
+          :language="settingsStore.voiceInputLanguage"
+          @result="handleVoiceResult"
+          @error="handleVoiceError"
+        />
         <button class="chat-send" @click="sendMessage" :disabled="!inputText.trim() || streaming">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
@@ -69,7 +75,9 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
 import { aiService } from '../../services/ai'
-import type { AIMessage } from '../../types/index'
+import type { AIMessage } from '@/types'
+import VoiceInputButton from '../ui/VoiceInputButton.vue'
+import { useSettingsStore } from '@/stores'
 
 const props = defineProps<{
   context?: string
@@ -182,6 +190,17 @@ const copyMessage = async (content: string) => {
 
 const clearMessages = () => {
   messages.value = []
+}
+
+// 语音输入相关
+const settingsStore = useSettingsStore()
+
+const handleVoiceResult = (text: string) => {
+  inputText.value += text
+}
+
+const handleVoiceError = (message: string) => {
+  console.warn('语音输入错误:', message)
 }
 
 watch(messages, scrollToBottom, { deep: true })

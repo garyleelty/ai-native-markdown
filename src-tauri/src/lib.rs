@@ -37,17 +37,52 @@ fn read_file(path: String) -> Result<String, String> {
 
 #[tauri::command]
 fn write_file(path: String, content: String) -> Result<(), String> {
-    fs::write(&path, content).map_err(|e| e.to_string())
+    let p = Path::new(&path);
+    
+    // 确保父目录存在
+    if let Some(parent) = p.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("创建目录失败: {}", e))?;
+        }
+    }
+    
+    // 写入文件
+    fs::write(&path, content)
+        .map_err(|e| format!("写入文件失败: {}", e))
 }
 
 #[tauri::command]
 fn create_file(path: String) -> Result<(), String> {
+    let p = Path::new(&path);
+    
+    // 验证：父路径必须是目录（不能是文件）
+    if let Some(parent) = p.parent() {
+        if parent.exists() && !parent.is_dir() {
+            return Err(format!("父路径 '{}' 不是文件夹", parent.display()));
+        }
+        // 自动创建不存在的父目录
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("创建目录失败: {}", e))?;
+        }
+    }
+    
     fs::File::create(&path).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
 fn create_dir(path: String) -> Result<(), String> {
+    let p = Path::new(&path);
+    
+    // 验证：父路径必须是目录（不能是文件）
+    if let Some(parent) = p.parent() {
+        if parent.exists() && !parent.is_dir() {
+            return Err(format!("父路径 '{}' 不是文件夹", parent.display()));
+        }
+    }
+    
     fs::create_dir_all(&path).map_err(|e| e.to_string())
 }
 

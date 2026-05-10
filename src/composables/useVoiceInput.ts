@@ -5,7 +5,6 @@ export type VoiceInputMode = 'hold' | 'toggle'
 export type VoiceInputStatus = 'idle' | 'listening' | 'recognizing' | 'error'
 
 export interface UseVoiceInputOptions {
-  mode?: VoiceInputMode
   language?: string
   continuous?: boolean
   interimResults?: boolean
@@ -55,13 +54,14 @@ declare global {
   }
 }
 
-function getSpeechRecognition(): new () => SpeechRecognition | undefined {
-  return window.SpeechRecognition || window.webkitSpeechRecognition
+function getSpeechRecognition(): (new () => SpeechRecognition) | null {
+  if (typeof window === 'undefined') return null
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+  return SR ? SR : null
 }
 
 export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInputReturn {
   const {
-    mode = 'hold',
     language = 'zh-CN',
     continuous = false,
     interimResults = true,
@@ -78,86 +78,84 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   const isSupported = !!SpeechRecognitionCtor
 
   let recognition: SpeechRecognition | null = null
-  let isHolding = false
 
   const createRecognition = (): SpeechRecognition | null => {
     if (!SpeechRecognitionCtor) return null
-    const rec = new SpeechRecognitionCtor()
-    rec.lang = language
-    rec.continuous = continuous
-    rec.interimResults = interimResults
-    rec.maxAlternatives = 1
+    try {
+      const rec = new SpeechRecognitionCtor() as SpeechRecognition
+      rec.lang = language
+      rec.continuous = continuous
+      rec.interimResults = interimResults
+      rec.maxAlternatives = 1
 
-    rec.onstart = () => {
-      status.value = 'listening'
-      error.value = null
-    }
+      rec.onstart = () => {
+        status.value = 'listening'
+        error.value = null
+      }
 
-    rec.onresult = (event: SpeechRecognitionEvent) => {
-      let finalTranscript = ''
-      let interim = ''
+      rec.onresult = (event: SpeechRecognitionEvent) => {
+        let finalTranscript = ''
+        let interim = ''
 
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i]
-        if (result.isFinal) {
-          finalTranscript += result[0].transcript
-        } else {
-          interim += result[0].transcript
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i]
+          if (result.isFinal) {
+            finalTranscript += result[0].transcript
+          } else {
+            interim += result[0].transcript
+          }
+        }
+
+        if (finalTranscript) {
+          transcript.value += finalTranscript
+          onResult?.(transcript.value, true)
+        }
+
+        interimTranscript.value = interim
+        if (interim) {
+          onResult?.(transcript.value + interim, false)
         }
       }
 
-      if (finalTranscript) {
-        transcript.value += finalTranscript
-        onResult?.(transcript.value, true)
+      rec.onerror = (event: SpeechRecognitionErrorEvent) => {
+        let errorMsg = ''
+        switch (event.error) {
+          case 'no-speech':
+            errorMsg = '未检测到语音，请重试'
+            break
+          case 'audio-capture':
+            errorMsg = '未检测到麦克风设备'
+            break
+          case 'not-allowed':
+            errorMsg = '请允许麦克风权限以使用语音输入'
+            break
+          case 'network':
+            errorMsg = '网络错误，语音识别服务不可用'
+            break
+          case 'aborted':
+            errorMsg = ''
+            break
+          default:
+            errorMsg = `语音识别失败: ${event.error}`
+        }
+
+        if (errorMsg) {
+          error.value = errorMsg
+          status.value = 'error'
+          onError?.(errorMsg)
+        }
       }
 
-      interimTranscript.value = interim
-      if (interim) {
-        onResult?.(transcript.value + interim, false)
+      rec.onend = () => {
+        if (status.value === 'listening' || status.value === 'recognizing') {
+          status.value = 'idle'
+        }
       }
+
+      return rec
+    } catch {
+      return null
     }
-
-    rec.onerror = (event: SpeechRecognitionErrorEvent) => {
-      let errorMsg = ''
-      switch (event.error) {
-        case 'no-speech':
-          errorMsg = '未检测到语音，请重试'
-          break
-        case 'audio-capture':
-          errorMsg = '未检测到麦克风设备'
-          break
-        case 'not-allowed':
-          errorMsg = '请允许麦克风权限以使用语音输入'
-          break
-        case 'network':
-          errorMsg = '网络错误，语音识别服务不可用'
-          break
-        case 'aborted':
-          errorMsg = ''
-          break
-        default:
-          errorMsg = `语音识别失败: ${event.error}`
-      }
-
-      if (errorMsg) {
-        error.value = errorMsg
-        status.value = 'error'
-        onError?.(errorMsg)
-      }
-    }
-
-    rec.onend = () => {
-      if (status.value === 'listening') {
-        status.value = 'recognizing'
-        setTimeout(() => {
-          if (status.value === 'recognizing') {
-            status.value = 'idle'
-          }
-        }, 500)
-      }
-    }
-
-    return rec
   }
 
   const startListening = () => {
@@ -177,7 +175,9 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
 
     try {
       recognition = createRecognition()
-      recognition?.start()
+      if (recognition) {
+        recognition.start()
+      }
     } catch (e: any) {
       const msg = `启动语音识别失败: ${e?.message || String(e)}`
       error.value = msg
@@ -195,7 +195,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       }
       recognition = null
     }
-    isHolding = false
   }
 
   const toggleListening = () => {

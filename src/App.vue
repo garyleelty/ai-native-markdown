@@ -130,6 +130,11 @@
       <span class="status-item">Markdown</span>
       <span class="status-item" v-if="editorStore.cursorLine > 0">行 {{ editorStore.cursorLine }}</span>
       <span class="status-spacer"></span>
+      <span class="status-item" :class="saveStatusClass" v-if="saveStatusMessage">
+        {{ saveStatusMessage }}
+      </span>
+      <span class="status-item" v-if="editorStore.isModified">● 未保存</span>
+      <span class="status-item" v-else>✓ 已保存</span>
       <span class="status-item view-mode-indicator" @click="cycleViewMode" title="点击切换视图">
         {{ editorStore.viewMode === 'split' ? '分栏' : editorStore.viewMode === 'source' ? '源码' : '预览' }}
       </span>
@@ -155,6 +160,8 @@ const editorRef = ref()
 const sidebarRef = ref()
 const selectedText = ref('')
 const showExportMenu = ref(false)
+const saveStatusMessage = ref('')
+const saveStatusClass = ref('')
 
 const editorContent = computed({
   get: () => editorStore.content,
@@ -256,9 +263,28 @@ const handleCloseTab = async (tabId: string) => {
 }
 
 const saveCurrentFile = async () => {
-  if (editorStore.currentFile && sidebarRef.value) {
-    await sidebarRef.value.saveFile(editorStore.currentFile, editorStore.content)
+  if (!editorStore.currentFile || !sidebarRef.value) {
+    return
+  }
+  
+  saveStatusMessage.value = '正在保存...'
+  saveStatusClass.value = 'status-saving'
+  
+  const success = await sidebarRef.value.saveFile(editorStore.currentFile, editorStore.content)
+  
+  if (success) {
     editorStore.markSaved()
+    saveStatusMessage.value = '✓ 保存成功'
+    saveStatusClass.value = 'status-saved'
+    
+    // 3秒后清除成功提示
+    setTimeout(() => {
+      saveStatusMessage.value = ''
+      saveStatusClass.value = ''
+    }, 3000)
+  } else {
+    saveStatusMessage.value = '✗ 保存失败'
+    saveStatusClass.value = 'status-error'
   }
 }
 
@@ -721,6 +747,31 @@ onUnmounted(() => { stopResize() })
 .status-item:hover {
   color: var(--text-secondary);
   opacity: 1;
+}
+.status-item.status-saving {
+  color: var(--accent-blue);
+  opacity: 1;
+  animation: pulse 1s ease-in-out infinite;
+}
+.status-item.status-saved {
+  color: var(--accent-green);
+  opacity: 1;
+}
+.status-item.status-error {
+  color: var(--accent-red);
+  opacity: 1;
+  animation: shake 0.3s ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
 }
 .status-spacer {
   flex: 1;

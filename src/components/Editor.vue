@@ -71,6 +71,15 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
           </button>
         </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+          <VoiceInputButton
+            :mode="voiceInputMode"
+            :language="voiceInputLanguage"
+            @result="handleVoiceResult"
+            @error="handleVoiceError"
+          />
+        </div>
       </div>
       <button class="toolbar-toggle" @click="toolbarCollapsed = !toolbarCollapsed" :title="toolbarCollapsed ? '展开工具栏' : '收起工具栏'">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
@@ -91,6 +100,9 @@ import { oneDark } from '@codemirror/theme-one-dark'
 import { syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching, foldGutter, indentUnit } from '@codemirror/language'
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
+import VoiceInputButton from './ui/VoiceInputButton.vue'
+import { useSettingsStore } from '@/stores'
+import type { VoiceInputMode } from '@/types'
 
 interface Props {
   modelValue?: string
@@ -308,6 +320,19 @@ const replaceSelection = (text: string) => {
 }
 const focus = () => view?.focus()
 const blur = () => view?.contentDOM.blur()
+
+// 语音输入相关
+const voiceInputMode = ref<VoiceInputMode>('hold')
+const voiceInputLanguage = ref('zh-CN')
+const settingsStore = useSettingsStore()
+
+const handleVoiceResult = (text: string) => {
+  insertText(text)
+}
+
+const handleVoiceError = (message: string) => {
+  console.warn('语音输入错误:', message)
+}
 
 onMounted(() => { createEditor() })
 onUnmounted(() => { view?.destroy() })

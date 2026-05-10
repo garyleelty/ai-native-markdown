@@ -73,7 +73,6 @@ const emit = defineEmits<{
 }>()
 
 const { status, isSupported, startListening, stopListening } = useVoiceInput({
-  mode: props.mode,
   language: props.language,
   onResult: (text: string, isFinal: boolean) => {
     if (isFinal) {
