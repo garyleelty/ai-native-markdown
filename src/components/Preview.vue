@@ -176,13 +176,13 @@ onMounted(() => {
 .preview-container {
   height: 100%;
   overflow: hidden;
-  background: var(--bg-primary);
+  background: var(--bg-base);
 }
 
 .preview-content {
   height: 100%;
   overflow-y: auto;
-  padding: 36px 48px 80px;
+  padding: var(--space-8) var(--space-10);
   max-width: 820px;
   margin: 0 auto;
 }
@@ -199,7 +199,7 @@ onMounted(() => {
 .markdown-body h4, .markdown-body h5, .markdown-body h6 {
   margin-top: 1.8em;
   margin-bottom: 0.65em;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.35;
   color: var(--text-primary);
   letter-spacing: -0.03em;
@@ -207,7 +207,7 @@ onMounted(() => {
 }
 
 .markdown-body h1 {
-  font-size: 1.85em;
+  font-size: 20px;
   padding-bottom: 0.35em;
 }
 .markdown-body h1::after {
@@ -217,23 +217,24 @@ onMounted(() => {
   bottom: 0;
   width: 60px;
   height: 3px;
-  background: linear-gradient(90deg, var(--accent), transparent);
+  background: linear-gradient(90deg, var(--accent-primary), transparent);
   border-radius: 2px;
 }
 
 .markdown-body h2 {
-  font-size: 1.5em;
+  font-size: 16px;
   padding-bottom: 0.3em;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .markdown-body h3 {
-  font-size: 1.25em;
-  color: var(--text-subtext1);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 .markdown-body h4 {
   font-size: 1.08em;
-  color: var(--text-subtext1);
+  color: var(--text-secondary);
 }
 
 .markdown-body h1:first-child, .markdown-body h2:first-child,
@@ -246,7 +247,7 @@ onMounted(() => {
   text-decoration: none;
   margin-right: 0.4em;
   opacity: 0;
-  transition: opacity var(--transition-fast);
+  transition: opacity var(--duration-fast) var(--ease-default);
   cursor: pointer;
 }
 .markdown-body h1:hover .header-anchor,
@@ -264,20 +265,20 @@ onMounted(() => {
 }
 
 .markdown-body strong {
-  color: var(--accent);
+  color: var(--accent-primary);
   font-weight: 650;
 }
 
 .markdown-body em {
-  color: var(--text-subtext1);
+  color: var(--text-secondary);
   font-style: italic;
 }
 
 .markdown-body a {
-  color: var(--accent);
+  color: var(--accent-primary);
   text-decoration: none;
   position: relative;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .markdown-body a::after {
   content: '';
@@ -286,8 +287,8 @@ onMounted(() => {
   left: 0;
   width: 0;
   height: 1.5px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-mauve));
-  transition: width var(--transition-smooth);
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-mauve));
+  transition: width var(--duration-slow) var(--ease-default);
   border-radius: 1px;
 }
 .markdown-body a:hover::after {
@@ -306,8 +307,8 @@ onMounted(() => {
 }
 
 .markdown-body code {
-  background: var(--bg-surface0);
-  color: var(--accent);
+  background: var(--bg-surface);
+  color: var(--accent-primary);
   padding: 2.5px 7px;
   border-radius: 5px;
   font-family: var(--font-mono);
@@ -318,7 +319,7 @@ onMounted(() => {
 }
 
 .markdown-body pre {
-  background: var(--bg-mantle);
+  background: var(--bg-elevated);
   padding: 18px 22px;
   border-radius: var(--radius-md);
   overflow-x: auto;
@@ -358,7 +359,7 @@ onMounted(() => {
   line-height: 1.7;
 }
 .markdown-body li::marker {
-  color: var(--accent);
+  color: var(--accent-primary);
   font-weight: 600;
 }
 
@@ -367,7 +368,7 @@ onMounted(() => {
   padding-left: 0;
 }
 .markdown-body .task-list-item input[type="checkbox"] {
-  accent-color: var(--accent);
+  accent-color: var(--accent-primary);
   width: 16px;
   height: 16px;
   cursor: pointer;
@@ -376,7 +377,7 @@ onMounted(() => {
 }
 
 .markdown-body blockquote {
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--accent-primary);
   padding: 0.6em 1.2em;
   margin: 1.3em 0;
   color: var(--text-secondary);
@@ -402,7 +403,7 @@ onMounted(() => {
   transform: translate(-50%, -50%);
   color: var(--text-muted);
   font-size: 1.2em;
-  background: var(--bg-primary);
+  background: var(--bg-base);
   padding: 0 12px;
 }
 
@@ -427,7 +428,7 @@ onMounted(() => {
   border-right: none;
 }
 .markdown-body th {
-  background: var(--bg-mantle);
+  background: var(--bg-elevated);
   font-weight: 600;
   color: var(--text-primary);
   font-size: 0.85em;
@@ -448,7 +449,7 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   margin: 1.3em 0;
   box-shadow: var(--shadow-md);
-  transition: transform var(--transition-smooth), box-shadow var(--transition-smooth);
+  transition: transform var(--duration-slow) var(--ease-default), box-shadow var(--duration-slow) var(--ease-default);
 }
 .markdown-body img:hover {
   transform: scale(1.01);
@@ -456,7 +457,7 @@ onMounted(() => {
 }
 
 .markdown-body .mermaid {
-  background: var(--bg-tertiary);
+  background: var(--bg-deep);
   padding: 18px 22px;
   border-radius: var(--radius-md);
   margin: 1.4em 0;
@@ -480,7 +481,7 @@ onMounted(() => {
 
 .current-line {
   background: var(--accent-soft-hover);
-  border-radius: var(--radius-xs);
-  transition: background var(--transition-fast);
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease-default);
 }
 </style>

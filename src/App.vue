@@ -3,7 +3,13 @@
     <!-- 标题栏 -->
     <header class="app-header">
       <div class="header-left">
-        <button class="toolbar-btn" @click="toggleSidebar" :class="{ active: settingsStore.showSidebar }" title="侧边栏">
+        <button 
+          class="icon-btn" 
+          @click="toggleSidebar" 
+          :class="{ active: settingsStore.showSidebar }" 
+          title="侧边栏 (Cmd/Ctrl+Shift+E)"
+          aria-label="切换侧边栏"
+        >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
         </button>
         <div class="app-brand">
@@ -15,21 +21,44 @@
         <span v-if="editorStore.currentFile" class="current-file">{{ editorStore.currentFile.split('/').pop() }}</span>
       </div>
       <div class="header-right">
-        <button class="toolbar-btn" @click="toggleAIPanel" :class="{ active: settingsStore.showAIPanel }" title="AI 助手">
+        <button 
+          class="icon-btn" 
+          @click="toggleAIPanel" 
+          :class="{ active: settingsStore.showAIPanel }" 
+          title="AI 助手 (Cmd/Ctrl+Shift+A)"
+          aria-label="切换 AI 面板"
+        >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v1a1 1 0 001 1h1a4 4 0 010 8h-1a1 1 0 00-1 1v1a4 4 0 01-8 0v-1a1 1 0 00-1-1H6a4 4 0 010-8h1a1 1 0 001-1V6a4 4 0 014-4z"/></svg>
         </button>
-        <button class="toolbar-btn" @click="cycleViewMode" :class="{ active: editorStore.viewMode !== 'source' }" title="切换视图">
+        <button 
+          class="icon-btn" 
+          @click="cycleViewMode" 
+          :class="{ active: editorStore.viewMode !== 'source' }" 
+          title="切换视图 (Cmd/Ctrl+1/2/3)"
+          aria-label="切换视图模式"
+        >
           <svg v-if="editorStore.viewMode === 'split'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
           <svg v-else-if="editorStore.viewMode === 'preview'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
         </button>
         
         <!-- 导出菜单 -->
-        <div class="toolbar-btn export-btn" @click="toggleExportMenu" :class="{ active: showExportMenu }" title="导出文档">
+        <div 
+          class="icon-btn export-btn" 
+          @click="toggleExportMenu" 
+          :class="{ active: showExportMenu }" 
+          title="导出文档"
+          aria-label="导出文档"
+        >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </div>
         
-        <button class="toolbar-btn" @click="toggleTheme" title="切换主题">
+        <button 
+          class="icon-btn" 
+          @click="toggleTheme" 
+          title="切换主题"
+          aria-label="切换主题"
+        >
           <svg v-if="isDark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
           <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         </button>
@@ -69,11 +98,11 @@
               @click="editorStore.switchTab(tab.id)"
             >
               <span class="tab-name">{{ tab.fileName }}</span>
-              <button class="tab-close" @click.stop="handleCloseTab(tab.id)">×</button>
+              <button class="tab-close" @click.stop="handleCloseTab(tab.id)" aria-label="关闭标签页">×</button>
             </div>
           </div>
 
-          <!-- Obsidian 风格分栏：编辑器 + 预览在一起 -->
+          <!-- 分栏视图 -->
           <div class="split-view">
             <div class="split-editor" v-if="editorStore.viewMode !== 'preview'" :style="editorStore.viewMode === 'split' ? { width: settingsStore.splitRatio + '%' } : { width: '100%' }">
               <Editor 
@@ -133,13 +162,18 @@
       <span class="status-item" :class="saveStatusClass" v-if="saveStatusMessage">
         {{ saveStatusMessage }}
       </span>
-      <span class="status-item" v-if="editorStore.isModified">● 未保存</span>
-      <span class="status-item" v-else>✓ 已保存</span>
+      <span class="status-item" :class="{ 'status-unsaved': editorStore.isModified }">
+        <span v-if="editorStore.isModified" class="unsaved-dot"></span>
+        {{ editorStore.isModified ? '未保存' : '已保存' }}
+      </span>
       <span class="status-item view-mode-indicator" @click="cycleViewMode" title="点击切换视图">
         {{ editorStore.viewMode === 'split' ? '分栏' : editorStore.viewMode === 'source' ? '源码' : '预览' }}
       </span>
       <span class="status-item">{{ editorContent.length }} 字符</span>
-      <span class="status-item ai-status" v-if="settingsStore.showAIPanel">AI 已启用</span>
+      <span class="status-item ai-status" v-if="settingsStore.showAIPanel">
+        <span class="ai-pulse-dot"></span>
+        AI 已启用
+      </span>
     </footer>
   </div>
 </template>
@@ -168,12 +202,7 @@ const editorContent = computed({
   set: (value: string) => editorStore.setContent(value)
 })
 
-const isDark = computed(() => {
-  const { theme } = settingsStore
-  if (theme === 'dark') return true
-  if (theme === 'light') return false
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
-})
+const isDark = computed(() => settingsStore.isDark())
 
 const toggleSidebar = () => { settingsStore.toggleSidebar() }
 const toggleAIPanel = () => { settingsStore.toggleAIPanel() }
@@ -184,15 +213,7 @@ const cycleViewMode = () => {
   editorStore.setViewMode(modes[(idx + 1) % modes.length])
 }
 
-const toggleTheme = () => {
-  const themes: ('dark' | 'light' | 'system')[] = ['dark', 'light', 'system']
-  const currentIndex = themes.indexOf(settingsStore.theme)
-  const nextTheme = themes[(currentIndex + 1) % themes.length]
-  settingsStore.setTheme(nextTheme)
-  
-  document.documentElement.classList.toggle('light', nextTheme === 'light' || 
-    (nextTheme === 'system' && !window.matchMedia('(prefers-color-scheme: dark)').matches))
-}
+const toggleTheme = () => { settingsStore.toggleTheme() }
 
 const toggleExportMenu = () => {
   showExportMenu.value = !showExportMenu.value
@@ -274,16 +295,15 @@ const saveCurrentFile = async () => {
   
   if (success) {
     editorStore.markSaved()
-    saveStatusMessage.value = '✓ 保存成功'
+    saveStatusMessage.value = '保存成功'
     saveStatusClass.value = 'status-saved'
     
-    // 3秒后清除成功提示
     setTimeout(() => {
       saveStatusMessage.value = ''
       saveStatusClass.value = ''
     }, 3000)
   } else {
-    saveStatusMessage.value = '✗ 保存失败'
+    saveStatusMessage.value = '保存失败'
     saveStatusClass.value = 'status-error'
   }
 }
@@ -326,7 +346,7 @@ const handleResize = (event: MouseEvent) => {
   
   if (resizing === 'sidebar') {
     const diff = event.clientX - startPos.x
-    settingsStore.setSidebarWidth(Math.max(200, Math.min(420, startSize.w + diff)))
+    settingsStore.setSidebarWidth(Math.max(240, Math.min(400, startSize.w + diff)))
   } else if (resizing === 'split') {
     const editorArea = document.querySelector('.split-view') as HTMLElement
     if (editorArea) {
@@ -353,13 +373,7 @@ onMounted(() => {
   }, 500)
   
   editorStore.setContent('')
-  
-  const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  if (settingsStore.theme === 'system') {
-    document.documentElement.classList.toggle('light', !systemTheme)
-  } else {
-    document.documentElement.classList.toggle('light', settingsStore.theme === 'light')
-  }
+  settingsStore.applyTheme()
 })
 
 onUnmounted(() => { stopResize() })
@@ -374,9 +388,10 @@ onUnmounted(() => { stopResize() })
   background: var(--bg-base);
 }
 
+/* ── 标题栏 ── */
 .app-header {
-  height: 44px;
-  background: var(--bg-mantle);
+  height: 48px;
+  background: var(--bg-elevated);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
@@ -385,12 +400,12 @@ onUnmounted(() => { stopResize() })
   flex-shrink: 0;
   -webkit-app-region: drag;
   position: relative;
-  z-index: 50;
+  z-index: 20;
 }
 .header-left, .header-right {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
   -webkit-app-region: no-drag;
 }
 .header-center {
@@ -404,58 +419,64 @@ onUnmounted(() => { stopResize() })
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--accent);
+  color: var(--accent-primary);
   margin-left: var(--space-2);
 }
 .brand-text {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
 }
 
 .current-file {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-secondary);
   background: var(--bg-surface);
-  padding: 3px 12px;
-  border-radius: var(--radius-sm);
+  padding: 4px 12px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .current-file:hover {
   color: var(--text-primary);
-  border-color: var(--accent);
+  border-color: var(--accent-primary);
 }
 
-.toolbar-btn {
-  width: 28px;
-  height: 28px;
+/* ── 图标按钮 ── */
+.icon-btn {
+  width: 32px;
+  height: 32px;
   background: none;
   border: 1px solid transparent;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
-.toolbar-btn:hover {
-  color: var(--text-secondary);
+.icon-btn:hover {
+  color: var(--text-primary);
   background: var(--bg-hover);
 }
-.toolbar-btn.active {
-  color: var(--accent);
+.icon-btn:active {
+  transform: scale(0.97);
+  background: var(--bg-active);
+}
+.icon-btn.active {
+  color: var(--accent-primary);
   background: var(--accent-soft);
-  border-color: var(--accent);
+  border-color: var(--accent-primary);
 }
 
+/* ── 主内容区域 ── */
 .main-content {
   flex: 1;
   display: flex;
@@ -464,12 +485,13 @@ onUnmounted(() => { stopResize() })
   background: var(--bg-base);
 }
 
+/* ── 侧边栏 ── */
 .sidebar-panel {
-  background: var(--bg-mantle);
+  background: var(--bg-elevated);
   overflow: hidden;
   flex-shrink: 0;
   position: relative;
-  transition: width var(--transition-smooth), opacity 0.2s;
+  transition: width var(--duration-slower) var(--ease-spring), opacity var(--duration-normal) var(--ease-default);
   border-right: 1px solid var(--border-subtle);
 }
 .sidebar-panel.collapsed {
@@ -478,6 +500,7 @@ onUnmounted(() => { stopResize() })
   opacity: 0;
 }
 
+/* ── 编辑器容器 ── */
 .editor-container-main {
   flex: 1;
   overflow: hidden;
@@ -492,13 +515,14 @@ onUnmounted(() => { stopResize() })
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: all var(--transition-smooth);
+  transition: all var(--duration-slower) var(--ease-spring);
 }
 
+/* ── 标签页 ── */
 .tabs-bar {
   display: flex;
   align-items: center;
-  background: var(--bg-mantle);
+  background: var(--bg-elevated);
   border-bottom: 1px solid var(--border-subtle);
   padding: 0 var(--space-3);
   gap: var(--space-1);
@@ -509,11 +533,11 @@ onUnmounted(() => { stopResize() })
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 5px 10px;
-  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   background: transparent;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
   min-width: 80px;
   max-width: 180px;
   border-bottom: 2px solid transparent;
@@ -522,18 +546,12 @@ onUnmounted(() => { stopResize() })
 .tab-item:hover {
   background: var(--bg-hover);
 }
+.tab-item:hover .tab-name {
+  color: var(--text-primary);
+}
 .tab-item.active {
   background: var(--bg-base);
-  color: var(--text-primary);
-  border-bottom-color: var(--accent);
-}
-.tab-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  border-bottom-color: var(--accent-primary);
 }
 .tab-item.active .tab-name {
   color: var(--text-primary);
@@ -544,9 +562,17 @@ onUnmounted(() => { stopResize() })
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent-primary);
   margin-left: var(--space-2);
   vertical-align: middle;
+}
+.tab-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tab-close {
   background: none;
@@ -554,11 +580,16 @@ onUnmounted(() => { stopResize() })
   color: var(--text-muted);
   cursor: pointer;
   padding: 2px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-size: 14px;
   line-height: 1;
   opacity: 0;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .tab-item:hover .tab-close {
   opacity: 1;
@@ -568,6 +599,7 @@ onUnmounted(() => { stopResize() })
   color: var(--text-primary);
 }
 
+/* ── AI 面板 ── */
 .ai-panel-section {
   height: v-bind(settingsStore.aiPanelHeight + 'px');
   min-height: 120px;
@@ -603,18 +635,18 @@ onUnmounted(() => { stopResize() })
   background: var(--border-subtle);
   border-radius: 2px;
   opacity: 0;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .resize-handle-top:hover::before {
   opacity: 1;
-  background: var(--accent);
+  background: var(--accent-primary);
 }
 
 .ai-slide-up-enter-active {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition: all var(--duration-slower) var(--ease-spring) !important;
 }
 .ai-slide-up-leave-active {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition: all var(--duration-slow) var(--ease-default) !important;
 }
 .ai-slide-up-enter-from,
 .ai-slide-up-leave-to {
@@ -623,23 +655,7 @@ onUnmounted(() => { stopResize() })
   transform: translateY(8px);
 }
 
-.ai-status {
-  color: var(--accent) !important;
-  font-weight: 500 !important;
-  opacity: 1 !important;
-}
-.ai-status::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  margin-right: var(--space-2);
-  vertical-align: middle;
-  animation: pulse-dot 2s ease-in-out infinite;
-}
-
+/* ── 分栏视图 ── */
 .split-view {
   display: flex;
   height: 100%;
@@ -649,7 +665,7 @@ onUnmounted(() => { stopResize() })
   flex-shrink: 0;
   overflow: hidden;
   height: 100%;
-  transition: width 0.15s ease;
+  transition: width var(--duration-normal) var(--ease-default);
 }
 .split-preview {
   flex: 1;
@@ -667,7 +683,7 @@ onUnmounted(() => { stopResize() })
   position: relative;
   z-index: 15;
   background: var(--bg-base);
-  transition: background var(--transition-fast);
+  transition: background var(--duration-fast) var(--ease-default);
 }
 .split-divider:hover {
   background: var(--accent-soft);
@@ -677,25 +693,29 @@ onUnmounted(() => { stopResize() })
   height: 40px;
   background: var(--border-subtle);
   border-radius: 1px;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .split-divider:hover .split-divider-line {
   height: 60px;
-  background: var(--accent);
+  background: var(--accent-primary);
   width: 2px;
 }
 
+/* ── 视图模式指示器 ── */
 .view-mode-indicator {
   cursor: pointer;
-  padding: 1px 8px;
-  border-radius: var(--radius-xs);
-  transition: all var(--transition-fast);
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  transition: all var(--duration-fast) var(--ease-default);
+  font-size: 11px;
+  font-weight: 500;
 }
 .view-mode-indicator:hover {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-primary);
 }
 
+/* ── 调整大小手柄 ── */
 .resize-handle {
   position: absolute;
   top: 0;
@@ -703,7 +723,7 @@ onUnmounted(() => { stopResize() })
   width: 6px;
   cursor: col-resize;
   z-index: 20;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .resize-handle::before {
   content: '';
@@ -715,18 +735,19 @@ onUnmounted(() => { stopResize() })
   background: var(--border-subtle);
   border-radius: 2px;
   opacity: 0;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .resize-handle:hover::before {
   opacity: 1;
-  background: var(--accent);
+  background: var(--accent-primary);
 }
 .resize-handle-right { right: -3px; }
 .resize-handle-left { left: -3px; }
 
+/* ── 状态栏 ── */
 .status-bar {
-  height: 26px;
-  background: var(--bg-mantle);
+  height: 28px;
+  background: var(--bg-elevated);
   border-top: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
@@ -736,31 +757,56 @@ onUnmounted(() => { stopResize() })
   gap: var(--space-4);
   flex-shrink: 0;
   position: relative;
-  z-index: 40;
+  z-index: 20;
 }
 .status-item {
-  opacity: 0.75;
   font-weight: 500;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
   cursor: default;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 .status-item:hover {
   color: var(--text-secondary);
-  opacity: 1;
 }
 .status-item.status-saving {
-  color: var(--accent-blue);
-  opacity: 1;
-  animation: pulse 1s ease-in-out infinite;
+  color: var(--info);
+  animation: pulse 1.5s ease-in-out infinite;
 }
 .status-item.status-saved {
-  color: var(--accent-green);
-  opacity: 1;
+  color: var(--success);
 }
 .status-item.status-error {
-  color: var(--accent-red);
-  opacity: 1;
+  color: var(--error);
   animation: shake 0.3s ease-in-out;
+}
+.status-unsaved {
+  color: var(--warning);
+}
+.unsaved-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warning);
+  display: inline-block;
+}
+
+.ai-status {
+  color: var(--accent-primary);
+  font-weight: 500;
+}
+.ai-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  display: inline-block;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+.status-spacer {
+  flex: 1;
 }
 
 @keyframes pulse {
@@ -773,56 +819,58 @@ onUnmounted(() => { stopResize() })
   25% { transform: translateX(-3px); }
   75% { transform: translateX(3px); }
 }
-.status-spacer {
-  flex: 1;
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
-/* 导出菜单 */
+/* ── 导出菜单 ── */
 .export-menu {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 100;
+  z-index: 40;
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding-top: 50px;
+  padding-top: 54px;
 }
 .export-menu-content {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: var(--space-2);
-  min-width: 180px;
-  animation: dropdownIn 0.15s ease-out;
+  min-width: 200px;
+  animation: dropdownIn var(--duration-normal) var(--ease-enter);
 }
 .export-menu-title {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 1px;
-  padding: 5px 10px;
+  letter-spacing: 0.08em;
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
   margin-bottom: var(--space-1);
 }
 .export-option {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   width: 100%;
-  padding: 7px 10px;
+  padding: var(--space-3) var(--space-3);
   background: none;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
   text-align: left;
 }
 .export-option:hover {
@@ -834,11 +882,11 @@ onUnmounted(() => { stopResize() })
   flex-shrink: 0;
 }
 .export-option:hover svg {
-  color: var(--accent);
+  color: var(--accent-primary);
 }
 .dropdown-enter-active,
 .dropdown-leave-active {
-  transition: opacity 0.15s ease;
+  transition: opacity var(--duration-normal) var(--ease-default);
 }
 .dropdown-enter-from,
 .dropdown-leave-to {
@@ -848,8 +896,27 @@ onUnmounted(() => { stopResize() })
   from { opacity: 0; transform: translateY(-4px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+
+/* ── 响应式 ── */
+@media (max-width: 768px) {
+  .app-header {
+    height: 44px;
+    padding: 0 var(--space-3);
+  }
+  .brand-text {
+    display: none;
+  }
+  .current-file {
+    max-width: 120px;
+    font-size: 12px;
+    padding: 2px 8px;
+  }
+  .status-bar {
+    padding: 0 var(--space-3);
+    gap: var(--space-3);
+  }
+  .status-item:not(.view-mode-indicator):not(:first-child) {
+    display: none;
+  }
 }
 </style>

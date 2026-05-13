@@ -1,141 +1,88 @@
 :root {
   /* ═══════════════════════════════════════════════════
-     深色主题 — 精致专业风
-     设计哲学: 工具的美感，功能性优雅
+     Design System Tokens - Modern Dark Cinema
+     基于 UI-UX-REDESIGN.md 规范
      ═══════════════════════════════════════════════════ */
 
   /* ── 背景层 ── */
-  --bg-base: #0d0d0f;
-  --bg-mantle: #121214;
-  --bg-crust: #0a0a0c;
-  --bg-surface: #1a1a1e;
-  --bg-elevated: #222228;
-  --bg-hover: #2a2a32;
-  --bg-active: #32323c;
+  --bg-deep: #020203;
+  --bg-base: #0A0A0C;
+  --bg-elevated: #141418;
+  --bg-surface: #1C1C22;
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active: rgba(255, 255, 255, 0.08);
 
   /* ── 文字层 ── */
-  --text-primary: #e8e8ec;
-  --text-secondary: #a0a0a8;
-  --text-muted: #6c6c78;
-  --text-disabled: #4a4a54;
+  --text-primary: #EDEDEF;
+  --text-secondary: #9CA3AF;
+  --text-muted: #6B7280;
+  --text-disabled: #4B5563;
 
   /* ── 强调色 ── */
-  --accent: #7c9ef8;
-  --accent-hover: #9ab4ff;
-  --accent-soft: rgba(124, 158, 248, 0.12);
-  --accent-soft-hover: rgba(124, 158, 248, 0.18);
-  --accent-glow: rgba(124, 158, 248, 0.25);
+  --accent-primary: #818CF8;
+  --accent-secondary: #6366F1;
+  --accent-glow: rgba(129, 140, 248, 0.15);
+  --accent-gradient: linear-gradient(135deg, #818CF8, #A78BFA);
 
   /* ── 功能色 ── */
-  --success: #4ade80;
-  --warning: #fbbf24;
-  --error: #f87171;
-  --info: #60a5fa;
+  --success: #34D399;
+  --warning: #FBBF24;
+  --error: #F87171;
+  --info: #60A5FA;
 
-  /* ── 兼容旧变量名 ── */
-  --bg-primary: var(--bg-base);
-  --bg-secondary: var(--bg-mantle);
-  --bg-tertiary: var(--bg-crust);
-  --border-color: rgba(255, 255, 255, 0.06);
+  /* ── 边框 ── */
   --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-focus: var(--accent);
+  --border-default: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.16);
 
-  /* ── 旧版兼容色 ── */
-  --bg-surface0: var(--bg-surface);
-  --bg-surface1: var(--bg-elevated);
-  --bg-surface2: var(--bg-hover);
-  --bg-overlay0: var(--text-muted);
-  --bg-overlay1: var(--text-secondary);
-  --text: var(--text-primary);
-  --text-subtext0: var(--text-secondary);
-  --text-subtext1: var(--text-secondary);
-  --text-overlay0: var(--text-muted);
-  --accent-blue: var(--accent);
-  --accent-green: var(--success);
-  --accent-red: var(--error);
-  --accent-yellow: var(--warning);
-  --accent-mauve: #a78bfa;
-  --accent-peach: #fb923c;
-  --accent-teal: #2dd4bf;
-  --accent-pink: #f472b6;
-  --accent-lavender: #a78bfa;
-
-  /* ── 阴影系统 ── */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 12px var(--accent-glow);
-  --shadow-glow-strong: 0 0 20px var(--accent-glow);
-
-  /* ── 圆角系统 ── */
-  --radius-xs: 4px;
+  /* ── 圆角 ── */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
-  --radius-xl: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
 
-  /* ── 间距系统 ── */
-  --space-1: 2px;
-  --space-2: 4px;
-  --space-3: 8px;
-  --space-4: 12px;
-  --space-5: 16px;
+  /* ── 间距 ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
   --space-6: 24px;
-  --space-7: 32px;
+  --space-8: 32px;
+  --space-10: 40px;
 
-  /* ── 过渡动画 ── */
-  --transition-fast: 0.15s ease-out;
-  --transition: 0.2s ease-in-out;
-  --transition-smooth: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  /* ── 阴影 ── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px rgba(129, 140, 248, 0.15);
 
-  /* ── 字体系统 ── */
+  /* ── 动效曲线 ── */
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* ── 动效时长 ── */
+  --duration-instant: 0ms;
+  --duration-fast: 100ms;
+  --duration-normal: 150ms;
+  --duration-slow: 200ms;
+  --duration-slower: 300ms;
+  --duration-enter: 250ms;
+
+  /* ── 字体 ── */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', Consolas, monospace;
-}
 
-/* ═══════════════════════════════════════════════════
-   亮色主题
-   ═══════════════════════════════════════════════════ */
-:root.light {
-  /* ── 背景层 ── */
-  --bg-base: #f5f5f7;
-  --bg-mantle: #eaeaec;
-  --bg-crust: #e0e0e4;
-  --bg-surface: #ffffff;
-  --bg-elevated: #f0f0f2;
-  --bg-hover: #e4e4e8;
-  --bg-active: #dcdcde;
-
-  /* ── 文字层 ── */
-  --text-primary: #1a1a1e;
-  --text-secondary: #5a5a64;
-  --text-muted: #8a8a94;
-  --text-disabled: #b0b0b8;
-
-  /* ── 强调色 ── */
-  --accent: #5b7fd4;
-  --accent-hover: #7c9ef8;
-  --accent-soft: rgba(91, 127, 212, 0.10);
-  --accent-soft-hover: rgba(91, 127, 212, 0.15);
-  --accent-glow: rgba(91, 127, 212, 0.20);
-
-  /* ── 功能色 ── */
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --error: #ef4444;
-  --info: #3b82f6;
-
-  /* ── 兼容旧变量名 ── */
+  /* ── 旧版兼容变量 ── */
+  --bg-mantle: var(--bg-elevated);
+  --bg-crust: var(--bg-deep);
   --bg-primary: var(--bg-base);
-  --bg-secondary: var(--bg-mantle);
-  --bg-tertiary: var(--bg-crust);
-  --border-color: rgba(0, 0, 0, 0.08);
-  --border-subtle: rgba(0, 0, 0, 0.08);
-  --border-focus: var(--accent);
-
-  /* ── 旧版兼容色 ── */
+  --bg-secondary: var(--bg-elevated);
+  --bg-tertiary: var(--bg-deep);
   --bg-surface0: var(--bg-surface);
   --bg-surface1: var(--bg-elevated);
   --bg-surface2: var(--bg-hover);
@@ -145,24 +92,141 @@
   --text-subtext0: var(--text-secondary);
   --text-subtext1: var(--text-secondary);
   --text-overlay0: var(--text-muted);
-  --accent-blue: var(--accent);
+  --accent: var(--accent-primary);
+  --accent-hover: #A5B4FC;
+  --accent-soft: rgba(129, 140, 248, 0.12);
+  --accent-soft-hover: rgba(129, 140, 248, 0.18);
+  --accent-glow-strong: rgba(129, 140, 248, 0.25);
+  --accent-blue: var(--accent-primary);
   --accent-green: var(--success);
   --accent-red: var(--error);
   --accent-yellow: var(--warning);
-  --accent-mauve: #8b5cf6;
-  --accent-peach: #f97316;
-  --accent-teal: #14b8a6;
-  --accent-pink: #ec4899;
-  --accent-lavender: #8b5cf6;
-
-  /* ── 阴影系统 ── */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.10);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.14);
-  --shadow-glow: 0 0 12px var(--accent-glow);
+  --accent-mauve: #A78BFA;
+  --accent-peach: #FB923C;
+  --accent-teal: #2DD4BF;
+  --accent-pink: #F472B6;
+  --accent-lavender: #A78BFA;
+  --border-color: var(--border-subtle);
+  --border-focus: var(--accent-primary);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
   --shadow-glow-strong: 0 0 20px var(--accent-glow);
+  --radius-xs: 4px;
+  --space-7: 32px;
+  --transition-fast: 0.15s ease-out;
+  --transition: 0.2s ease-in-out;
+  --transition-smooth: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ═══════════════════════════════════════════════════
+   浅色主题
+   ═══════════════════════════════════════════════════ */
+:root.light {
+  /* ── 背景层 ── */
+  --bg-deep: #F3F4F6;
+  --bg-base: #FFFFFF;
+  --bg-elevated: #F9FAFB;
+  --bg-surface: #FFFFFF;
+  --bg-hover: rgba(0, 0, 0, 0.03);
+  --bg-active: rgba(0, 0, 0, 0.06);
+
+  /* ── 文字层 ── */
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
+  --text-muted: #9CA3AF;
+  --text-disabled: #D1D5DB;
+
+  /* ── 强调色 ── */
+  --accent-primary: #4F46E5;
+  --accent-secondary: #4338CA;
+  --accent-glow: rgba(79, 70, 229, 0.15);
+  --accent-gradient: linear-gradient(135deg, #4F46E5, #7C3AED);
+
+  /* ── 功能色 ── */
+  --success: #10B981;
+  --warning: #F59E0B;
+  --error: #EF4444;
+  --info: #3B82F6;
+
+  /* ── 边框 ── */
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-default: #E5E7EB;
+  --border-strong: #D1D5DB;
+
+  /* ── 阴影 ── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
+  --shadow-glow: 0 0 20px rgba(79, 70, 229, 0.12);
+
+  /* ── 旧版兼容 ── */
+  --bg-mantle: var(--bg-elevated);
+  --bg-crust: var(--bg-deep);
+  --bg-primary: var(--bg-base);
+  --bg-secondary: var(--bg-elevated);
+  --bg-tertiary: var(--bg-deep);
+  --accent: var(--accent-primary);
+  --accent-hover: #6366F1;
+  --accent-soft: rgba(79, 70, 229, 0.10);
+  --accent-soft-hover: rgba(79, 70, 229, 0.15);
+  --accent-glow-strong: rgba(79, 70, 229, 0.20);
+  --accent-blue: var(--accent-primary);
+  --accent-green: var(--success);
+  --accent-red: var(--error);
+  --accent-yellow: var(--warning);
+  --border-color: var(--border-subtle);
+  --border-focus: var(--accent-primary);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12);
+}
+
+/* ── 系统主题适配 ── */
+@media (prefers-color-scheme: light) {
+  :root:not(.dark):not(.light) {
+    --bg-deep: #F3F4F6;
+    --bg-base: #FFFFFF;
+    --bg-elevated: #F9FAFB;
+    --bg-surface: #FFFFFF;
+    --bg-hover: rgba(0, 0, 0, 0.03);
+    --bg-active: rgba(0, 0, 0, 0.06);
+    --text-primary: #111827;
+    --text-secondary: #4B5563;
+    --text-muted: #9CA3AF;
+    --text-disabled: #D1D5DB;
+    --accent-primary: #4F46E5;
+    --accent-secondary: #4338CA;
+    --accent-glow: rgba(79, 70, 229, 0.15);
+    --accent-gradient: linear-gradient(135deg, #4F46E5, #7C3AED);
+    --success: #10B981;
+    --warning: #F59E0B;
+    --error: #EF4444;
+    --info: #3B82F6;
+    --border-subtle: rgba(0, 0, 0, 0.06);
+    --border-default: #E5E7EB;
+    --border-strong: #D1D5DB;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
+    --shadow-glow: 0 0 20px rgba(79, 70, 229, 0.12);
+    --bg-mantle: var(--bg-elevated);
+    --bg-crust: var(--bg-deep);
+    --bg-primary: var(--bg-base);
+    --bg-secondary: var(--bg-elevated);
+    --bg-tertiary: var(--bg-deep);
+    --accent: var(--accent-primary);
+    --accent-hover: #6366F1;
+    --accent-soft: rgba(79, 70, 229, 0.10);
+    --accent-soft-hover: rgba(79, 70, 229, 0.15);
+    --accent-glow-strong: rgba(79, 70, 229, 0.20);
+    --accent-blue: var(--accent-primary);
+    --accent-green: var(--success);
+    --accent-red: var(--error);
+    --accent-yellow: var(--warning);
+    --border-color: var(--border-subtle);
+    --border-focus: var(--accent-primary);
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12);
+  }
 }
 
 * {
@@ -191,8 +255,8 @@ html, body {
 
 /* ── 滚动条 ── */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -201,7 +265,7 @@ html, body {
 
 ::-webkit-scrollbar-thumb {
   background: var(--bg-hover);
-  border-radius: 4px;
+  border-radius: 3px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
@@ -209,10 +273,6 @@ html, body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--bg-active);
   background-clip: padding-box;
-}
-
-::-webkit-scrollbar-thumb:horizontal {
-  border-width: 3px 2px;
 }
 
 /* ── 选中文字 ── */
@@ -224,7 +284,7 @@ html, body {
 
 /* ── 全局焦点样式 ── */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
 }
 
@@ -234,62 +294,7 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ── 系统主题适配 ── */
-@media (prefers-color-scheme: light) {
-  :root:not(.dark):not(.light) {
-    --bg-base: #f5f5f7;
-    --bg-mantle: #eaeaec;
-    --bg-crust: #e0e0e4;
-    --bg-surface: #ffffff;
-    --bg-elevated: #f0f0f2;
-    --bg-hover: #e4e4e8;
-    --bg-active: #dcdcde;
-    --text-primary: #1a1a1e;
-    --text-secondary: #5a5a64;
-    --text-muted: #8a8a94;
-    --text-disabled: #b0b0b8;
-    --accent: #5b7fd4;
-    --accent-hover: #7c9ef8;
-    --accent-soft: rgba(91, 127, 212, 0.10);
-    --accent-soft-hover: rgba(91, 127, 212, 0.15);
-    --accent-glow: rgba(91, 127, 212, 0.20);
-    --success: #22c55e;
-    --warning: #f59e0b;
-    --error: #ef4444;
-    --info: #3b82f6;
-    --bg-primary: var(--bg-base);
-    --bg-secondary: var(--bg-mantle);
-    --bg-tertiary: var(--bg-crust);
-    --border-color: rgba(0, 0, 0, 0.08);
-    --border-subtle: rgba(0, 0, 0, 0.08);
-    --border-focus: var(--accent);
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.10);
-    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
-    --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.14);
-    --shadow-glow: 0 0 12px var(--accent-glow);
-    --shadow-glow-strong: 0 0 20px var(--accent-glow);
-  }
-}
-
-/* ── 响应式 ── */
-@media (max-width: 1200px) {
-  :root {
-    --sidebar-width: 220px;
-  }
-}
-
-@media (max-width: 768px) {
-  :root {
-    --sidebar-width: 0px;
-  }
-  ::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
-  }
-}
-
+/* ── 响应式工具类 ── */
 .mobile-hidden {
   display: block;
 }
@@ -309,5 +314,20 @@ button {
   }
   .desktop-hidden {
     display: block !important;
+  }
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+}
+
+/* ── 减少动效偏好 ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

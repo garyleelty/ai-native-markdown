@@ -756,9 +756,9 @@ const readFile = async (filePath: string): Promise<string> => {
   if (!isTauri) return ''
   try { return await invoke('read_file', { path: filePath }) as string } catch { return '' }
 }
-const saveFile = async (filePath: string, content: string) => {
-  if (!isTauri) return
-  try { await invoke('write_file', { path: filePath, content }) } catch {}
+const saveFile = async (filePath: string, content: string): Promise<boolean> => {
+  if (!isTauri) return false
+  try { await invoke('write_file', { path: filePath, content }); return true } catch { return false }
 }
 
 onMounted(() => {
@@ -804,7 +804,7 @@ defineExpose({ readFile, saveFile })
   align-items: center;
   padding: var(--space-3) 0;
   gap: var(--space-1);
-  background: var(--bg-crust);
+  background: var(--bg-deep);
   border-right: 1px solid var(--border-subtle);
 }
 .nav-btn {
@@ -816,9 +816,9 @@ defineExpose({ readFile, saveFile })
   border: none;
   background: transparent;
   color: var(--text-muted);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
   position: relative;
 }
 .nav-btn::before {
@@ -829,16 +829,16 @@ defineExpose({ readFile, saveFile })
   transform: translateY(-50%);
   width: 3px;
   height: 0;
-  background: var(--accent);
+  background: var(--accent-primary);
   border-radius: 0 3px 3px 0;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .nav-btn:hover {
-  color: var(--text-secondary);
+  color: var(--accent-primary);
   background: var(--bg-hover);
 }
 .nav-btn.active {
-  color: var(--accent);
+  color: var(--accent-primary);
   background: var(--accent-soft);
 }
 .nav-btn.active::before {
@@ -868,10 +868,10 @@ defineExpose({ readFile, saveFile })
   flex-shrink: 0;
 }
 .panel-title {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-muted);
-  letter-spacing: 1.5px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .panel-actions {
@@ -886,11 +886,11 @@ defineExpose({ readFile, saveFile })
   border: 1px solid transparent;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .panel-action:hover {
   color: var(--text-secondary);
@@ -907,13 +907,13 @@ defineExpose({ readFile, saveFile })
   align-items: center;
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
   gap: var(--space-2);
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .search-input-wrapper:focus-within {
-  border-color: var(--accent);
+  border-color: var(--accent-primary);
   box-shadow: var(--shadow-glow);
 }
 .search-icon {
@@ -940,8 +940,8 @@ defineExpose({ readFile, saveFile })
   font-size: 16px;
   line-height: 1;
   padding: 0 var(--space-2);
-  border-radius: var(--radius-xs);
-  transition: all var(--transition-fast);
+  border-radius: var(--radius-sm);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .search-clear:hover {
   color: var(--text-primary);
@@ -953,14 +953,14 @@ defineExpose({ readFile, saveFile })
   color: var(--text-muted);
   cursor: pointer;
   padding: var(--space-1);
-  border-radius: var(--radius-xs);
-  transition: all var(--transition-fast);
+  border-radius: var(--radius-sm);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .search-toggle:hover {
   color: var(--text-secondary);
 }
 .search-toggle.active {
-  color: var(--accent);
+  color: var(--accent-primary);
   background: var(--accent-soft);
 }
 .search-mode-hint {
@@ -989,7 +989,7 @@ defineExpose({ readFile, saveFile })
   padding: var(--space-3);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
   margin-bottom: var(--space-1);
 }
 .search-result-item:hover {
@@ -1046,7 +1046,7 @@ defineExpose({ readFile, saveFile })
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
-  margin-top: var(--space-7);
+  margin-top: var(--space-8);
   padding: 0 var(--space-4);
 }
 .empty-prompt svg {
@@ -1075,15 +1075,15 @@ defineExpose({ readFile, saveFile })
   background: var(--bg-surface);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-3);
   font-size: 12px;
   font-family: var(--font-mono);
   outline: none;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .path-input:focus {
-  border-color: var(--accent);
+  border-color: var(--accent-primary);
   box-shadow: var(--shadow-glow);
 }
 .path-input::placeholder {
@@ -1097,12 +1097,12 @@ defineExpose({ readFile, saveFile })
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent);
+  background: var(--accent-primary);
   color: #fff;
   border: none;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .path-go-btn:hover:not(:disabled) {
   background: var(--accent-hover);
@@ -1127,15 +1127,15 @@ defineExpose({ readFile, saveFile })
   background: var(--bg-surface);
   color: var(--text-secondary);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .browse-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
   background: var(--accent-soft);
 }
 
@@ -1154,7 +1154,7 @@ defineExpose({ readFile, saveFile })
   height: 6px;
   border-radius: 50%;
   background: var(--text-muted);
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .connection-status.connected .status-dot {
   background: var(--success);
@@ -1194,7 +1194,7 @@ defineExpose({ readFile, saveFile })
   align-items: center;
 }
 .temp-val {
-  color: var(--accent);
+  color: var(--accent-primary);
   font-weight: 700;
   font-size: 11px;
 }
@@ -1211,21 +1211,21 @@ defineExpose({ readFile, saveFile })
   background: var(--bg-surface);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
   font-size: 12px;
   outline: none;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
   font-family: var(--font-mono);
 }
 .config-select:focus,
 .config-input:focus {
-  border-color: var(--accent);
+  border-color: var(--accent-primary);
   box-shadow: var(--shadow-glow);
 }
 .config-range {
   width: 100%;
-  accent-color: var(--accent);
+  accent-color: var(--accent-primary);
   height: 4px;
 }
 .config-actions {
@@ -1244,7 +1244,7 @@ defineExpose({ readFile, saveFile })
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .test-btn {
   background: var(--bg-surface);
@@ -1252,15 +1252,15 @@ defineExpose({ readFile, saveFile })
   border: 1px solid var(--border-subtle);
 }
 .test-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 .test-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 .save-btn {
-  background: var(--accent);
+  background: var(--accent-primary);
   color: #fff;
 }
 .save-btn:hover {
@@ -1292,7 +1292,7 @@ defineExpose({ readFile, saveFile })
   width: 12px;
   height: 12px;
   border: 2px solid var(--border-subtle);
-  border-top-color: var(--accent);
+  border-top-color: var(--accent-primary);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
   display: inline-block;
@@ -1312,7 +1312,7 @@ defineExpose({ readFile, saveFile })
   align-items: center;
   justify-content: space-between;
   padding: var(--space-3) var(--space-4);
-  transition: background var(--transition-fast);
+  transition: background var(--duration-fast) var(--ease-default);
 }
 .setting-row:hover {
   background: var(--bg-hover);
@@ -1340,19 +1340,19 @@ defineExpose({ readFile, saveFile })
   border: 1px solid var(--border-subtle);
   background: var(--bg-surface);
   color: var(--text-muted);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
   flex-shrink: 0;
 }
 .toggle-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 .toggle-btn.dark {
   background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 .settings-divider {
   height: 1px;
@@ -1372,12 +1372,12 @@ defineExpose({ readFile, saveFile })
   padding: var(--space-4);
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
 }
 .about-brand {
   font-size: 14px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-primary);
   margin-bottom: var(--space-1);
 }
 .about-version {

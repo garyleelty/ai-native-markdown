@@ -24,7 +24,28 @@ export const useSettingsStore = defineStore('settings', () => {
   const voiceInputMode = ref<VoiceInputMode>((localStorage.getItem('voice_input_mode') as VoiceInputMode) || 'hold')
   const voiceInputLanguage = ref(localStorage.getItem('voice_input_language') || 'zh-CN')
 
-  const setTheme = (mode: ThemeMode) => { theme.value = mode }
+  const isDark = () => {
+    if (theme.value === 'dark') return true
+    if (theme.value === 'light') return false
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  }
+
+  const applyTheme = () => {
+    const dark = isDark()
+    document.documentElement.classList.toggle('light', !dark)
+    document.documentElement.classList.toggle('dark', dark)
+  }
+
+  const setTheme = (mode: ThemeMode) => {
+    theme.value = mode
+    applyTheme()
+  }
+
+  const toggleTheme = () => {
+    const themes: ThemeMode[] = ['dark', 'light', 'system']
+    const idx = themes.indexOf(theme.value)
+    setTheme(themes[(idx + 1) % themes.length])
+  }
 
   const updateAIConfig = (config: Partial<AIConfig>) => {
     aiConfig.value = { ...aiConfig.value, ...config }
@@ -51,7 +72,7 @@ export const useSettingsStore = defineStore('settings', () => {
     theme, aiConfig, sidebarWidth, aiPanelHeight,
     showSidebar, showAIPanel, activeSidebarTab, splitRatio,
     voiceInputMode, voiceInputLanguage,
-    setTheme, updateAIConfig, toggleSidebar, toggleAIPanel, setActiveTab,
+    isDark, applyTheme, setTheme, toggleTheme, updateAIConfig, toggleSidebar, toggleAIPanel, setActiveTab,
     setSidebarWidth, setAIPanelHeight, setSplitRatio,
     setVoiceInputMode, setVoiceInputLanguage
   }

@@ -219,6 +219,7 @@ watch(messages, scrollToBottom, { deep: true })
   align-items: center;
   justify-content: space-between;
   padding: var(--space-3) var(--space-4);
+  background: var(--bg-elevated);
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
@@ -238,7 +239,7 @@ watch(messages, scrollToBottom, { deep: true })
   color: var(--text-muted);
   background: var(--bg-surface);
   padding: 2px 8px;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono);
 }
 .chat-clear {
@@ -248,11 +249,11 @@ watch(messages, scrollToBottom, { deep: true })
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .chat-clear:hover {
   color: var(--error);
@@ -293,37 +294,39 @@ watch(messages, scrollToBottom, { deep: true })
 }
 .chat-message.assistant .message-avatar {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-primary);
 }
 .message-content {
   max-width: calc(100% - 36px);
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  border-left: 3px solid var(--accent-primary);
   font-size: 13px;
   line-height: 1.6;
   color: var(--text-primary);
 }
 .chat-message.user .message-content {
-  background: var(--accent-soft);
+  background: var(--bg-surface);
   color: var(--text-primary);
+  border-radius: var(--radius-lg);
 }
 .message-text :deep(pre) {
-  background: var(--bg-mantle);
+  background: var(--bg-elevated);
   padding: var(--space-3);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   overflow-x: auto;
   font-size: 12px;
   margin: var(--space-2) 0;
   border: 1px solid var(--border-subtle);
 }
 .message-text :deep(code) {
-  background: var(--bg-mantle);
+  background: var(--bg-elevated);
   padding: 2px 5px;
   border-radius: 3px;
   font-size: 12px;
   font-family: var(--font-mono);
-  color: var(--accent);
+  color: var(--accent-primary);
 }
 .message-actions {
   display: flex;
@@ -339,14 +342,14 @@ watch(messages, scrollToBottom, { deep: true })
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
 }
 .message-actions button:hover {
-  color: var(--accent);
+  color: var(--accent-primary);
   background: var(--bg-hover);
 }
 .typing-indicator {
@@ -358,7 +361,7 @@ watch(messages, scrollToBottom, { deep: true })
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--text-muted);
+  background: var(--accent-primary);
   animation: typing 1.4s infinite ease-in-out both;
 }
 .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
@@ -380,20 +383,20 @@ watch(messages, scrollToBottom, { deep: true })
 }
 .chat-input {
   flex: 1;
-  background: var(--bg-surface);
+  background: var(--bg-elevated);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
   font-size: 13px;
   resize: none;
   outline: none;
   font-family: var(--font-sans);
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
   min-height: 40px;
 }
 .chat-input:focus {
-  border-color: var(--accent);
+  border-color: var(--accent-primary);
   box-shadow: var(--shadow-glow);
 }
 .chat-input::placeholder {
@@ -405,16 +408,19 @@ watch(messages, scrollToBottom, { deep: true })
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent);
+  background: var(--accent-primary);
   color: #fff;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast) var(--ease-default);
   flex-shrink: 0;
 }
 .chat-send:hover:not(:disabled) {
   background: var(--accent-hover);
+}
+.chat-send:active:not(:disabled) {
+  transform: scale(0.97);
 }
 .chat-send:disabled {
   opacity: 0.4;

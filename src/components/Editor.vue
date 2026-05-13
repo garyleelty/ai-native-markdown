@@ -1,465 +1,407 @@
 <template>
   <div class="editor-wrapper">
-    <!-- 工具栏 -->
-    <div class="editor-toolbar" :class="{ collapsed: toolbarCollapsed }">
+    <div class="editor-container" ref="editorContainer"></div>
+    <div class="editor-toolbar">
       <div class="toolbar-inner">
         <div class="toolbar-group">
-          <button class="tool-btn" @click="wrapSelection('**', '**')" title="粗体 (Ctrl+B)">
+          <button class="tool-btn" @click="wrapSelection('**', '**')" title="粗体 (Ctrl+B)" aria-label="粗体">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 014 4 4 4 0 01-4 4H6z"/><path d="M6 12h9a4 4 0 014 4 4 4 0 01-4 4H6z"/></svg>
           </button>
-          <button class="tool-btn" @click="wrapSelection('*', '*')" title="斜体 (Ctrl+I)">
+          <button class="tool-btn" @click="wrapSelection('*', '*')" title="斜体 (Ctrl+I)" aria-label="斜体">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>
           </button>
-          <button class="tool-btn" @click="wrapSelection('~~', '~~')" title="删除线">
+          <button class="tool-btn" @click="wrapSelection('~~', '~~')" title="删除线" aria-label="删除线">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
           </button>
         </div>
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
-          <button class="tool-btn" @click="insertLine('# ')" title="H1">
+          <button class="tool-btn" @click="insertLine('# ')" title="H1" aria-label="一级标题">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17 12h3"/><path d="M17 18V6"/></svg>
           </button>
-          <button class="tool-btn" @click="insertLine('## ')" title="H2">
+          <button class="tool-btn" @click="insertLine('## ')" title="H2" aria-label="二级标题">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M21 18h-4c0-4 4-3 4-6 0-1.5-2-2.5-4-1"/></svg>
           </button>
-          <button class="tool-btn" @click="insertLine('### ')" title="H3">
+          <button class="tool-btn" @click="insertLine('### ')" title="H3" aria-label="三级标题">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17.5 10.5c1.7-1 3.5 0 3.5 1.5a2 2 0 01-2 2"/><path d="M17 17v4"/><path d="M21 17v4"/></svg>
           </button>
         </div>
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
-          <button class="tool-btn" @click="wrapSelection('`', '`')" title="行内代码">
+          <button class="tool-btn" @click="wrapSelection('`', '`')" title="行内代码" aria-label="行内代码">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
           </button>
-          <button class="tool-btn" @click="wrapSelection('```\n', '\n```')" title="代码块">
+          <button class="tool-btn" @click="wrapSelection('```\n', '\n```')" title="代码块" aria-label="代码块">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
           </button>
-          <button class="tool-btn" @click="wrapSelection('> ', '')" title="引用">
+          <button class="tool-btn" @click="wrapSelection('> ', '')" title="引用" aria-label="引用">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/></svg>
           </button>
         </div>
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
-          <button class="tool-btn" @click="wrapSelection('- ', '')" title="无序列表">
+          <button class="tool-btn" @click="wrapSelection('- ', '')" title="无序列表" aria-label="无序列表">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
           </button>
-          <button class="tool-btn" @click="wrapSelection('1. ', '')" title="有序列表">
+          <button class="tool-btn" @click="wrapSelection('1. ', '')" title="有序列表" aria-label="有序列表">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>
           </button>
-          <button class="tool-btn" @click="wrapSelection('- [ ] ', '')" title="任务列表">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><rect x="3" y="3" width="4" height="4" rx="1"/><rect x="3" y="10" width="4" height="4" rx="1"/><rect x="3" y="17" width="4" height="4" rx="1"/></svg>
-          </button>
-        </div>
-        <div class="toolbar-divider"></div>
-        <div class="toolbar-group">
-          <button class="tool-btn" @click="wrapSelection('[', '](url)')" title="链接">
+          <button class="tool-btn" @click="insertLink" title="链接" aria-label="链接">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
           </button>
-          <button class="tool-btn" @click="wrapSelection('![alt](', ')')" title="图片">
+          <button class="tool-btn" @click="insertImage" title="图片" aria-label="图片">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           </button>
-          <button class="tool-btn" @click="wrapSelection('---\n', '')" title="分割线">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-        </div>
-        <div class="toolbar-divider"></div>
-        <div class="toolbar-group">
-          <button class="tool-btn" @click="wrapSelection('|  |  |\n| --- | --- |\n|  |  |', '')" title="表格">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-          </button>
-          <button class="tool-btn" @click="wrapSelection('$$\n', '\n$$')" title="公式">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
-          </button>
-        </div>
-        <div class="toolbar-divider"></div>
-        <div class="toolbar-group">
-          <VoiceInputButton
-            :mode="voiceInputMode"
-            :language="voiceInputLanguage"
-            @result="handleVoiceResult"
-            @error="handleVoiceError"
-          />
         </div>
       </div>
-      <button class="toolbar-toggle" @click="toolbarCollapsed = !toolbarCollapsed" :title="toolbarCollapsed ? '展开工具栏' : '收起工具栏'">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
-      </button>
     </div>
-    <!-- 编辑器 -->
-    <div class="editor-container" ref="editorContainer"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { EditorState } from '@codemirror/state'
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, rectangularSelection } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
+import { ref, onMounted, onBeforeUnmount, watch, shallowRef } from 'vue'
+import { EditorView, keymap, placeholder } from '@codemirror/view'
+import { EditorState, Compartment } from '@codemirror/state'
+import { markdown } from '@codemirror/lang-markdown'
 import { oneDark } from '@codemirror/theme-one-dark'
-import { syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching, foldGutter, indentUnit } from '@codemirror/language'
-import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
-import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
-import VoiceInputButton from './ui/VoiceInputButton.vue'
-import { useSettingsStore } from '@/stores'
-import type { VoiceInputMode } from '@/types'
+import { basicSetup } from 'codemirror'
+import { indentWithTab } from '@codemirror/commands'
 
 interface Props {
   modelValue?: string
 }
-const props = withDefaults(defineProps<Props>(), { modelValue: '' })
+
+const props = withDefaults(defineProps<Props>(), {
+  modelValue: ''
+})
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: string): void
-  (e: 'update', value: string): void
-  (e: 'cursor-change', line: number): void
-  (e: 'outline-change', headings: { level: number; text: string; from: number; to: number }[]): void
-  (e: 'selection-change', text: string): void
+  'update:modelValue': [value: string]
+  update: [content: string]
+  'cursor-change': [line: number]
 }>()
 
 const editorContainer = ref<HTMLElement>()
-let view: EditorView | null = null
-const toolbarCollapsed = ref(false)
+const editorView = shallowRef<EditorView>()
+const readOnlyCompartment = new Compartment()
+let ignoreNextUpdate = false
 
 const createEditor = () => {
-  const updateListener = EditorView.updateListener.of((update) => {
-    if (update.docChanged) {
-      const content = update.state.doc.toString()
-      emit('update:modelValue', content)
-      emit('update', content)
-      const headings: { level: number; text: string; from: number; to: number }[] = []
-      const text = content
-      const lines = text.split('\n')
-      let pos = 0
-      for (const line of lines) {
-        const match = line.match(/^(#{1,6})\s+(.+)$/)
-        if (match) {
-          headings.push({
-            level: match[1].length,
-            text: match[2].trim(),
-            from: pos,
-            to: pos + line.length
-          })
-        }
-        pos += line.length + 1
-      }
-      emit('outline-change', headings)
-    }
-    if (update.selectionSet) {
-      const pos = update.state.selection.main.head
-      emit('cursor-change', update.state.doc.lineAt(pos).number)
-      const { from, to } = update.state.selection.main
-      emit('selection-change', from === to ? '' : update.state.doc.sliceString(from, to))
-    }
-  })
+  if (!editorContainer.value) return
 
-  const state = EditorState.create({
+  const startState = EditorState.create({
     doc: props.modelValue,
     extensions: [
-      lineNumbers(),
-      highlightActiveLineGutter(),
-      history(),
-      foldGutter(),
-      indentOnInput(),
-      bracketMatching(),
-      closeBrackets(),
-      rectangularSelection(),
-      highlightActiveLine(),
-      highlightSelectionMatches(),
-      markdown({ base: markdownLanguage }),
+      basicSetup,
+      markdown(),
       oneDark,
-      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-      autocompletion(),
-      indentUnit.of('  '),
-      keymap.of([
-        ...closeBracketsKeymap,
-        ...defaultKeymap,
-        ...searchKeymap,
-        ...historyKeymap,
-        ...completionKeymap,
-      ]),
-      EditorView.lineWrapping,
-      updateListener,
+      keymap.of([indentWithTab]),
+      readOnlyCompartment.of(EditorState.readOnly.of(false)),
+      placeholder('开始写作...'),
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          const content = update.state.doc.toString()
+          ignoreNextUpdate = true
+          emit('update:modelValue', content)
+          emit('update', content)
+        }
+        if (update.selectionSet || update.docChanged) {
+          const pos = update.state.selection.main.head
+          const line = update.state.doc.lineAt(pos).number
+          emit('cursor-change', line)
+        }
+      }),
       EditorView.theme({
         '&': {
           height: '100%',
           fontSize: '14px',
-          backgroundColor: 'var(--bg-base)',
+          fontFamily: 'var(--font-mono)',
+          lineHeight: '1.8'
+        },
+        '.cm-content': {
+          fontFamily: 'var(--font-mono)',
+          lineHeight: '1.8',
+          padding: '16px 0'
+        },
+        '.cm-gutters': {
+          fontFamily: 'var(--font-mono)',
+          lineHeight: '1.8'
         },
         '.cm-scroller': {
           overflow: 'auto',
-          fontFamily: "var(--font-mono)",
-          lineHeight: '1.75',
-          backgroundColor: 'var(--bg-base)',
-        },
-        '.cm-content': {
-          padding: '28px 40px 80px',
-          caretColor: 'var(--accent)',
-          backgroundColor: 'var(--bg-base)',
-        },
-        '.cm-cursor': {
-          borderLeftColor: 'var(--accent)',
-          borderLeftWidth: '2px',
-          animation: 'cursorBlink 1.1s ease-in-out infinite',
-        },
-        '.cm-activeLine': {
-          backgroundColor: 'transparent !important',
-          boxShadow: 'inset 3px 0 0 var(--accent)',
-        },
-        '.cm-gutters': {
-          backgroundColor: 'var(--bg-base) !important',
-          borderRight: '1px solid var(--border-subtle)',
-          color: 'var(--text-muted)',
-          paddingLeft: '8px',
-        },
-        '.cm-activeLineGutter': {
-          backgroundColor: 'var(--bg-base) !important',
-          color: 'var(--accent) !important',
-          fontWeight: '600',
-        },
-        '.cm-lineNumbers .cm-gutterElement': {
-          fontSize: '12px',
-          minWidth: '40px',
-          padding: '0 8px',
-          fontFeatureSettings: '"tnum"',
+          fontFamily: 'var(--font-mono)'
         },
         '&.cm-focused': {
-          outline: 'none',
-        },
-        '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
-          background: 'var(--accent-soft-hover) !important',
-        },
-        '.cm-matchingBracket': {
-          backgroundColor: 'var(--accent-soft)',
-          outline: '1px solid var(--accent)',
-          outlineOffset: '-1px',
-          borderRadius: '2px',
-          color: 'var(--accent) !important',
-        },
-        '.cm-foldPlaceholder': {
-          backgroundColor: 'var(--accent-soft)',
-          color: 'var(--accent)',
-          border: '1px solid var(--accent)',
-          borderRadius: '4px',
-          padding: '0 4px',
-          cursor: 'pointer',
-        },
-        '.cm-foldGutter .cm-gutterElement': {
-          padding: '0 4px',
-          cursor: 'pointer',
-          opacity: 0.4,
-          transition: 'opacity 0.15s',
-        },
-        '.cm-foldGutter .cm-gutterElement:hover': {
-          opacity: 0.8,
-        },
-      }),
+          outline: 'none'
+        }
+      })
     ]
   })
 
-  if (editorContainer.value) {
-    view = new EditorView({ state, parent: editorContainer.value })
-  }
+  editorView.value = new EditorView({
+    state: startState,
+    parent: editorContainer.value
+  })
 }
 
-// 工具栏操作
+watch(() => props.modelValue, (newValue) => {
+  if (ignoreNextUpdate) {
+    ignoreNextUpdate = false
+    return
+  }
+  if (editorView.value && newValue !== editorView.value.state.doc.toString()) {
+    editorView.value.dispatch({
+      changes: {
+        from: 0,
+        to: editorView.value.state.doc.length,
+        insert: newValue
+      }
+    })
+  }
+})
+
 const wrapSelection = (before: string, after: string) => {
-  if (!view) return
-  const { from, to } = view.state.selection.main
-  const selected = view.state.doc.sliceString(from, to)
-  const replacement = before + selected + after
-  view.dispatch({
-    changes: { from, to, insert: replacement },
-    selection: { anchor: from + before.length, head: from + before.length + selected.length }
-  })
+  if (!editorView.value) return
+  const { from, to } = editorView.value.state.selection.main
+  const selected = editorView.value.state.sliceDoc(from, to)
+  const hasSelection = selected.length > 0
+
+  if (hasSelection) {
+    const wrapped = before + selected + after
+    editorView.value.dispatch({
+      changes: { from, to, insert: wrapped },
+      selection: { anchor: from + before.length, head: from + before.length + selected.length }
+    })
+  } else {
+    editorView.value.dispatch({
+      changes: { from, to, insert: before + after },
+      selection: { anchor: from + before.length, head: from + before.length }
+    })
+  }
+  editorView.value.focus()
 }
 
 const insertLine = (prefix: string) => {
-  if (!view) return
-  const pos = view.state.selection.main.head
-  const line = view.state.doc.lineAt(pos)
-  const lineStart = line.from
-  const lineText = view.state.doc.sliceString(lineStart, line.to)
-  const newText = lineText.trim() ? prefix + lineText : prefix
-  view.dispatch({
-    changes: { from: lineStart, to: line.to, insert: newText },
-    selection: { anchor: lineStart + newText.length }
+  if (!editorView.value) return
+  const { from } = editorView.value.state.selection.main
+  const line = editorView.value.state.doc.lineAt(from)
+  const lineText = line.text
+  const hasContent = lineText.length > 0
+
+  if (hasContent) {
+    editorView.value.dispatch({
+      changes: { from: line.from, to: line.from, insert: prefix },
+      selection: { anchor: line.from + prefix.length }
+    })
+  } else {
+    editorView.value.dispatch({
+      changes: { from: line.from, to: line.to, insert: prefix },
+      selection: { anchor: line.from + prefix.length }
+    })
+  }
+  editorView.value.focus()
+}
+
+const insertLink = () => {
+  if (!editorView.value) return
+  const { from, to } = editorView.value.state.selection.main
+  const selected = editorView.value.state.sliceDoc(from, to)
+  const linkText = selected || '链接文字'
+  const insert = `[${linkText}](url)`
+
+  editorView.value.dispatch({
+    changes: { from, to, insert },
+    selection: { anchor: from + linkText.length + 3, head: from + linkText.length + 6 }
+  })
+  editorView.value.focus()
+}
+
+const insertImage = () => {
+  if (!editorView.value) return
+  const { from, to } = editorView.value.state.selection.main
+  const selected = editorView.value.state.sliceDoc(from, to)
+  const altText = selected || '图片描述'
+  const insert = `![${altText}](url)`
+
+  editorView.value.dispatch({
+    changes: { from, to, insert },
+    selection: { anchor: from + altText.length + 4, head: from + altText.length + 7 }
+  })
+  editorView.value.focus()
+}
+
+const setContent = (content: string) => {
+  if (!editorView.value) return
+  editorView.value.dispatch({
+    changes: {
+      from: 0,
+      to: editorView.value.state.doc.length,
+      insert: content
+    }
   })
 }
 
-const getContent = () => view?.state.doc.toString() || ''
-const setContent = (content: string) => {
-  if (view) {
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: content } })
-  }
-}
-const getCurrentLine = () => {
-  if (!view) return 0
-  return view.state.doc.lineAt(view.state.selection.main.head).number
-}
-const getCursorPosition = () => {
-  if (!view) return { line: 0, column: 0 }
-  const pos = view.state.selection.main.head
-  const line = view.state.doc.lineAt(pos)
-  return { line: line.number, column: pos - line.from }
-}
 const insertText = (text: string) => {
-  if (!view) return
-  const pos = view.state.selection.main.head
-  view.dispatch({ changes: { from: pos, insert: text }, selection: { anchor: pos + text.length } })
-}
-const getSelectedText = () => {
-  if (!view) return ''
-  const { from, to } = view.state.selection.main
-  return from === to ? '' : view.state.doc.sliceString(from, to)
-}
-const replaceSelection = (text: string) => {
-  if (!view) return
-  const { from, to } = view.state.selection.main
-  view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } })
-}
-const focus = () => view?.focus()
-const blur = () => view?.contentDOM.blur()
-
-// 语音输入相关
-const voiceInputMode = ref<VoiceInputMode>('hold')
-const voiceInputLanguage = ref('zh-CN')
-const settingsStore = useSettingsStore()
-
-const handleVoiceResult = (text: string) => {
-  insertText(text)
+  if (!editorView.value) return
+  const { from } = editorView.value.state.selection.main
+  editorView.value.dispatch({
+    changes: { from, insert: text },
+    selection: { anchor: from + text.length }
+  })
+  editorView.value.focus()
 }
 
-const handleVoiceError = (message: string) => {
-  console.warn('语音输入错误:', message)
+const getSelectedText = (): string => {
+  if (!editorView.value) return ''
+  const { from, to } = editorView.value.state.selection.main
+  return editorView.value.state.sliceDoc(from, to)
 }
 
-onMounted(() => { createEditor() })
-onUnmounted(() => { view?.destroy() })
-watch(() => props.modelValue, (newVal) => {
-  if (view && newVal !== getContent()) setContent(newVal)
+defineExpose({
+  setContent,
+  insertText,
+  getSelectedText
 })
 
-defineExpose({ getContent, setContent, getCurrentLine, getCursorPosition, insertText, getSelectedText, replaceSelection, focus, blur })
+onMounted(() => {
+  createEditor()
+})
+
+onBeforeUnmount(() => {
+  if (editorView.value) {
+    editorView.value.destroy()
+  }
+})
 </script>
 
 <style scoped>
 .editor-wrapper {
-  height: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  position: relative;
+  height: 100%;
+  background: var(--bg-base);
 }
 
-/* 工具栏 */
 .editor-toolbar {
-  background: var(--bg-mantle);
-  border-bottom: 1px solid var(--border-subtle);
-  flex-shrink: 0;
   display: flex;
   align-items: center;
-  transition: all var(--transition-smooth);
+  height: 40px;
+  min-height: 40px;
+  padding: 0 8px;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border-subtle);
   overflow: hidden;
-}
-.editor-toolbar.collapsed {
-  height: 0 !important;
-  border-bottom-color: transparent;
-}
-.editor-toolbar:not(.collapsed) {
-  height: 36px;
 }
 
 .toolbar-inner {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
+  gap: 2px;
   flex: 1;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.toolbar-inner::-webkit-scrollbar {
-  display: none;
+  overflow: hidden;
 }
 
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 2px;
 }
 
-/* 分隔线 */
 .toolbar-divider {
   width: 1px;
   height: 16px;
   background: var(--border-subtle);
-  margin: 0 var(--space-2);
+  margin: 0 4px;
   flex-shrink: 0;
 }
 
-/* 工具按钮 */
 .tool-btn {
-  width: 28px;
-  height: 28px;
-  background: none;
-  border: 1px solid transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: var(--radius-xs);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-default),
+              color var(--duration-fast) var(--ease-default),
+              transform var(--duration-fast) var(--ease-default);
   flex-shrink: 0;
 }
+
 .tool-btn:hover {
-  color: var(--text-secondary);
   background: var(--bg-hover);
+  color: var(--accent-primary);
 }
+
 .tool-btn:active {
+  transform: scale(0.97);
   background: var(--bg-active);
-  transform: scale(0.95);
 }
 
-/* 折叠按钮 */
-.toolbar-toggle {
-  width: 28px;
-  height: 28px;
-  background: none;
-  border: 1px solid transparent;
-  border-left: 1px solid var(--border-subtle);
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-fast);
-  flex-shrink: 0;
-  margin-left: var(--space-2);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-}
-.toolbar-toggle:hover {
-  color: var(--text-secondary);
-  background: var(--bg-hover);
-}
-.editor-toolbar.collapsed .toolbar-toggle svg {
-  transform: rotate(180deg);
+.tool-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
 }
 
-/* 编辑器容器 */
 .editor-container {
   flex: 1;
   overflow: hidden;
-  position: relative;
-}
-.editor-container :deep(.cm-editor) {
-  height: 100%;
 }
 
-/* 光标闪烁动画 */
-@keyframes cursorBlink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+.editor-container :deep(.cm-editor) {
+  height: 100%;
+  background: var(--bg-base);
+}
+
+.editor-container :deep(.cm-scroller) {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.editor-container :deep(.cm-content) {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.8;
+  caret-color: var(--accent-primary);
+}
+
+.editor-container :deep(.cm-gutters) {
+  background: var(--bg-base);
+  border-right: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.editor-container :deep(.cm-activeLineGutter) {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.editor-container :deep(.cm-activeLine) {
+  background: var(--bg-hover);
+}
+
+.editor-container :deep(.cm-selectionBackground) {
+  background: rgba(129, 140, 248, 0.2) !important;
+}
+
+.editor-container :deep(.cm-cursor) {
+  border-left-color: var(--accent-primary);
+}
+
+.editor-container :deep(.cm-foldGutter) {
+  color: var(--text-muted);
+}
+
+.editor-container :deep(.cm-placeholder) {
+  color: var(--text-muted);
+  font-style: italic;
 }
 </style>
