@@ -30,15 +30,14 @@
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v1a1 1 0 001 1h1a4 4 0 010 8h-1a1 1 0 00-1 1v1a4 4 0 01-8 0v-1a1 1 0 00-1-1H6a4 4 0 010-8h1a1 1 0 001-1V6a4 4 0 014-4z"/></svg>
         </button>
-        <button 
-          class="icon-btn" 
-          @click="cycleViewMode" 
-          :class="{ active: editorStore.viewMode !== 'source' }" 
-          title="切换视图 (Cmd/Ctrl+1/2/3)"
+        <button
+          class="icon-btn"
+          @click="cycleViewMode"
+          :class="{ active: editorStore.viewMode === 'preview' }"
+          title="切换视图 (Cmd/Ctrl+1/2)"
           aria-label="切换视图模式"
         >
-          <svg v-if="editorStore.viewMode === 'split'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-          <svg v-else-if="editorStore.viewMode === 'preview'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg v-if="editorStore.viewMode === 'preview'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
         </button>
         
@@ -102,21 +101,18 @@
             </div>
           </div>
 
-          <!-- 分栏视图 -->
-          <div class="split-view">
-            <div class="split-editor" v-if="editorStore.viewMode !== 'preview'" :style="editorStore.viewMode === 'split' ? { width: settingsStore.splitRatio + '%' } : { width: '100%' }">
-              <Editor 
+          <!-- 编辑器/预览视图 -->
+          <div class="editor-preview-view">
+            <div class="editor-panel" v-if="editorStore.viewMode === 'source'">
+              <Editor
                 ref="editorRef"
                 v-model="editorContent"
                 @update="handleEditorUpdate"
                 @cursor-change="handleCursorChange"
               />
             </div>
-            <div class="split-divider" v-if="editorStore.viewMode === 'split'" @mousedown="startResize('split', $event)">
-              <div class="split-divider-line"></div>
-            </div>
-            <div class="split-preview" v-if="editorStore.viewMode !== 'source'">
-              <Preview 
+            <div class="preview-panel" v-if="editorStore.viewMode === 'preview'">
+              <Preview
                 :content="editorContent"
                 :cursor-line="editorStore.cursorLine"
               />
@@ -167,7 +163,7 @@
         {{ editorStore.isModified ? '未保存' : '已保存' }}
       </span>
       <span class="status-item view-mode-indicator" @click="cycleViewMode" title="点击切换视图">
-        {{ editorStore.viewMode === 'split' ? '分栏' : editorStore.viewMode === 'source' ? '源码' : '预览' }}
+        {{ editorStore.viewMode === 'source' ? '源码' : '预览' }}
       </span>
       <span class="status-item">{{ editorContent.length }} 字符</span>
       <span class="status-item ai-status" v-if="settingsStore.showAIPanel">
@@ -208,7 +204,7 @@ const toggleSidebar = () => { settingsStore.toggleSidebar() }
 const toggleAIPanel = () => { settingsStore.toggleAIPanel() }
 
 const cycleViewMode = () => {
-  const modes: ('split' | 'source' | 'preview')[] = ['split', 'source', 'preview']
+  const modes: ('source' | 'preview')[] = ['source', 'preview']
   const idx = modes.indexOf(editorStore.viewMode)
   editorStore.setViewMode(modes[(idx + 1) % modes.length])
 }
@@ -322,18 +318,17 @@ const handleAIInsert = (text: string) => {
 
 let resizing = ''
 let startPos = { x: 0, y: 0 }
-let startSize = { w: 0, h: 0, ratio: 0 }
+let startSize = { w: 0, h: 0 }
 const startResize = (panel: string, event: MouseEvent) => {
   resizing = panel
   startPos.x = event.clientX
   startPos.y = event.clientY
   if (panel === 'sidebar') startSize.w = settingsStore.sidebarWidth
-  else if (panel === 'split') startSize.ratio = settingsStore.splitRatio
   else if (panel === 'aiPanel') startSize.h = settingsStore.aiPanelHeight
-  
+
   document.addEventListener('mousemove', handleResize)
   document.addEventListener('mouseup', stopResize)
-  
+
   if (panel === 'aiPanel') {
     document.body.style.cursor = 'row-resize'
   } else {
@@ -343,17 +338,10 @@ const startResize = (panel: string, event: MouseEvent) => {
 }
 const handleResize = (event: MouseEvent) => {
   if (!resizing) return
-  
+
   if (resizing === 'sidebar') {
     const diff = event.clientX - startPos.x
     settingsStore.setSidebarWidth(Math.max(240, Math.min(400, startSize.w + diff)))
-  } else if (resizing === 'split') {
-    const editorArea = document.querySelector('.split-view') as HTMLElement
-    if (editorArea) {
-      const rect = editorArea.getBoundingClientRect()
-      const ratio = ((event.clientX - rect.left) / rect.width) * 100
-      settingsStore.setSplitRatio(Math.max(25, Math.min(75, ratio)))
-    }
   } else if (resizing === 'aiPanel') {
     const diff = window.innerHeight - event.clientY - 70
     settingsStore.setAIPanelHeight(Math.max(140, Math.min(400, diff)))
@@ -655,50 +643,18 @@ onUnmounted(() => { stopResize() })
   transform: translateY(8px);
 }
 
-/* ── 分栏视图 ── */
-.split-view {
+/* ── 编辑器/预览视图 ── */
+.editor-preview-view {
   display: flex;
   height: 100%;
   overflow: hidden;
 }
-.split-editor {
-  flex-shrink: 0;
-  overflow: hidden;
-  height: 100%;
-  transition: width var(--duration-normal) var(--ease-default);
-}
-.split-preview {
+.editor-panel,
+.preview-panel {
   flex: 1;
   overflow: hidden;
   height: 100%;
   min-width: 0;
-}
-.split-divider {
-  width: 6px;
-  cursor: col-resize;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  z-index: 15;
-  background: var(--bg-base);
-  transition: background var(--duration-fast) var(--ease-default);
-}
-.split-divider:hover {
-  background: var(--accent-soft);
-}
-.split-divider-line {
-  width: 1px;
-  height: 40px;
-  background: var(--border-subtle);
-  border-radius: 1px;
-  transition: all var(--duration-fast) var(--ease-default);
-}
-.split-divider:hover .split-divider-line {
-  height: 60px;
-  background: var(--accent-primary);
-  width: 2px;
 }
 
 /* ── 视图模式指示器 ── */

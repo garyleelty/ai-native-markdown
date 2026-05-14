@@ -70,7 +70,7 @@ export interface Workspace {
   lastOpened: number
 }
 
-export type ViewMode = 'split' | 'source' | 'preview'
+export type ViewMode = 'source' | 'preview'
 export type ThemeMode = 'dark' | 'light' | 'system'
 export type SidebarTab = 'files' | 'search' | 'knowledge' | 'tasks' | 'settings'
 export type VoiceInputMode = 'hold' | 'toggle'

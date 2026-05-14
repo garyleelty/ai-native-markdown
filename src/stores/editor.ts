@@ -13,7 +13,7 @@ interface Tab {
 export const useEditorStore = defineStore('editor', () => {
   const content = ref('')
   const currentFile = ref('')
-  const viewMode = ref<ViewMode>('split')
+  const viewMode = ref<ViewMode>('source')
   const cursorLine = ref(0)
   const cursorColumn = ref(0)
   const isModified = ref(false)

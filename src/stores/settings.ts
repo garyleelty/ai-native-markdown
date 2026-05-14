@@ -20,7 +20,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const showSidebar = ref(true)
   const showAIPanel = ref(false)
   const activeSidebarTab = ref<SidebarTab>('files')
-  const splitRatio = ref(Number(localStorage.getItem('split_ratio') || 50))
   const voiceInputMode = ref<VoiceInputMode>((localStorage.getItem('voice_input_mode') as VoiceInputMode) || 'hold')
   const voiceInputLanguage = ref(localStorage.getItem('voice_input_language') || 'zh-CN')
 
@@ -42,7 +41,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   const toggleTheme = () => {
-    const themes: ThemeMode[] = ['dark', 'light', 'system']
+    const themes: ThemeMode[] = ['dark', 'light']
     const idx = themes.indexOf(theme.value)
     setTheme(themes[(idx + 1) % themes.length])
   }
@@ -56,7 +55,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const setActiveTab = (tab: SidebarTab) => { activeSidebarTab.value = tab }
   const setSidebarWidth = (width: number) => { sidebarWidth.value = width }
   const setAIPanelHeight = (height: number) => { aiPanelHeight.value = height }
-  const setSplitRatio = (ratio: number) => { splitRatio.value = ratio }
   const setVoiceInputMode = (mode: VoiceInputMode) => { voiceInputMode.value = mode }
   const setVoiceInputLanguage = (lang: string) => { voiceInputLanguage.value = lang }
 
@@ -64,16 +62,15 @@ export const useSettingsStore = defineStore('settings', () => {
   watch(aiConfig, (val) => { localStorage.setItem('ai_config', JSON.stringify(val)) }, { deep: true })
   watch(sidebarWidth, (val) => { localStorage.setItem('sidebar_width', String(val)) })
   watch(aiPanelHeight, (val) => { localStorage.setItem('ai_panel_height', String(val)) })
-  watch(splitRatio, (val) => { localStorage.setItem('split_ratio', String(val)) })
   watch(voiceInputMode, (val) => { localStorage.setItem('voice_input_mode', val) })
   watch(voiceInputLanguage, (val) => { localStorage.setItem('voice_input_language', val) })
 
   return {
     theme, aiConfig, sidebarWidth, aiPanelHeight,
-    showSidebar, showAIPanel, activeSidebarTab, splitRatio,
+    showSidebar, showAIPanel, activeSidebarTab,
     voiceInputMode, voiceInputLanguage,
     isDark, applyTheme, setTheme, toggleTheme, updateAIConfig, toggleSidebar, toggleAIPanel, setActiveTab,
-    setSidebarWidth, setAIPanelHeight, setSplitRatio,
+    setSidebarWidth, setAIPanelHeight,
     setVoiceInputMode, setVoiceInputLanguage
   }
 })
