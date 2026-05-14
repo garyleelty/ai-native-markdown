@@ -18,7 +18,7 @@
       <Transition name="fade" mode="out-in">
         <div v-if="activeTab === 'files'" class="panel panel-files">
           <div class="panel-header">
-            <span class="panel-title">EXPLORER</span>
+            <span class="panel-title">资源管理器</span>
             <div class="panel-actions" v-if="rootPath">
               <button class="panel-action" @click="handleCreateFile" title="新建文件">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -36,9 +36,6 @@
                 </svg>
               </button>
             </div>
-            <button v-else class="panel-action" @click="openFolder" title="浏览文件夹">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
-            </button>
           </div>
 
           <!-- 搜索框 -->
@@ -99,27 +96,39 @@
           </div>
 
           <div class="empty-prompt" v-else>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-            <p>打开文件夹开始</p>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" aria-hidden="true"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+            <p class="empty-title">选择工作区</p>
+            <p class="empty-desc">打开本地文件夹，在侧栏浏览与编辑 Markdown</p>
             <div class="open-actions">
-              <div class="path-input-group">
-                <input
-                  type="text"
-                  v-model="manualPath"
-                  class="path-input"
-                  placeholder="输入本地路径..."
-                  @keydown.enter="openPath"
-                  ref="pathInputRef"
-                />
-                <button class="path-go-btn" @click="openPath" :disabled="!manualPath.trim()" title="打开路径">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                </button>
-              </div>
-              <div class="path-error" v-if="pathError">{{ pathError }}</div>
-              <button class="browse-btn" @click="openFolder">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
-                浏览...
+              <button type="button" class="open-workspace-btn" @click="openFolder">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+                {{ isTauri ? '打开文件夹…' : '试用示例工作区' }}
               </button>
+              <p class="empty-hint-web" v-if="!isTauri">桌面版可使用系统对话框打开真实文件夹</p>
+              <template v-if="isTauri">
+                <button type="button" class="manual-path-toggle" @click="toggleManualPath">
+                  {{ showManualPath ? '收起手动路径' : '手动输入路径' }}
+                </button>
+                <div class="manual-path-block" v-show="showManualPath">
+                  <div class="path-input-group">
+                    <input
+                      type="text"
+                      v-model="manualPath"
+                      class="path-input"
+                      placeholder="文件夹绝对路径"
+                      autocomplete="off"
+                      spellcheck="false"
+                      aria-label="文件夹绝对路径"
+                      @keydown.enter="openPath"
+                      ref="pathInputRef"
+                    />
+                    <button type="button" class="path-go-btn" @click="openPath" :disabled="!manualPath.trim()" aria-label="打开此路径">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                    </button>
+                  </div>
+                  <div class="path-error" v-if="pathError">{{ pathError }}</div>
+                </div>
+              </template>
             </div>
           </div>
         </div>
@@ -245,7 +254,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import FileTreeNode from './FileTreeNode.vue'
 import { aiService, OpenAIProvider, OllamaProvider } from '../services/ai'
 import type { TreeNode } from '@/types'
@@ -278,6 +287,14 @@ const currentFilePath = ref('')
 const manualPath = ref('')
 const pathError = ref('')
 const pathInputRef = ref<HTMLInputElement | null>(null)
+const showManualPath = ref(false)
+
+const toggleManualPath = () => {
+  showManualPath.value = !showManualPath.value
+  if (showManualPath.value) {
+    nextTick(() => pathInputRef.value?.focus())
+  }
+}
 
 // 搜索相关
 const searchQuery = ref('')
@@ -419,6 +436,7 @@ const openPath = async () => {
       children
     }
     manualPath.value = ''
+    showManualPath.value = false
   } catch (error: any) {
     pathError.value = error?.toString?.() || '无法打开该路径，请检查路径是否正确'
     setTimeout(() => { pathError.value = '' }, 4000)
@@ -1052,11 +1070,28 @@ defineExpose({ readFile, saveFile })
 .empty-prompt svg {
   opacity: 0.3;
 }
-.empty-prompt p {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 500;
+.empty-title {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
   margin: 0;
+  text-align: center;
+}
+.empty-desc {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 0;
+  text-align: center;
+  max-width: 220px;
+}
+.empty-hint-web {
+  margin: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.4;
+  opacity: 0.85;
 }
 .open-actions {
   width: 100%;
@@ -1064,6 +1099,46 @@ defineExpose({ readFile, saveFile })
   flex-direction: column;
   gap: var(--space-3);
   margin-top: var(--space-2);
+}
+.open-workspace-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--accent-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-default);
+}
+.open-workspace-btn:hover {
+  background: var(--accent-hover);
+}
+.manual-path-toggle {
+  align-self: center;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.manual-path-toggle:hover {
+  color: var(--accent-primary);
+}
+.manual-path-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
 }
 .path-input-group {
   display: flex;
@@ -1116,27 +1191,6 @@ defineExpose({ readFile, saveFile })
   color: var(--error);
   padding: var(--space-1) 0;
   line-height: 1.4;
-}
-.browse-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  background: var(--bg-surface);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-default);
-}
-.browse-btn:hover {
-  border-color: var(--accent-primary);
-  color: var(--accent-primary);
-  background: var(--accent-soft);
 }
 
 /* ── AI 配置面板 ── */
