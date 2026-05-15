@@ -20,6 +20,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const showSidebar = ref(true)
   const showAIPanel = ref(false)
   const activeSidebarTab = ref<SidebarTab>('files')
+  const livePreview = ref(localStorage.getItem('live_preview') !== 'false')
   const voiceInputMode = ref<VoiceInputMode>((localStorage.getItem('voice_input_mode') as VoiceInputMode) || 'hold')
   const voiceInputLanguage = ref(localStorage.getItem('voice_input_language') || 'zh-CN')
 
@@ -52,6 +53,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const toggleSidebar = () => { showSidebar.value = !showSidebar.value }
   const toggleAIPanel = () => { showAIPanel.value = !showAIPanel.value }
+  const toggleLivePreview = () => { livePreview.value = !livePreview.value }
   const setActiveTab = (tab: SidebarTab) => { activeSidebarTab.value = tab }
   const setSidebarWidth = (width: number) => { sidebarWidth.value = width }
   const setAIPanelHeight = (height: number) => { aiPanelHeight.value = height }
@@ -62,14 +64,15 @@ export const useSettingsStore = defineStore('settings', () => {
   watch(aiConfig, (val) => { localStorage.setItem('ai_config', JSON.stringify(val)) }, { deep: true })
   watch(sidebarWidth, (val) => { localStorage.setItem('sidebar_width', String(val)) })
   watch(aiPanelHeight, (val) => { localStorage.setItem('ai_panel_height', String(val)) })
+  watch(livePreview, (val) => { localStorage.setItem('live_preview', String(val)) })
   watch(voiceInputMode, (val) => { localStorage.setItem('voice_input_mode', val) })
   watch(voiceInputLanguage, (val) => { localStorage.setItem('voice_input_language', val) })
 
   return {
     theme, aiConfig, sidebarWidth, aiPanelHeight,
-    showSidebar, showAIPanel, activeSidebarTab,
+    showSidebar, showAIPanel, activeSidebarTab, livePreview,
     voiceInputMode, voiceInputLanguage,
-    isDark, applyTheme, setTheme, toggleTheme, updateAIConfig, toggleSidebar, toggleAIPanel, setActiveTab,
+    isDark, applyTheme, setTheme, toggleTheme, updateAIConfig, toggleSidebar, toggleAIPanel, toggleLivePreview, setActiveTab,
     setSidebarWidth, setAIPanelHeight,
     setVoiceInputMode, setVoiceInputLanguage
   }

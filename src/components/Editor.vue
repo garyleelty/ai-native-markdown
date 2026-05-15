@@ -53,6 +53,18 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           </button>
         </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+          <button
+            class="tool-btn"
+            :class="{ active: settingsStore.livePreview }"
+            @click="toggleLivePreview"
+            title="实时预览"
+            aria-label="切换实时预览"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -66,6 +78,9 @@ import { markdown } from '@codemirror/lang-markdown'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { basicSetup } from 'codemirror'
 import { indentWithTab } from '@codemirror/commands'
+import { useSettingsStore } from '@/stores/settings'
+import { livePreviewPlugin } from '@/plugins/live-preview'
+import '@/plugins/live-preview/styles.css'
 
 interface Props {
   modelValue?: string
@@ -81,9 +96,12 @@ const emit = defineEmits<{
   'cursor-change': [line: number]
 }>()
 
+const settingsStore = useSettingsStore()
+
 const editorContainer = ref<HTMLElement>()
 const editorView = shallowRef<EditorView>()
 const readOnlyCompartment = new Compartment()
+const livePreviewCompartment = new Compartment()
 let ignoreNextUpdate = false
 
 const createEditor = () => {
@@ -97,6 +115,7 @@ const createEditor = () => {
       oneDark,
       keymap.of([indentWithTab]),
       readOnlyCompartment.of(EditorState.readOnly.of(false)),
+      livePreviewCompartment.of(settingsStore.livePreview ? livePreviewPlugin : []),
       placeholder('开始写作...'),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
@@ -257,6 +276,16 @@ const getSelectedText = (): string => {
   return editorView.value.state.sliceDoc(from, to)
 }
 
+const toggleLivePreview = () => {
+  settingsStore.toggleLivePreview()
+  if (!editorView.value) return
+  editorView.value.dispatch({
+    effects: livePreviewCompartment.reconfigure(
+      settingsStore.livePreview ? livePreviewPlugin : []
+    )
+  })
+}
+
 defineExpose({
   setContent,
   insertText,
@@ -345,6 +374,11 @@ onBeforeUnmount(() => {
 .tool-btn:focus-visible {
   outline: 2px solid var(--accent-primary);
   outline-offset: 1px;
+}
+
+.tool-btn.active {
+  color: var(--accent-primary);
+  background: var(--accent-soft);
 }
 
 .editor-container {
