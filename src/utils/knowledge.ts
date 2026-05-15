@@ -74,3 +74,55 @@ export function getAllTags(files: { path: string; content: string }[]): Map<stri
   }
   return tagMap
 }
+
+import type { GraphNode, GraphEdge, KnowledgeGraphData } from '@/types'
+
+export function buildKnowledgeGraph(
+  files: { path: string; content: string }[]
+): KnowledgeGraphData {
+  const graph = buildLinkGraph(files)
+  const tagMap = getAllTags(files)
+
+  const nodes: GraphNode[] = []
+  const edges: GraphEdge[] = []
+
+  for (const file of files) {
+    const name = file.path.split('/').pop()?.replace(/\.md$/, '') || ''
+    const outgoingCount = graph.get(file.path)?.size || 0
+    let incomingCount = 0
+    for (const targets of graph.values()) {
+      if (targets.has(file.path)) incomingCount++
+    }
+    const linkCount = outgoingCount + incomingCount
+
+    nodes.push({
+      id: file.path,
+      label: name,
+      path: file.path,
+      linkCount,
+      tags: [...new Set(
+        extractTags(file.content).map(t => t.name)
+      )],
+      isOrphan: linkCount === 0
+    })
+  }
+
+  for (const [source, targets] of graph) {
+    for (const target of targets) {
+      edges.push({ source, target, weight: 1 })
+    }
+  }
+
+  return {
+    nodes,
+    edges,
+    stats: {
+      totalNodes: nodes.length,
+      totalEdges: edges.length,
+      orphanCount: nodes.filter(n => n.isOrphan).length,
+      avgLinkCount: nodes.length > 0
+        ? Math.round((nodes.reduce((s, n) => s + n.linkCount, 0) / nodes.length) * 10) / 10
+        : 0
+    }
+  }
+}

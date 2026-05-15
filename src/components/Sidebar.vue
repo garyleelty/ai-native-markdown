@@ -5,6 +5,9 @@
       <button class="nav-btn" :class="{ active: activeTab === 'files' }" @click="activeTab = 'files'" title="文件">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
       </button>
+      <button class="nav-btn" :class="{ active: activeTab === 'graph' }" @click="activeTab = 'graph'" title="知识图谱">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><line x1="12" y1="10" x2="7.5" y2="7.5"/><line x1="12" y1="10" x2="16.5" y2="7.5"/><line x1="12" y1="14" x2="7.5" y2="16.5"/><line x1="12" y1="14" x2="16.5" y2="16.5"/></svg>
+      </button>
       <button class="nav-btn" :class="{ active: activeTab === 'ai' }" @click="activeTab = 'ai'" title="AI 配置">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v1a1 1 0 001 1h1a4 4 0 010 8h-1a1 1 0 00-1 1v1a4 4 0 01-8 0v-1a1 1 0 00-1-1H6a4 4 0 010-8h1a1 1 0 001-1V6a4 4 0 014-4z"/></svg>
       </button>
@@ -133,6 +136,28 @@
           </div>
         </div>
 
+        <div v-else-if="activeTab === 'graph'" class="panel panel-graph">
+          <div class="panel-header">
+            <span class="panel-title">知识图谱</span>
+          </div>
+          <div class="graph-panel-content" v-if="rootPath">
+            <KnowledgeGraph
+              v-if="graphData"
+              :graph-data="graphData"
+              @node-click="handleGraphNodeClick"
+            />
+            <div class="graph-loading" v-else-if="graphLoading">
+              <span class="mini-spinner"></span>
+              <span>加载中...</span>
+            </div>
+          </div>
+          <div class="empty-prompt" v-else>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><circle cx="12" cy="12" r="2"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><line x1="12" y1="10" x2="7.5" y2="7.5"/><line x1="12" y1="10" x2="16.5" y2="7.5"/></svg>
+            <p class="empty-title">打开工作区</p>
+            <p class="empty-desc">打开文件夹后可查看知识图谱</p>
+          </div>
+        </div>
+
         <!-- AI 配置面板 -->
         <div v-else-if="activeTab === 'ai'" class="panel panel-ai">
           <div class="panel-header">
@@ -254,9 +279,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import FileTreeNode from './FileTreeNode.vue'
-import { aiService, OpenAIProvider, OllamaProvider } from '../services/ai'
+import { KnowledgeGraph } from './knowledge'
+import { buildKnowledgeGraph } from '../utils/knowledge'
+import type { KnowledgeGraphData, GraphNode } from '../types'
+import { aiService, TauriAIProvider } from '../services/ai'
 import type { TreeNode } from '@/types'
 
 interface Props {
@@ -271,7 +299,7 @@ const emit = defineEmits<{
   (e: 'toggle-ai'): void
 }>()
 
-const activeTab = ref<'files' | 'ai' | 'settings'>('files')
+const activeTab = ref<'files' | 'graph' | 'ai' | 'settings'>('files')
 
 // ── 文件树逻辑 ──
 const isTauri = '__TAURI_INTERNALS__' in window
@@ -336,14 +364,14 @@ const handleSearchResultClick = (result: { file_path: string }) => {
 // 将扁平的目录项转换为树节点
 const entriesToTreeNodes = (entries: any[]): TreeNode[] => {
   return entries
-    .filter((e: any) => e.name.endsWith('.md') || e.name.endsWith('.markdown') || e.is_dir)
+    .filter((e: any) => e.name.endsWith('.md') || e.name.endsWith('.markdown') || e.is_dir === true)
     .map((e: any) => ({
       id: e.path,
       name: e.name,
       path: e.path,
-      isDirectory: e.is_dir,
+      isDirectory: e.is_dir === true,
       isMarkdown: e.name.endsWith('.md') || e.name.endsWith('.markdown'),
-      children: e.is_dir ? [] : undefined,
+      children: e.is_dir === true ? [] : undefined,
       isExpanded: false
     }))
 }
@@ -686,8 +714,8 @@ const selectedProvider = ref('ollama')
 const apiKey = ref('')
 const model = ref('qwen2.5:7b')
 const temperature = ref(0.7)
-const ollamaBaseURL = ref('/api/ai/ollama')
-const openaiBaseURL = ref('/api/ai/openai')
+const ollamaBaseURL = ref('http://localhost:11434')
+const openaiBaseURL = ref('https://api.openai.com/v1')
 const configSaved = ref(false)
 const testing = ref(false)
 const testResult = ref<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -736,17 +764,17 @@ const testConnection = async () => {
 
 const applyAIConfig = () => {
   if (selectedProvider.value === 'ollama') {
-    aiService.registerProvider(new OllamaProvider({
+    aiService.registerProvider(new TauriAIProvider({
       provider: 'ollama',
-      baseURL: ollamaBaseURL.value || '/api/ai/ollama',
+      baseURL: ollamaBaseURL.value || 'http://localhost:11434',
       model: model.value || 'qwen2.5:7b',
       temperature: temperature.value,
     }))
   } else {
-    aiService.registerProvider(new OpenAIProvider({
+    aiService.registerProvider(new TauriAIProvider({
       provider: 'openai',
       apiKey: apiKey.value,
-      baseURL: openaiBaseURL.value || '/api/ai/openai',
+      baseURL: openaiBaseURL.value || 'https://api.openai.com/v1',
       model: model.value || 'gpt-4o-mini',
       temperature: temperature.value,
     }))
@@ -766,6 +794,44 @@ const saveAIConfig = () => {
   configSaved.value = true
   setTimeout(() => { configSaved.value = false }, 2500)
 }
+
+const graphData = ref<KnowledgeGraphData | null>(null)
+const graphLoading = ref(false)
+
+const loadGraphData = async () => {
+  if (!rootPath.value || !isTauri) return
+  graphLoading.value = true
+  try {
+    const allFiles: { path: string; content: string }[] = []
+    const collectFiles = async (dirPath: string) => {
+      const entries = await invoke('read_dir', { path: dirPath }) as any[]
+      for (const entry of entries) {
+        if (entry.is_dir) {
+          await collectFiles(entry.path)
+        } else if (entry.name.endsWith('.md') || entry.name.endsWith('.markdown')) {
+          const content = await invoke('read_file', { path: entry.path }) as string
+          allFiles.push({ path: entry.path, content })
+        }
+      }
+    }
+    await collectFiles(rootPath.value)
+    graphData.value = buildKnowledgeGraph(allFiles)
+  } catch (error) {
+    console.error('加载图谱数据失败:', error)
+  } finally {
+    graphLoading.value = false
+  }
+}
+
+const handleGraphNodeClick = (node: GraphNode) => {
+  handleSelect(node.path)
+}
+
+watch(activeTab, (tab) => {
+  if (tab === 'graph' && !graphData.value) {
+    loadGraphData()
+  }
+})
 
 const toggleTheme = () => { emit('toggle-theme') }
 
@@ -928,6 +994,8 @@ defineExpose({ readFile, saveFile })
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
   gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
   transition: all var(--duration-fast) var(--ease-default);
 }
 .search-input-wrapper:focus-within {
@@ -940,6 +1008,7 @@ defineExpose({ readFile, saveFile })
 }
 .search-input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   color: var(--text-primary);
@@ -972,6 +1041,7 @@ defineExpose({ readFile, saveFile })
   cursor: pointer;
   padding: var(--space-1);
   border-radius: var(--radius-sm);
+  flex-shrink: 0;
   transition: all var(--duration-fast) var(--ease-default);
 }
 .search-toggle:hover {
@@ -1462,5 +1532,27 @@ defineExpose({ readFile, saveFile })
 .fade-leave-to {
   opacity: 0;
   transform: translateX(6px);
+}
+.panel-graph {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.graph-panel-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.graph-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-8);
+  color: var(--text-muted);
+  font-size: 12px;
 }
 </style>

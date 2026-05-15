@@ -3,6 +3,279 @@
 use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
+use serde::{Deserialize, Serialize};
+use tauri::AppHandle;
+use tauri::Emitter;
+
+#[derive(Serialize, Deserialize, Clone)]
+struct AiChatRequest {
+    provider: String,
+    base_url: String,
+    api_key: String,
+    model: String,
+    messages: Vec<ChatMessageRust>,
+    temperature: f64,
+    max_tokens: u32,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct ChatMessageRust {
+    role: String,
+    content: String,
+}
+
+#[tauri::command]
+async fn ai_proxy_test(
+    provider: String,
+    base_url: String,
+    api_key: String,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    if provider == "ollama" {
+        let url = format!("{}/api/tags", base_url);
+        let resp = client.get(&url).send().await.map_err(|e| format!("连接失败: {}", e))?;
+        if resp.status().is_success() {
+            let data: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+            Ok(data)
+        } else {
+            Err(format!("Ollama 返回 HTTP {}", resp.status()))
+        }
+    } else {
+        let url = format!("{}/models", base_url);
+        let mut req = client.get(&url);
+        if !api_key.is_empty() {
+            req = req.header("Authorization", format!("Bearer {}", api_key));
+        }
+        let resp = req.send().await.map_err(|e| format!("连接失败: {}", e))?;
+        if resp.status().is_success() {
+            let data: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+            Ok(data)
+        } else {
+            Err(format!("HTTP {}: {}", resp.status(), resp.text().await.unwrap_or_default()))
+        }
+    }
+}
+
+#[tauri::command]
+async fn ai_proxy_chat(
+    _app: AppHandle,
+    request: AiChatRequest,
+) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    if request.provider == "ollama" {
+        let url = format!("{}/api/chat", request.base_url);
+        let body = serde_json::json!({
+            "model": request.model,
+            "messages": request.messages,
+            "stream": false,
+            "options": {
+                "temperature": request.temperature,
+                "num_predict": request.max_tokens,
+            }
+        });
+        let resp = client.post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("请求失败: {}", e))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let err_body = resp.text().await.unwrap_or_default();
+            return Err(format!("Ollama 请求失败 ({}): {}", status, err_body));
+        }
+
+        let data: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+        let content = data["message"]["content"].as_str().unwrap_or("").to_string();
+        Ok(content)
+    } else {
+        let url = format!("{}/chat/completions", request.base_url);
+        let mut req_builder = client.post(&url);
+        if !request.api_key.is_empty() {
+            req_builder = req_builder.header("Authorization", format!("Bearer {}", request.api_key));
+        }
+
+        let body = serde_json::json!({
+            "model": request.model,
+            "messages": request.messages,
+            "temperature": request.temperature,
+            "max_tokens": request.max_tokens,
+            "stream": false,
+        });
+
+        let resp = req_builder
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("请求失败: {}", e))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let err_body = resp.text().await.unwrap_or_default();
+            return Err(format!("请求失败 ({}): {}", status, err_body));
+        }
+
+        let data: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+        let content = data["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+        Ok(content)
+    }
+}
+
+#[tauri::command]
+async fn ai_proxy_stream(
+    app: AppHandle,
+    request: AiChatRequest,
+) -> Result<(), String> {
+    use futures_util::StreamExt;
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let event_id = format!("ai-stream-{}", std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis());
+
+    if request.provider == "ollama" {
+        let url = format!("{}/api/chat", request.base_url);
+        let body = serde_json::json!({
+            "model": request.model,
+            "messages": request.messages,
+            "stream": true,
+            "options": {
+                "temperature": request.temperature,
+                "num_predict": request.max_tokens,
+            }
+        });
+
+        let resp = client.post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("请求失败: {}", e))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let err_body = resp.text().await.unwrap_or_default();
+            return Err(format!("Ollama 请求失败 ({}): {}", status, err_body));
+        }
+
+        let mut stream = resp.bytes_stream();
+        let mut buffer = String::new();
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| e.to_string())?;
+            buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+            while let Some(newline_pos) = buffer.find('\n') {
+                let line = buffer[..newline_pos].trim().to_string();
+                buffer = buffer[newline_pos + 1..].to_string();
+
+                if line.is_empty() {
+                    continue;
+                }
+
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
+                    if let Some(content) = json["message"]["content"].as_str() {
+                        if !content.is_empty() {
+                            let _ = app.emit("ai-chunk", serde_json::json!({
+                                "event_id": &event_id,
+                                "content": content
+                            }));
+                        }
+                    }
+                    if let Some(error) = json["error"].as_str() {
+                        let _ = app.emit("ai-chunk", serde_json::json!({
+                            "event_id": &event_id,
+                            "error": error
+                        }));
+                    }
+                }
+            }
+        }
+
+        let _ = app.emit("ai-done", serde_json::json!({ "event_id": event_id }));
+    } else {
+        let url = format!("{}/chat/completions", request.base_url);
+        let mut req_builder = client.post(&url);
+        if !request.api_key.is_empty() {
+            req_builder = req_builder.header("Authorization", format!("Bearer {}", request.api_key));
+        }
+
+        let body = serde_json::json!({
+            "model": request.model,
+            "messages": request.messages,
+            "temperature": request.temperature,
+            "max_tokens": request.max_tokens,
+            "stream": true,
+        });
+
+        let resp = req_builder
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("请求失败: {}", e))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let err_body = resp.text().await.unwrap_or_default();
+            return Err(format!("请求失败 ({}): {}", status, err_body));
+        }
+
+        let mut stream = resp.bytes_stream();
+        let mut buffer = String::new();
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| e.to_string())?;
+            buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+            while let Some(newline_pos) = buffer.find('\n') {
+                let line = buffer[..newline_pos].trim().to_string();
+                buffer = buffer[newline_pos + 1..].to_string();
+
+                if !line.starts_with("data: ") {
+                    continue;
+                }
+
+                let data = &line[6..];
+                if data == "[DONE]" {
+                    let _ = app.emit("ai-done", serde_json::json!({ "event_id": event_id }));
+                    return Ok(());
+                }
+
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                    if let Some(content) = json["choices"][0]["delta"]["content"].as_str() {
+                        if !content.is_empty() {
+                            let _ = app.emit("ai-chunk", serde_json::json!({
+                                "event_id": &event_id,
+                                "content": content
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+
+        let _ = app.emit("ai-done", serde_json::json!({ "event_id": event_id }));
+    }
+
+    Ok(())
+}
 
 #[tauri::command]
 fn read_dir(path: String) -> Result<Vec<serde_json::Value>, String> {
@@ -336,7 +609,10 @@ pub fn run() {
             watch_dir,
             search_files,
             export_html,
-            export_markdown
+            export_markdown,
+            ai_proxy_test,
+            ai_proxy_chat,
+            ai_proxy_stream
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

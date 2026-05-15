@@ -74,3 +74,33 @@ export type ViewMode = 'source' | 'preview'
 export type ThemeMode = 'dark' | 'light' | 'system'
 export type SidebarTab = 'files' | 'search' | 'knowledge' | 'tasks' | 'settings'
 export type VoiceInputMode = 'hold' | 'toggle'
+
+export interface GraphNode {
+  id: string
+  label: string
+  path: string
+  linkCount: number
+  tags: string[]
+  isOrphan: boolean
+  x?: number
+  y?: number
+  fx?: number | null
+  fy?: number | null
+}
+
+export interface GraphEdge {
+  source: string | GraphNode
+  target: string | GraphNode
+  weight: number
+}
+
+export interface KnowledgeGraphData {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  stats: {
+    totalNodes: number
+    totalEdges: number
+    orphanCount: number
+    avgLinkCount: number
+  }
+}

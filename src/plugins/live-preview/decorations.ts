@@ -1,6 +1,6 @@
 import { Decoration, type DecorationSet } from '@codemirror/view'
 import type { EditorView } from '@codemirror/view'
-import { LinkWidget, ImageWidget, HorizontalRuleWidget, CheckboxWidget } from './widgets'
+import { LinkWidget, ImageWidget, HorizontalRuleWidget, CheckboxWidget, TableWidget } from './widgets'
 
 interface DecorationSpec {
   from: number
@@ -13,11 +13,22 @@ interface Range {
   to: number
 }
 
+type Align = 'left' | 'center' | 'right'
+
 export function computeDecorations(view: EditorView): DecorationSet {
   const decorations: DecorationSpec[] = []
   const doc = view.state.doc
   const cursorPos = view.state.selection.main.head
   let inCodeBlock = false
+  let codeBlockFenceLine = -1
+
+  let pendingTableLines: { line: { from: number; to: number; text: string }; lineText: string }[] = []
+
+  const flushTable = () => {
+    if (pendingTableLines.length === 0) return
+    processTableBlock(pendingTableLines, decorations)
+    pendingTableLines = []
+  }
 
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i)
@@ -25,13 +36,12 @@ export function computeDecorations(view: EditorView): DecorationSet {
     const cursorInThisLine = cursorPos >= line.from && cursorPos <= line.to
 
     if (cursorInThisLine) {
-      if (/^```/.test(lineText.trim())) {
-        inCodeBlock = !inCodeBlock
-      }
+      flushTable()
       continue
     }
 
     if (inCodeBlock) {
+      flushTable()
       if (/^```\s*$/.test(lineText.trim())) {
         inCodeBlock = false
         processCodeBlockFence(line, lineText, decorations)
@@ -40,20 +50,104 @@ export function computeDecorations(view: EditorView): DecorationSet {
     }
 
     if (/^```/.test(lineText)) {
+      flushTable()
       inCodeBlock = true
+      codeBlockFenceLine = i
       processCodeBlockFence(line, lineText, decorations)
       continue
     }
 
-    processHeading(line, lineText, decorations)
-    processHorizontalRule(line, lineText, decorations)
-    processBlockquote(line, lineText, decorations)
-    processListItem(line, lineText, decorations)
-    processInlineElements(line, lineText, decorations)
-    processTable(line, lineText, decorations)
+    if (isTableRow(lineText)) {
+      pendingTableLines.push({ line, lineText })
+    } else {
+      flushTable()
+      processHeading(line, lineText, decorations)
+      processHorizontalRule(line, lineText, decorations)
+      processBlockquote(line, lineText, decorations)
+      processListItem(line, lineText, decorations)
+      processInlineElements(line, lineText, decorations)
+    }
   }
 
+  flushTable()
+
   return Decoration.set(decorations.map(d => d.decoration.range(d.from, d.to)), true)
+}
+
+function isTableRow(lineText: string): boolean {
+  if (!lineText.includes('|')) return false
+  const trimmed = lineText.trim()
+  return trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.split('|').length >= 3
+}
+
+function parseAlign(separatorCells: string[]): Align[] {
+  return separatorCells.map(cell => {
+    const trimmed = cell.trim()
+    const leftColon = trimmed.startsWith(':')
+    const rightColon = trimmed.endsWith(':')
+    if (leftColon && rightColon) return 'center'
+    if (rightColon) return 'right'
+    return 'left'
+  })
+}
+
+function processTableBlock(
+  tableLines: { line: { from: number; to: number; text: string }; lineText: string }[],
+  decorations: DecorationSpec[]
+) {
+  if (tableLines.length < 2) {
+    for (const { line, lineText } of tableLines) {
+      processInlineElements(line, lineText, decorations)
+    }
+    return
+  }
+
+  const headerLine = tableLines[0].lineText.trim()
+  const headerCells = headerLine.split('|').slice(1, -1)
+
+  let separatorIdx = -1
+  for (let i = 1; i < tableLines.length; i++) {
+    const trimmed = tableLines[i].lineText.trim()
+    const cells = trimmed.split('|').slice(1, -1)
+    if (cells.every(c => /^\s*:?-+:?\s*$/.test(c.trim()))) {
+      separatorIdx = i
+      break
+    }
+  }
+
+  if (separatorIdx === -1) {
+    for (const { line, lineText } of tableLines) {
+      processInlineElements(line, lineText, decorations)
+    }
+    return
+  }
+
+  const separatorCells = tableLines[separatorIdx].lineText.trim().split('|').slice(1, -1)
+  const aligns = parseAlign(separatorCells)
+
+  const dataRows: string[][] = []
+  for (let i = separatorIdx + 1; i < tableLines.length; i++) {
+    const cells = tableLines[i].lineText.trim().split('|').slice(1, -1)
+    dataRows.push(cells)
+  }
+
+  const firstLine = tableLines[0].line
+  const lastLine = tableLines[tableLines.length - 1].line
+
+  decorations.push({
+    from: firstLine.from,
+    to: firstLine.from,
+    decoration: Decoration.widget({
+      widget: new TableWidget(headerCells, dataRows, aligns),
+      side: 1
+    })
+  })
+
+  decorations.push({
+    from: firstLine.from,
+    to: lastLine.to,
+    decoration: Decoration.replace({})
+  })
 }
 
 function isOverlapping(from: number, to: number, excludedRanges: Range[]): boolean {
@@ -441,39 +535,5 @@ function processImage(
     })
 
     excludedRanges.push({ from: start, to: end })
-  }
-}
-
-function processTable(
-  line: { from: number; to: number; text: string },
-  lineText: string,
-  decorations: DecorationSpec[]
-) {
-  if (!lineText.includes('|')) return
-
-  const parts = lineText.split('|')
-  if (parts.length < 3) return
-
-  let offset = line.from
-  for (let j = 0; j < parts.length; j++) {
-    const part = parts[j]
-    if (j > 0) {
-      const pipePos = offset - 1
-      decorations.push({
-        from: pipePos,
-        to: pipePos + 1,
-        decoration: Decoration.replace({})
-      })
-    }
-    offset += part.length + 1
-  }
-
-  const isSeparator = /^\s*:?-+:?\s*$/.test(parts[1].trim())
-  if (!isSeparator) {
-    decorations.push({
-      from: line.from,
-      to: line.from,
-      decoration: Decoration.line({ class: 'cm-md-table-row' })
-    })
   }
 }

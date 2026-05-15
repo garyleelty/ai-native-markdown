@@ -12,7 +12,7 @@ export const livePreviewPlugin = ViewPlugin.fromClass(
     }
 
     update(update: ViewUpdate) {
-      if (update.docChanged || update.selectionSet) {
+      if (update.docChanged || update.selectionSet || update.viewportChanged) {
         this.decorations = computeDecorations(update.view)
       }
     }

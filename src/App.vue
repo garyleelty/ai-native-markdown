@@ -109,6 +109,7 @@
                 v-model="editorContent"
                 @update="handleEditorUpdate"
                 @cursor-change="handleCursorChange"
+                @selection-change="handleSelectionChange"
               />
             </div>
             <div class="preview-panel" v-if="editorStore.viewMode === 'preview'">
@@ -305,6 +306,7 @@ const saveCurrentFile = async () => {
 }
 
 let saveTimer: number | null = null
+
 watch(() => editorStore.content, () => {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(async () => { await saveCurrentFile() }, 2000)
@@ -312,6 +314,7 @@ watch(() => editorStore.content, () => {
 
 const handleEditorUpdate = (content: string) => { editorStore.setContent(content) }
 const handleCursorChange = (line: number) => { editorStore.setCursor(line, 0) }
+const handleSelectionChange = (text: string) => { selectedText.value = text }
 const handleAIInsert = (text: string) => {
   if (editorRef.value) editorRef.value.insertText(text)
 }
@@ -356,15 +359,17 @@ const stopResize = () => {
 }
 
 onMounted(() => {
-  setInterval(() => {
-    if (editorRef.value) selectedText.value = editorRef.value.getSelectedText()
-  }, 500)
-  
   editorStore.setContent('')
   settingsStore.applyTheme()
 })
 
-onUnmounted(() => { stopResize() })
+onUnmounted(() => {
+  if (saveTimer !== null) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+  stopResize()
+})
 </script>
 
 <style scoped>

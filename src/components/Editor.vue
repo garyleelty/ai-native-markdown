@@ -94,6 +94,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
   update: [content: string]
   'cursor-change': [line: number]
+  'selection-change': [text: string]
 }>()
 
 const settingsStore = useSettingsStore()
@@ -128,6 +129,9 @@ const createEditor = () => {
           const pos = update.state.selection.main.head
           const line = update.state.doc.lineAt(pos).number
           emit('cursor-change', line)
+          const { from, to } = update.state.selection.main
+          const selectedText = update.state.sliceDoc(from, to)
+          emit('selection-change', selectedText)
         }
       }),
       EditorView.theme({
@@ -316,10 +320,11 @@ onBeforeUnmount(() => {
   align-items: center;
   height: 40px;
   min-height: 40px;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
   background: var(--bg-elevated);
   border-top: 1px solid var(--border-subtle);
   overflow: hidden;
+  backdrop-filter: blur(8px);
 }
 
 .toolbar-inner {
@@ -339,8 +344,8 @@ onBeforeUnmount(() => {
 .toolbar-divider {
   width: 1px;
   height: 16px;
-  background: var(--border-subtle);
-  margin: 0 4px;
+  background: var(--border-default);
+  margin: 0 var(--space-1);
   flex-shrink: 0;
 }
 
@@ -348,12 +353,12 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
   transition: background var(--duration-fast) var(--ease-default),
               color var(--duration-fast) var(--ease-default),
@@ -363,11 +368,11 @@ onBeforeUnmount(() => {
 
 .tool-btn:hover {
   background: var(--bg-hover);
-  color: var(--accent-primary);
+  color: var(--text-primary);
 }
 
 .tool-btn:active {
-  transform: scale(0.97);
+  transform: scale(0.95);
   background: var(--bg-active);
 }
 
@@ -379,6 +384,7 @@ onBeforeUnmount(() => {
 .tool-btn.active {
   color: var(--accent-primary);
   background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(129, 140, 248, 0.15);
 }
 
 .editor-container {
@@ -392,9 +398,40 @@ onBeforeUnmount(() => {
 }
 
 .editor-container :deep(.cm-scroller) {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  line-height: 1.8;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text-primary);
+  padding: var(--space-4) 0;
+}
+
+.editor-container :deep(.cm-content) {
+  padding: 0 var(--space-8);
+  max-width: 720px;
+  margin: 0 auto;
+  caret-color: var(--accent-primary);
+}
+
+.editor-container :deep(.cm-cursor) {
+  border-left-color: var(--accent-primary);
+  border-left-width: 2px;
+}
+
+.editor-container :deep(.cm-selectionBackground) {
+  background: var(--accent-soft) !important;
+}
+
+.editor-container :deep(.cm-focused .cm-selectionBackground) {
+  background: rgba(129, 140, 248, 0.2) !important;
+}
+
+.editor-container :deep(.cm-gutters) {
+  display: none;
+}
+
+.editor-container :deep(.cm-activeLine) {
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
 }
 
 .editor-container :deep(.cm-content) {

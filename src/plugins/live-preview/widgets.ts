@@ -102,3 +102,75 @@ export class CheckboxWidget extends WidgetType {
     return true
   }
 }
+
+type Align = 'left' | 'center' | 'right'
+
+export class TableWidget extends WidgetType {
+  private headers: string[]
+  private rows: string[][]
+  private aligns: Align[]
+
+  constructor(headers: string[], rows: string[][], aligns: Align[]) {
+    super()
+    this.headers = headers
+    this.rows = rows
+    this.aligns = aligns
+  }
+
+  eq(other: TableWidget): boolean {
+    if (this.headers.length !== other.headers.length) return false
+    if (this.rows.length !== other.rows.length) return false
+    if (this.aligns.length !== other.aligns.length) return false
+    for (let i = 0; i < this.headers.length; i++) {
+      if (this.headers[i] !== other.headers[i]) return false
+    }
+    for (let i = 0; i < this.rows.length; i++) {
+      for (let j = 0; j < this.rows[i].length; j++) {
+        if (this.rows[i][j] !== other.rows[i][j]) return false
+      }
+    }
+    for (let i = 0; i < this.aligns.length; i++) {
+      if (this.aligns[i] !== other.aligns[i]) return false
+    }
+    return true
+  }
+
+  toDOM(): HTMLElement {
+    const container = document.createElement('div')
+    container.className = 'cm-md-table-container'
+
+    const table = document.createElement('table')
+    table.className = 'cm-md-table'
+
+    const thead = document.createElement('thead')
+    const headerRow = document.createElement('tr')
+    for (let i = 0; i < this.headers.length; i++) {
+      const th = document.createElement('th')
+      th.textContent = this.headers[i].trim()
+      th.style.textAlign = this.aligns[i] || 'left'
+      headerRow.appendChild(th)
+    }
+    thead.appendChild(headerRow)
+    table.appendChild(thead)
+
+    const tbody = document.createElement('tbody')
+    for (const row of this.rows) {
+      const tr = document.createElement('tr')
+      for (let i = 0; i < this.headers.length; i++) {
+        const td = document.createElement('td')
+        td.textContent = (row[i] || '').trim()
+        td.style.textAlign = this.aligns[i] || 'left'
+        tr.appendChild(td)
+      }
+      tbody.appendChild(tr)
+    }
+    table.appendChild(tbody)
+
+    container.appendChild(table)
+    return container
+  }
+
+  ignoreEvent(): boolean {
+    return true
+  }
+}

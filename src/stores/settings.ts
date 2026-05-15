@@ -4,7 +4,7 @@ import type { AIConfig, ThemeMode, SidebarTab, VoiceInputMode } from '@/types'
 
 const defaultAIConfig: AIConfig = {
   provider: 'ollama',
-  baseURL: '/api/ai/ollama',
+  baseURL: 'http://localhost:11434',
   apiKey: '',
   model: 'qwen2.5:7b',
   temperature: 0.7,
@@ -12,17 +12,86 @@ const defaultAIConfig: AIConfig = {
   systemPrompt: '你是一个专业的 Markdown 写作助手。'
 }
 
+const isTauri = '__TAURI_INTERNALS__' in window
+
+let tauriStore: any = null
+
+async function getTauriStore() {
+  if (!isTauri) return null
+  if (tauriStore) return tauriStore
+  try {
+    const { load } = await import('@tauri-apps/plugin-store')
+    tauriStore = await load('settings.json', {
+      autoSave: 100,
+      defaults: {}
+    })
+    return tauriStore
+  } catch {
+    return null
+  }
+}
+
+async function persistGet<T>(key: string, defaultValue: T): Promise<T> {
+  const store = await getTauriStore()
+  if (store) {
+    try {
+      const val = await store.get(key) as T | undefined
+      return val ?? defaultValue
+    } catch {
+      return defaultValue
+    }
+  }
+  const raw = localStorage.getItem(key)
+  if (raw === null) return defaultValue
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return raw as unknown as T
+  }
+}
+
+async function persistSet(key: string, value: unknown): Promise<void> {
+  const store = await getTauriStore()
+  if (store) {
+    try {
+      await store.set(key, value)
+      return
+    } catch {
+      // fallback to localStorage
+    }
+  }
+  localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value))
+}
+
 export const useSettingsStore = defineStore('settings', () => {
-  const theme = ref<ThemeMode>((localStorage.getItem('theme') as ThemeMode) || 'system')
-  const aiConfig = ref<AIConfig>(JSON.parse(localStorage.getItem('ai_config') || JSON.stringify(defaultAIConfig)))
-  const sidebarWidth = ref(Number(localStorage.getItem('sidebar_width') || 260))
-  const aiPanelHeight = ref(Number(localStorage.getItem('ai_panel_height') || 220))
+  const theme = ref<ThemeMode>('system')
+  const aiConfig = ref<AIConfig>({ ...defaultAIConfig })
+  const sidebarWidth = ref(260)
+  const aiPanelHeight = ref(220)
   const showSidebar = ref(true)
   const showAIPanel = ref(false)
   const activeSidebarTab = ref<SidebarTab>('files')
-  const livePreview = ref(localStorage.getItem('live_preview') !== 'false')
-  const voiceInputMode = ref<VoiceInputMode>((localStorage.getItem('voice_input_mode') as VoiceInputMode) || 'hold')
-  const voiceInputLanguage = ref(localStorage.getItem('voice_input_language') || 'zh-CN')
+  const livePreview = ref(true)
+  const voiceInputMode = ref<VoiceInputMode>('hold')
+  const voiceInputLanguage = ref('zh-CN')
+
+  const initialized = ref(false)
+
+  const initSettings = async () => {
+    if (initialized.value) return
+
+    theme.value = await persistGet<ThemeMode>('theme', 'system')
+    aiConfig.value = await persistGet<AIConfig>('ai_config', { ...defaultAIConfig })
+    sidebarWidth.value = await persistGet<number>('sidebar_width', 260)
+    aiPanelHeight.value = await persistGet<number>('ai_panel_height', 220)
+    livePreview.value = await persistGet<boolean>('live_preview', true)
+    voiceInputMode.value = await persistGet<VoiceInputMode>('voice_input_mode', 'hold')
+    voiceInputLanguage.value = await persistGet<string>('voice_input_language', 'zh-CN')
+
+    initialized.value = true
+  }
+
+  initSettings()
 
   const isDark = () => {
     if (theme.value === 'dark') return true
@@ -60,13 +129,13 @@ export const useSettingsStore = defineStore('settings', () => {
   const setVoiceInputMode = (mode: VoiceInputMode) => { voiceInputMode.value = mode }
   const setVoiceInputLanguage = (lang: string) => { voiceInputLanguage.value = lang }
 
-  watch(theme, (val) => { localStorage.setItem('theme', val) })
-  watch(aiConfig, (val) => { localStorage.setItem('ai_config', JSON.stringify(val)) }, { deep: true })
-  watch(sidebarWidth, (val) => { localStorage.setItem('sidebar_width', String(val)) })
-  watch(aiPanelHeight, (val) => { localStorage.setItem('ai_panel_height', String(val)) })
-  watch(livePreview, (val) => { localStorage.setItem('live_preview', String(val)) })
-  watch(voiceInputMode, (val) => { localStorage.setItem('voice_input_mode', val) })
-  watch(voiceInputLanguage, (val) => { localStorage.setItem('voice_input_language', val) })
+  watch(theme, (val) => { persistSet('theme', val) })
+  watch(aiConfig, (val) => { persistSet('ai_config', val) }, { deep: true })
+  watch(sidebarWidth, (val) => { persistSet('sidebar_width', val) })
+  watch(aiPanelHeight, (val) => { persistSet('ai_panel_height', val) })
+  watch(livePreview, (val) => { persistSet('live_preview', val) })
+  watch(voiceInputMode, (val) => { persistSet('voice_input_mode', val) })
+  watch(voiceInputLanguage, (val) => { persistSet('voice_input_language', val) })
 
   return {
     theme, aiConfig, sidebarWidth, aiPanelHeight,

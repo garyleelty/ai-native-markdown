@@ -38,7 +38,7 @@
         ref="editInput"
         v-model="editValue"
         class="tree-edit-input"
-        :placeholder="node.isNew ? (node.children ? '新文件夹名' : '新文件名.md') : ''"
+        :placeholder="node.isNew ? (node.isDirectory ? '新文件夹名' : '新文件名.md') : ''"
         @keydown.enter="confirmEdit"
         @keydown.esc="cancelEdit"
         @blur="confirmEdit"
@@ -123,7 +123,7 @@
           删除
         </div>
         <!-- 仅在文件夹节点上显示新建选项 -->
-        <template v-if="node.isDirectory">
+        <template v-if="node.isDirectory === true">
           <div class="context-menu-divider" />
           <div class="context-menu-item" @click="handleCreateFile">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -285,9 +285,9 @@ const handleCreateFile = () => {
 
 const handleCreateFolder = () => {
   hideContextMenu()
-  // 防御性检查：仅允许在文件夹下创建文件夹
-  if (!props.node.isDirectory) {
-    console.warn('⚠️ 不能在文件节点下创建子项')
+  // 严格防御性检查：仅允许在文件夹下创建文件夹
+  if (props.node.isDirectory !== true) {
+    console.error('🚫 安全保护：不能在文件节点下创建文件夹', props.node)
     return
   }
   emit('create', { parentPath: props.node.path, name: '', isDirectory: true })

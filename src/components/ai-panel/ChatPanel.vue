@@ -78,6 +78,7 @@ import { aiService } from '../../services/ai'
 import type { AIMessage } from '@/types'
 import VoiceInputButton from '../ui/VoiceInputButton.vue'
 import { useSettingsStore } from '@/stores'
+import { throttle } from '@/composables/useDebounce'
 
 const props = defineProps<{
   context?: string
@@ -92,17 +93,19 @@ const inputText = ref('')
 const streaming = ref(false)
 const messagesRef = ref<HTMLDivElement>()
 
+const settingsStore = useSettingsStore()
+
 const activeModel = computed(() => {
   const provider = aiService.getActiveProvider()
   return provider ? provider.getConfig().model : null
 })
 
-const scrollToBottom = async () => {
+const scrollToBottom = throttle(async () => {
   await nextTick()
   if (messagesRef.value) {
     messagesRef.value.scrollTop = messagesRef.value.scrollHeight
   }
-}
+}, 100)
 
 const renderMarkdown = (text: string) => {
   return text
@@ -156,7 +159,7 @@ const sendMessage = async () => {
       chatMessages.unshift({ role: 'system', content: `当前文档内容：\n${props.context}` })
     }
 
-    for await (const chunk of provider.chat(chatMessages)) {
+    for await (const chunk of provider.streamChat(chatMessages)) {
       assistantMsg.content += chunk
       await scrollToBottom()
     }
@@ -191,9 +194,6 @@ const copyMessage = async (content: string) => {
 const clearMessages = () => {
   messages.value = []
 }
-
-// 语音输入相关
-const settingsStore = useSettingsStore()
 
 const handleVoiceResult = (text: string) => {
   inputText.value += text

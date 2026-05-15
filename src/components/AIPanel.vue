@@ -86,7 +86,7 @@ const handleAI = async (prompt: string) => {
       return
     }
     
-    for await (const chunk of provider.streamComplete(prompt)) {
+    for await (const chunk of provider.streamChat([{ role: 'user', content: prompt }])) {
       output.value += chunk
       await nextTick()
       if (outputRef.value) {
