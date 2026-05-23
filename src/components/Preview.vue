@@ -1,6 +1,14 @@
 <template>
   <div class="preview-container">
     <div
+      v-if="loading"
+      class="preview-loading"
+    >
+      <div class="loading-spinner"></div>
+      <span>渲染中...</span>
+    </div>
+    <div
+      v-else
       class="preview-content markdown-body"
       ref="previewRef"
       v-html="renderedContent"
@@ -10,11 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import MarkdownIt from 'markdown-it'
-import hljs from 'highlight.js'
-import taskLists from 'markdown-it-task-lists'
-import anchor from 'markdown-it-anchor'
+import { ref, watch, onMounted, onUnmounted, shallowRef, nextTick } from 'vue'
 import katex from 'markdown-it-katex'
 import mermaid from 'mermaid'
 
@@ -30,33 +34,14 @@ const emit = defineEmits<{
 }>()
 
 const previewRef = ref<HTMLElement>()
-
-const md: MarkdownIt = new MarkdownIt({
-  html: true,
-  linkify: true,
-  typographer: true,
-  highlight(str: string, lang: string): string {
-    if (lang && hljs.getLanguage(lang)) {
-      try {
-        return `<pre class="hljs"><code>${hljs.highlight(str, { language: lang }).value}</code></pre>`
-      } catch {}
-    }
-    return `<pre class="hljs"><code>${md.utils.escapeHtml(str)}</code></pre>`
-  }
-})
-
-md.use(taskLists, { enabled: true, label: true })
-md.use(anchor, {
-  permalink: anchor.permalink.linkInsideHeader({
-    symbol: '#',
-    placement: 'before',
-    renderAttrs: () => ({ class: 'header-anchor', href: 'javascript:void(0)' })
-  })
-})
-md.use(katex, { throwOnError: false, errorColor: 'var(--accent-red)' })
-
+const worker = shallowRef<Worker | null>(null)
+const loading = ref(false)
+const renderedContent = ref('')
 const lineMap = ref<Map<number, HTMLElement>>(new Map())
+const pendingRequest = ref<number | null>(null)
+const md = shallowRef<any>(null)
 
+// 构建行映射
 function buildLineMap() {
   const map = new Map<number, HTMLElement>()
   if (!previewRef.value) return map
@@ -69,6 +54,7 @@ function buildLineMap() {
   return map
 }
 
+// 处理 Mermaid 代码块
 function processMermaid(content: string): string {
   const fenceRe = /^```mermaid\n([\s\S]*?)^```$/gm
   let result = content
@@ -77,7 +63,8 @@ function processMermaid(content: string): string {
   while ((match = fenceRe.exec(content)) !== null) {
     const diagram = match[1].trim()
     const id = 'mermaid-' + Math.random().toString(36).slice(2)
-    const html = `<div class="mermaid" id="${id}">${md.utils.escapeHtml(diagram)}</div>`
+    const escaped = md.value ? md.value.utils.escapeHtml(diagram) : diagram
+    const html = `<div class="mermaid" id="${id}">${escaped}</div>`
     replacements.push({ start: match.index, end: match.index + match[0].length, html })
   }
   for (let i = replacements.length - 1; i >= 0; i--) {
@@ -87,16 +74,115 @@ function processMermaid(content: string): string {
   return result
 }
 
+// 处理 Wiki 链接
 function processWikiLinks(content: string): string {
   return content.replace(/\[\[([^\]]+)\]\]/g, '<a class="wiki-link" data-filename="$1">$1</a>')
 }
 
-const renderedContent = computed(() => {
-  let processed = processWikiLinks(props.content)
-  processed = processMermaid(processed)
-  return md.render(processed)
-})
+// 初始化 Web Worker
+function initWorker() {
+  if (typeof Worker !== 'undefined') {
+    try {
+      const MarkdownWorker = new Worker(
+        new URL('../workers/markdown.worker.ts', import.meta.url),
+        { type: 'module' }
+      )
+      
+      worker.value = MarkdownWorker
+      
+      MarkdownWorker.onmessage = (event: MessageEvent<{ type: string; html?: string; error?: string; success: boolean }>) => {
+        const { type, html, error, success } = event.data
+        
+        if (type === 'result' && success && html) {
+          renderedContent.value = html
+          loading.value = false
+          nextTick(() => {
+            lineMap.value = buildLineMap()
+            highlightCurrentLine()
+            renderMermaid()
+          })
+        } else if (type === 'error') {
+          console.error('Worker render error:', error)
+          loading.value = false
+          renderedContent.value = `<p>渲染失败：${error}</p>`
+        }
+      }
+    } catch (e) {
+      console.warn('Worker initialization failed, using fallback:', e)
+    }
+  }
+}
 
+// 请求渲染
+function requestRender(content: string) {
+  loading.value = true
+  
+  if (pendingRequest.value) {
+    cancelAnimationFrame(pendingRequest.value)
+  }
+  
+  pendingRequest.value = requestAnimationFrame(() => {
+    if (worker.value) {
+      worker.value.postMessage({ content, type: 'render' })
+    } else {
+      fallbackRender(content)
+    }
+    pendingRequest.value = null
+  })
+}
+
+// Fallback 渲染函数
+async function fallbackRender(content: string) {
+  try {
+    const [mdModule, hljsModule, taskListsModule, anchorModule] = await Promise.all([
+      import('markdown-it'),
+      import('highlight.js'),
+      import('markdown-it-task-lists'),
+      import('markdown-it-anchor')
+    ])
+    
+    const MarkdownIt = mdModule.default
+    const markdownIt = new MarkdownIt({
+      html: true,
+      linkify: true,
+      typographer: true,
+      highlight(str: string, lang: string): string {
+        if (lang && hljsModule.default.getLanguage(lang)) {
+          try {
+            return `<pre class="hljs"><code>${hljsModule.default.highlight(str, { language: lang }).value}</code></pre>`
+          } catch {}
+        }
+        return `<pre class="hljs"><code>${markdownIt.utils.escapeHtml(str)}</code></pre>`
+      }
+    })
+    
+    markdownIt.use(taskListsModule.default, { enabled: true, label: true })
+    markdownIt.use(anchorModule.default, {
+      permalink: anchorModule.default.permalink.linkInsideHeader({
+        symbol: '#',
+        placement: 'before',
+        renderAttrs: () => ({ class: 'header-anchor', href: 'javascript:void(0)' })
+      })
+    })
+    markdownIt.use(katex, { throwOnError: false, errorColor: 'var(--accent-red)' })
+    
+    let processed = processWikiLinks(content)
+    processed = processMermaid(processed)
+    renderedContent.value = markdownIt.render(processed)
+  } catch (e) {
+    console.error('Fallback render error:', e)
+    renderedContent.value = '<p>渲染失败</p>'
+  } finally {
+    loading.value = false
+    nextTick(() => {
+      lineMap.value = buildLineMap()
+      highlightCurrentLine()
+      renderMermaid()
+    })
+  }
+}
+
+// 渲染 Mermaid 图表
 async function renderMermaid() {
   await nextTick()
   if (!previewRef.value) return
@@ -115,6 +201,7 @@ async function renderMermaid() {
   }
 }
 
+// 高亮当前行
 function highlightCurrentLine() {
   if (!previewRef.value) return
   previewRef.value.querySelectorAll('.current-line').forEach((el) => {
@@ -127,17 +214,7 @@ function highlightCurrentLine() {
   }
 }
 
-watch(() => props.content, async () => {
-  await renderMermaid()
-  lineMap.value = buildLineMap()
-  highlightCurrentLine()
-})
-
-watch(() => props.cursorLine, async () => {
-  await nextTick()
-  highlightCurrentLine()
-})
-
+// 处理点击事件
 function handleClick(event: MouseEvent) {
   const target = event.target as HTMLElement
   const anchor = target.closest('.header-anchor') as HTMLElement | null
@@ -165,10 +242,33 @@ function handleClick(event: MouseEvent) {
   }
 }
 
+// 监听内容变化
+watch(() => props.content, (newContent) => {
+  if (newContent) {
+    requestRender(newContent)
+  }
+})
+
+watch(() => props.cursorLine, async () => {
+  await nextTick()
+  highlightCurrentLine()
+})
+
 onMounted(() => {
   mermaid.initialize({ startOnLoad: false, theme: 'default' })
-  renderMermaid()
-  lineMap.value = buildLineMap()
+  initWorker()
+  if (props.content) {
+    requestRender(props.content)
+  }
+})
+
+onUnmounted(() => {
+  if (worker.value) {
+    worker.value.terminate()
+  }
+  if (pendingRequest.value) {
+    cancelAnimationFrame(pendingRequest.value)
+  }
 })
 </script>
 
@@ -177,6 +277,31 @@ onMounted(() => {
   height: 100%;
   overflow: hidden;
   background: var(--bg-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-subtle);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .preview-content {
