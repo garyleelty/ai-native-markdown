@@ -8,7 +8,10 @@
         v-for="heading in headings"
         :key="heading.from"
         class="outline-item"
-        :class="`level-${heading.level}`"
+        :class="{
+          [`level-${heading.level}`]: true,
+          active: activeHeadingFrom !== undefined && heading.from === activeHeadingFrom
+        }"
         @click="$emit('select', heading)"
       >
         {{ heading.text }}
@@ -28,8 +31,9 @@ interface Heading {
   to: number
 }
 
-defineProps<{
+const props = defineProps<{
   headings: Heading[]
+  activeHeadingFrom?: number
 }>()
 
 defineEmits<{
@@ -75,6 +79,11 @@ defineEmits<{
 .outline-item:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+.outline-item.active {
+  background: var(--accent-soft);
+  color: var(--accent-primary);
+  font-weight: 600;
 }
 .level-1 { font-weight: 600; color: var(--text-primary); padding-left: 8px; }
 .level-2 { padding-left: 18px; }
