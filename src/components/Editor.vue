@@ -67,6 +67,15 @@
         </div>
       </div>
     </div>
+    <StatusBar
+      v-if="settingsStore.enableStatusBar"
+      :char-count="docStats.charCount"
+      :line-count="docStats.lineCount"
+      :cursor-line="docStats.cursorLine"
+      :cursor-col="docStats.cursorCol"
+      :selected-text="docStats.selectedText"
+      :ai-connected="docStats.aiConnected"
+    />
   </div>
 </template>
 
@@ -81,6 +90,14 @@ import { indentWithTab } from '@codemirror/commands'
 import { useSettingsStore } from '@/stores/settings'
 import { livePreviewPlugin } from '@/plugins/live-preview'
 import '@/plugins/live-preview/styles.css'
+import { ghostTextPlugin } from '@/extensions/ghost-text/ghostTextPlugin'
+import { inlineEditPlugin, inlineEditKeymap } from '@/extensions/inline-edit/inlineEditPlugin'
+import { dropHandlerExtension } from '@/extensions/multimodal/dropHandler'
+import { aiActionPlugin, aiActionKeymap } from '@/extensions/ai-actions/aiActionPlugin'
+import '@/extensions/ai-actions/styles.css'
+import { smartPasteExtension } from '@/extensions/smart-paste/pasteHandler'
+import StatusBar from '@/components/editor/StatusBar.vue'
+import { aiService } from '@/services/ai'
 
 interface Props {
   modelValue?: string
@@ -103,7 +120,38 @@ const editorContainer = ref<HTMLElement>()
 const editorView = shallowRef<EditorView>()
 const readOnlyCompartment = new Compartment()
 const livePreviewCompartment = new Compartment()
+const ghostTextCompartment = new Compartment()
+const inlineEditCompartment = new Compartment()
 let ignoreNextUpdate = false
+
+const aiActionCompartment = new Compartment()
+const activeHeadingFrom = ref(-1)
+
+const docStats = ref({
+  charCount: 0,
+  lineCount: 0,
+  cursorLine: 1,
+  cursorCol: 1,
+  selectedText: '',
+  aiConnected: false
+})
+
+const updateDocStats = (view: EditorView) => {
+  const doc = view.state.doc
+  const pos = view.state.selection.main.head
+  const line = doc.lineAt(pos)
+  const { from, to } = view.state.selection.main
+  const selected = view.state.sliceDoc(from, to)
+
+  docStats.value = {
+    charCount: doc.length,
+    lineCount: doc.lines,
+    cursorLine: line.number,
+    cursorCol: pos - line.from + 1,
+    selectedText: selected,
+    aiConnected: aiService.getActiveProvider()?.status === 'connected'
+  }
+}
 
 const createEditor = () => {
   if (!editorContainer.value) return
@@ -117,6 +165,11 @@ const createEditor = () => {
       keymap.of([indentWithTab]),
       readOnlyCompartment.of(EditorState.readOnly.of(false)),
       livePreviewCompartment.of(settingsStore.livePreview ? livePreviewPlugin : []),
+      aiActionCompartment.of(settingsStore.enableAIActions ? [aiActionPlugin, aiActionKeymap] : []),
+      ...(settingsStore.enableSmartPaste ? [smartPasteExtension] : []),
+      ghostTextCompartment.of(settingsStore.ghostTextConfig.enabled ? ghostTextPlugin : []),
+      inlineEditCompartment.of(settingsStore.ghostTextConfig.enabled ? [inlineEditPlugin, inlineEditKeymap] : []),
+      dropHandlerExtension,
       placeholder('开始写作...'),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
@@ -132,6 +185,28 @@ const createEditor = () => {
           const { from, to } = update.state.selection.main
           const selectedText = update.state.sliceDoc(from, to)
           emit('selection-change', selectedText)
+          updateDocStats(update.view)
+        }
+      }),
+      EditorView.domEventHandlers({
+        scroll(_event, view) {
+          const scroller = view.scrollDOM
+          const scrollTop = scroller.scrollTop
+          const pos = view.posAtCoords({ x: 100, y: scrollTop + 50 })
+          if (pos === null) return false
+          const doc = view.state.doc
+          let currentLine = doc.lineAt(pos)
+          for (let i = 0; i < 20; i++) {
+            const match = currentLine.text.match(/^(#{1,6})\s+(.+)/)
+            if (match) {
+              activeHeadingFrom.value = currentLine.from
+              return false
+            }
+            if (currentLine.number <= 1) break
+            currentLine = doc.line(currentLine.number - 1)
+          }
+          activeHeadingFrom.value = -1
+          return false
         }
       }),
       EditorView.theme({
@@ -290,14 +365,28 @@ const toggleLivePreview = () => {
   })
 }
 
+const toggleGhostText = () => {
+  settingsStore.updateGhostTextConfig({ enabled: !settingsStore.ghostTextConfig.enabled })
+  if (!editorView.value) return
+  editorView.value.dispatch({
+    effects: ghostTextCompartment.reconfigure(
+      settingsStore.ghostTextConfig.enabled ? ghostTextPlugin : []
+    )
+  })
+}
+
 defineExpose({
   setContent,
   insertText,
-  getSelectedText
+  getSelectedText,
+  activeHeadingFrom
 })
 
 onMounted(() => {
   createEditor()
+  if (editorView.value) {
+    updateDocStats(editorView.value)
+  }
 })
 
 onBeforeUnmount(() => {
