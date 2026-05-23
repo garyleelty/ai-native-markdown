@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import type { AIConfig, ThemeMode, SidebarTab, VoiceInputMode } from '@/types'
+import type { AIConfig, ThemeMode, SidebarTab, VoiceInputMode, GhostTextConfig } from '@/types'
 
 const defaultAIConfig: AIConfig = {
   provider: 'ollama',
@@ -74,6 +74,21 @@ export const useSettingsStore = defineStore('settings', () => {
   const livePreview = ref(true)
   const voiceInputMode = ref<VoiceInputMode>('hold')
   const voiceInputLanguage = ref('zh-CN')
+  const enableAIActions = ref(true)
+  const enableSmartPaste = ref(true)
+  const enableStatusBar = ref(true)
+
+  const enableInlineEdit = ref(true)
+  const enableMultimodal = ref(true)
+  const enableRAG = ref(false)
+
+  const ghostTextConfig = ref<GhostTextConfig>({
+    enabled: true,
+    debounceMs: 800,
+    maxPrefixChars: 1500,
+    maxCompletionChars: 200,
+    triggerMode: 'pause'
+  })
 
   const initialized = ref(false)
 
@@ -87,6 +102,13 @@ export const useSettingsStore = defineStore('settings', () => {
     livePreview.value = await persistGet<boolean>('live_preview', true)
     voiceInputMode.value = await persistGet<VoiceInputMode>('voice_input_mode', 'hold')
     voiceInputLanguage.value = await persistGet<string>('voice_input_language', 'zh-CN')
+    enableAIActions.value = await persistGet<boolean>('enable_ai_actions', true)
+    enableSmartPaste.value = await persistGet<boolean>('enable_smart_paste', true)
+    enableStatusBar.value = await persistGet<boolean>('enable_status_bar', true)
+    ghostTextConfig.value = await persistGet<GhostTextConfig>('ghost_text_config', ghostTextConfig.value)
+    enableInlineEdit.value = await persistGet<boolean>('enable_inline_edit', true)
+    enableMultimodal.value = await persistGet<boolean>('enable_multimodal', true)
+    enableRAG.value = await persistGet<boolean>('enable_rag', false)
 
     initialized.value = true
   }
@@ -129,6 +151,10 @@ export const useSettingsStore = defineStore('settings', () => {
   const setVoiceInputMode = (mode: VoiceInputMode) => { voiceInputMode.value = mode }
   const setVoiceInputLanguage = (lang: string) => { voiceInputLanguage.value = lang }
 
+  const updateGhostTextConfig = (config: Partial<GhostTextConfig>) => {
+    ghostTextConfig.value = { ...ghostTextConfig.value, ...config }
+  }
+
   watch(theme, (val) => { persistSet('theme', val) })
   watch(aiConfig, (val) => { persistSet('ai_config', val) }, { deep: true })
   watch(sidebarWidth, (val) => { persistSet('sidebar_width', val) })
@@ -136,13 +162,22 @@ export const useSettingsStore = defineStore('settings', () => {
   watch(livePreview, (val) => { persistSet('live_preview', val) })
   watch(voiceInputMode, (val) => { persistSet('voice_input_mode', val) })
   watch(voiceInputLanguage, (val) => { persistSet('voice_input_language', val) })
+  watch(enableAIActions, (val) => { persistSet('enable_ai_actions', val) })
+  watch(enableSmartPaste, (val) => { persistSet('enable_smart_paste', val) })
+  watch(enableStatusBar, (val) => { persistSet('enable_status_bar', val) })
+  watch(ghostTextConfig, (val) => { persistSet('ghost_text_config', val) }, { deep: true })
+  watch(enableInlineEdit, (val) => { persistSet('enable_inline_edit', val) })
+  watch(enableMultimodal, (val) => { persistSet('enable_multimodal', val) })
+  watch(enableRAG, (val) => { persistSet('enable_rag', val) })
 
   return {
     theme, aiConfig, sidebarWidth, aiPanelHeight,
     showSidebar, showAIPanel, activeSidebarTab, livePreview,
-    voiceInputMode, voiceInputLanguage,
+    voiceInputMode, voiceInputLanguage, ghostTextConfig,
+    enableInlineEdit, enableMultimodal, enableRAG,
+    enableAIActions, enableSmartPaste, enableStatusBar,
     isDark, applyTheme, setTheme, toggleTheme, updateAIConfig, toggleSidebar, toggleAIPanel, toggleLivePreview, setActiveTab,
     setSidebarWidth, setAIPanelHeight,
-    setVoiceInputMode, setVoiceInputLanguage
+    setVoiceInputMode, setVoiceInputLanguage, updateGhostTextConfig
   }
 })

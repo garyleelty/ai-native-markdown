@@ -94,6 +94,14 @@ export interface GraphEdge {
   weight: number
 }
 
+export interface GhostTextConfig {
+  enabled: boolean
+  debounceMs: number
+  maxPrefixChars: number
+  maxCompletionChars: number
+  triggerMode: 'pause' | 'manual'
+}
+
 export interface KnowledgeGraphData {
   nodes: GraphNode[]
   edges: GraphEdge[]
@@ -103,4 +111,10 @@ export interface KnowledgeGraphData {
     orphanCount: number
     avgLinkCount: number
   }
+}
+
+export interface AIActionConfig {
+  enabled: boolean
+  position: 'top' | 'bottom'
+  showIcons: boolean
 }
