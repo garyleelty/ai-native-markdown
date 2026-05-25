@@ -20,7 +20,7 @@ export interface ChatMessage {
 }
 
 export interface AIConfig {
-  provider: string
+  provider: 'ollama' | 'openai' | 'deepseek' | 'custom'
   apiKey?: string
   baseURL?: string
   model?: string
@@ -77,6 +77,7 @@ export class TauriAIProvider implements AIProvider {
         provider: this.providerType,
         baseUrl: this.baseURL,
         apiKey: this.apiKey,
+        model: this.model,
       })
       this.status = 'connected'
       this.lastError = undefined
@@ -127,6 +128,7 @@ export class TauriAIProvider implements AIProvider {
         messages: messages.map(m => ({ role: m.role, content: m.content })),
         temperature: options?.temperature ?? this.temperature,
         maxTokens: options?.maxTokens ?? this.maxTokens,
+        eventId: eventId,
       }
     })
 

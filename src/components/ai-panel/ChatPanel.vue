@@ -56,7 +56,7 @@
           class="chat-input"
           placeholder="输入问题..."
           rows="2"
-          @keydown.enter.prevent="sendMessage"
+          @keydown.enter.exact.prevent="sendMessage"
         ></textarea>
         <VoiceInputButton
           :mode="settingsStore.voiceInputMode"
@@ -79,6 +79,7 @@ import type { AIMessage } from '@/types'
 import VoiceInputButton from '../ui/VoiceInputButton.vue'
 import { useSettingsStore } from '@/stores'
 import { throttle } from '@/composables/useDebounce'
+import { useRAG } from '@/composables/useRAG'
 
 const props = defineProps<{
   context?: string
@@ -94,6 +95,7 @@ const streaming = ref(false)
 const messagesRef = ref<HTMLDivElement>()
 
 const settingsStore = useSettingsStore()
+const { buildContext } = useRAG()
 
 const activeModel = computed(() => {
   const provider = aiService.getActiveProvider()
@@ -108,15 +110,33 @@ const scrollToBottom = throttle(async () => {
 }, 100)
 
 const renderMarkdown = (text: string) => {
-  return text
+  // 先提取 code block 和 inline code，避免内部内容被 Markdown 替换破坏
+  const codeBlocks: string[] = []
+  const inlineCodes: string[] = []
+
+  const preserved = text
+    .replace(/```([\s\S]*?)```/g, (_, code) => {
+      codeBlocks.push(`<pre><code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`)
+      return `\x00CB${codeBlocks.length - 1}\x00`
+    })
+    .replace(/`([^`]+)`/g, (_, code) => {
+      inlineCodes.push(`<code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code>`)
+      return `\x00IC${inlineCodes.length - 1}\x00`
+    })
+
+  // 对剩余文本做 HTML 转义和 Markdown 替换
+  const rendered = preserved
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     .replace(/\n/g, '<br>')
+
+  // 还原 code block 和 inline code
+  return rendered
+    .replace(/\x00CB(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i)])
+    .replace(/\x00IC(\d+)\x00/g, (_, i) => inlineCodes[parseInt(i)])
 }
 
 const sendMessage = async () => {
@@ -155,8 +175,22 @@ const sendMessage = async () => {
       .slice(-10)
       .map(m => ({ role: m.role, content: m.content }))
 
-    if (props.context) {
-      chatMessages.unshift({ role: 'system', content: `当前文档内容：\n${props.context}` })
+    let ragContext = ''
+    try {
+      ragContext = await buildContext(inputText.value || messages.value[messages.value.length - 1]?.content || '')
+    } catch {
+      // RAG not available, continue without context
+    }
+
+    const systemContent = ragContext
+      ? `你是一个专业的 Markdown 写作助手。以下是相关的文档上下文：\n\n${ragContext}\n\n请基于上下文回答用户问题。`
+      : '你是一个专业的 Markdown 写作助手。'
+
+    if (props.context || ragContext) {
+      const contextParts: string[] = []
+      if (ragContext) contextParts.push(systemContent)
+      if (props.context) contextParts.push(`当前文档内容：\n${props.context}`)
+      chatMessages.unshift({ role: 'system', content: contextParts.join('\n\n') })
     }
 
     for await (const chunk of provider.streamChat(chatMessages)) {

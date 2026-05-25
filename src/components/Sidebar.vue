@@ -95,6 +95,7 @@
               @rename="handleRename"
               @delete="handleDelete"
               @cancel-edit="handleCancelEdit"
+              @start-edit="handleStartEdit"
             />
           </div>
 
@@ -181,13 +182,26 @@
             <template v-if="selectedProvider === 'ollama'">
               <div class="config-field">
                 <label>服务地址</label>
-                <input type="text" v-model="ollamaBaseURL" placeholder="http://localhost:11434" class="config-input" />
+                <input type="text" v-model="ollamaBaseURL" placeholder="http://localhost:11434" class="config-input" @blur="fetchOllamaModels" />
                 <span class="config-hint">默认通过 Vite 代理，也可直填 Ollama 地址</span>
               </div>
               <div class="config-field">
-                <label>模型</label>
-                <input type="text" v-model="model" placeholder="qwen2.5:7b" class="config-input" />
-                <span class="config-hint">需先运行 ollama pull 拉取模型</span>
+                <label>
+                  模型
+                  <button class="refresh-models-btn" @click="fetchOllamaModels" :disabled="loadingModels" title="刷新模型列表">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ spinning: loadingModels }">
+                      <polyline points="23 4 23 10 17 10"/>
+                      <polyline points="1 20 1 14 7 14"/>
+                      <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                    </svg>
+                  </button>
+                </label>
+                <select v-model="model" class="config-select" :disabled="ollamaModels.length === 0">
+                  <option v-for="m in ollamaModels" :key="m" :value="m">{{ m }}</option>
+                </select>
+                <span class="config-hint">
+                  {{ ollamaModels.length > 0 ? `已安装 ${ollamaModels.length} 个模型` : '未检测到模型，请确认 Ollama 服务已启动' }}
+                </span>
               </div>
             </template>
 
@@ -304,9 +318,38 @@ const activeTab = ref<'files' | 'graph' | 'ai' | 'settings'>('files')
 // ── 文件树逻辑 ──
 const isTauri = '__TAURI_INTERNALS__' in window
 
-// 静态导入 Tauri API，避免动态导入的竞态问题
-import { invoke } from '@tauri-apps/api/core'
-import { open as openDialog } from '@tauri-apps/plugin-dialog'
+// 惰性加载 Tauri API，避免浏览器环境下静态导入报错
+let _invoke: any = null
+let _openDialog: any = null
+
+async function ensureTauriAPI() {
+  if (!isTauri) return
+  if (_invoke && _openDialog) return
+  try {
+    const core = await import('@tauri-apps/api/core')
+    const dialog = await import('@tauri-apps/plugin-dialog')
+    _invoke = core.invoke
+    _openDialog = dialog.open
+  } catch {
+    console.warn('Tauri API 加载失败')
+  }
+}
+
+// 安全的 invoke 包装，确保 API 已加载
+async function tauriInvoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
+  await ensureTauriAPI()
+  if (!_invoke) throw new Error('Tauri API 不可用')
+  return _invoke(cmd, args)
+}
+
+async function tauriOpenDialog(options: Record<string, unknown>) {
+  await ensureTauriAPI()
+  if (!_openDialog) throw new Error('Tauri API 不可用')
+  return _openDialog(options)
+}
+
+// 初始化时预加载
+ensureTauriAPI()
 
 const rootPath = ref('')
 const rootName = ref('')
@@ -346,7 +389,7 @@ const searchContent = async () => {
   
   searchResults.value = []
   try {
-    const results = await invoke('search_files', { 
+    const results = await tauriInvoke('search_files', { 
       dir_path: rootPath.value, 
       query: searchQuery.value 
     }) as any[]
@@ -380,7 +423,7 @@ const entriesToTreeNodes = (entries: any[]): TreeNode[] => {
 const loadDirectory = async (dirPath: string): Promise<TreeNode[]> => {
   if (!isTauri) return []
   try {
-    const entries = await invoke('read_dir', { path: dirPath }) as any[]
+    const entries = await tauriInvoke('read_dir', { path: dirPath }) as any[]
     return entriesToTreeNodes(entries)
   } catch (error) {
     console.error('加载目录失败:', error)
@@ -415,7 +458,7 @@ const openFolder = async () => {
     return
   }
   try {
-    const selected = await openDialog({ directory: true, multiple: false, title: '选择工作区文件夹' })
+    const selected = await tauriOpenDialog({ directory: true, multiple: false, title: '选择工作区文件夹' })
     if (selected) {
       rootPath.value = selected as string
       rootName.value = (selected as string).split('/').pop() || '文件夹'
@@ -446,7 +489,7 @@ const openPath = async () => {
   }
 
   try {
-    const entries = await invoke('read_dir', { path: p }) as any[]
+    const entries = await tauriInvoke('read_dir', { path: p }) as any[]
     if (!entries || entries.length === 0) {
       pathError.value = '路径为空或无法读取'
       return
@@ -608,7 +651,7 @@ const handleCreate = async (payload: { parentPath: string; name: string; isDirec
 
   try {
     // 验证 parentPath 是否为目录（而不是文件）
-    const parentMeta = await invoke('read_dir', { path: parentPath })
+    const parentMeta = await tauriInvoke('read_dir', { path: parentPath })
     
     // 如果 read_dir 失败，说明 parentPath 可能是文件或不存在
     // 这里我们捕获错误并给出明确提示
@@ -633,9 +676,9 @@ const handleCreate = async (payload: { parentPath: string; name: string; isDirec
     // 执行创建
     const newPath = `${parentPath}/${name}`
     if (isDirectory) {
-      await invoke('create_dir', { path: newPath })
+      await tauriInvoke('create_dir', { path: newPath })
     } else {
-      await invoke('create_file', { path: newPath })
+      await tauriInvoke('create_file', { path: newPath })
     }
     // 刷新父目录
     await refreshDirectory(parentPath)
@@ -675,7 +718,7 @@ const handleCreate = async (payload: { parentPath: string; name: string; isDirec
 
 const handleRename = async (payload: { oldPath: string; newPath: string }) => {
   try {
-    await invoke('rename_file', { oldPath: payload.oldPath, newPath: payload.newPath })
+    await tauriInvoke('rename_file', { oldPath: payload.oldPath, newPath: payload.newPath })
     // 刷新相关目录
     const parentPath = payload.oldPath.substring(0, payload.oldPath.lastIndexOf('/'))
     await refreshDirectory(parentPath)
@@ -691,7 +734,7 @@ const handleRename = async (payload: { oldPath: string; newPath: string }) => {
 
 const handleDelete = async (path: string) => {
   try {
-    await invoke('delete_file', { path })
+    await tauriInvoke('delete_file', { path })
     // 刷新父目录
     const parentPath = path.substring(0, path.lastIndexOf('/'))
     await refreshDirectory(parentPath)
@@ -709,6 +752,23 @@ const handleCancelEdit = (path: string) => {
   removeTempNode(path)
 }
 
+const handleStartEdit = (path: string) => {
+  const find = (nodes: TreeNode[] | undefined, targetPath: string): TreeNode | null => {
+    if (!nodes) return null
+    for (const node of nodes) {
+      if (node.path === targetPath) return node
+      const found = find(node.children, targetPath)
+      if (found) return found
+    }
+    return null
+  }
+  const node = treeRoot.value ? find([treeRoot.value], path) : null
+  if (node) {
+    node.isEditing = true
+    node.editValue = node.name
+  }
+}
+
 // ── AI 配置逻辑 ──
 const selectedProvider = ref('ollama')
 const apiKey = ref('')
@@ -720,6 +780,8 @@ const configSaved = ref(false)
 const testing = ref(false)
 const testResult = ref<{ type: 'success' | 'error'; message: string } | null>(null)
 const connectionStatus = ref<'idle' | 'connected' | 'error'>('idle')
+const ollamaModels = ref<string[]>([])
+const loadingModels = ref(false)
 
 const connectionStatusText = computed(() => {
   const map = { idle: '未连接', connected: '已连接', error: '连接失败' }
@@ -730,8 +792,31 @@ const onProviderChange = () => {
   testResult.value = null
   if (selectedProvider.value === 'ollama') {
     model.value = 'qwen2.5:7b'
+    fetchOllamaModels()
   } else {
     model.value = 'gpt-4o-mini'
+    ollamaModels.value = []
+  }
+}
+
+const fetchOllamaModels = async () => {
+  if (!isTauri) return
+  loadingModels.value = true
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const models = await invoke<string[]>('ai_proxy_list_models', {
+      baseUrl: ollamaBaseURL.value || 'http://localhost:11434',
+    })
+    ollamaModels.value = models
+    // 如果当前模型不在列表中，默认选择第一个
+    if (models.length > 0 && !models.includes(model.value)) {
+      model.value = models[0]
+    }
+  } catch (e: any) {
+    console.error('获取 Ollama 模型列表失败:', e)
+    ollamaModels.value = []
+  } finally {
+    loadingModels.value = false
   }
 }
 
@@ -804,12 +889,12 @@ const loadGraphData = async () => {
   try {
     const allFiles: { path: string; content: string }[] = []
     const collectFiles = async (dirPath: string) => {
-      const entries = await invoke('read_dir', { path: dirPath }) as any[]
+      const entries = await tauriInvoke('read_dir', { path: dirPath }) as any[]
       for (const entry of entries) {
         if (entry.is_dir) {
           await collectFiles(entry.path)
         } else if (entry.name.endsWith('.md') || entry.name.endsWith('.markdown')) {
-          const content = await invoke('read_file', { path: entry.path }) as string
+          const content = await tauriInvoke('read_file', { path: entry.path }) as string
           allFiles.push({ path: entry.path, content })
         }
       }
@@ -838,11 +923,11 @@ const toggleTheme = () => { emit('toggle-theme') }
 // ── 文件读写 ──
 const readFile = async (filePath: string): Promise<string> => {
   if (!isTauri) return ''
-  try { return await invoke('read_file', { path: filePath }) as string } catch { return '' }
+  try { return await tauriInvoke('read_file', { path: filePath }) as string } catch { return '' }
 }
 const saveFile = async (filePath: string, content: string): Promise<boolean> => {
   if (!isTauri) return false
-  try { await invoke('write_file', { path: filePath, content }); return true } catch { return false }
+  try { await tauriInvoke('write_file', { path: filePath, content }); return true } catch { return false }
 }
 
 onMounted(() => {
@@ -867,6 +952,11 @@ onMounted(() => {
 
   // 恢复 Provider 注册
   applyAIConfig()
+
+  // 如果当前是 Ollama，自动获取模型列表
+  if (selectedProvider.value === 'ollama') {
+    fetchOllamaModels()
+  }
 })
 
 defineExpose({ readFile, saveFile })
@@ -1423,6 +1513,29 @@ defineExpose({ readFile, saveFile })
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+.refresh-models-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all var(--duration-fast) var(--ease-default);
+}
+.refresh-models-btn:hover:not(:disabled) {
+  color: var(--accent-primary);
+  background: var(--bg-surface);
+}
+.refresh-models-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.refresh-models-btn svg.spinning {
+  animation: spin 0.8s linear infinite;
 }
 
 /* ── 设置面板 ── */

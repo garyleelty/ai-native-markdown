@@ -4,10 +4,13 @@ use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
-use tauri::Emitter;
+use tauri::{AppHandle, Emitter, Manager};
+
+mod commands;
+mod db;
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 struct AiChatRequest {
     provider: String,
     base_url: String,
@@ -16,6 +19,7 @@ struct AiChatRequest {
     messages: Vec<ChatMessageRust>,
     temperature: f64,
     max_tokens: u32,
+    event_id: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -29,6 +33,7 @@ async fn ai_proxy_test(
     provider: String,
     base_url: String,
     api_key: String,
+    model: String,
 ) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(8))
@@ -40,7 +45,17 @@ async fn ai_proxy_test(
         let resp = client.get(&url).send().await.map_err(|e| format!("连接失败: {}", e))?;
         if resp.status().is_success() {
             let data: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
-            Ok(data)
+            // 验证指定模型是否存在于本地模型列表中
+            let model_exists = data.get("models").and_then(|m| m.as_array()).map(|models| {
+                models.iter().any(|m| {
+                    m.get("name").and_then(|n| n.as_str()).map(|n| n == model).unwrap_or(false)
+                })
+            }).unwrap_or(false);
+            if model_exists {
+                Ok(data)
+            } else {
+                Err(format!("模型 '{}' 未在 Ollama 本地安装", model))
+            }
         } else {
             Err(format!("Ollama 返回 HTTP {}", resp.status()))
         }
@@ -53,10 +68,47 @@ async fn ai_proxy_test(
         let resp = req.send().await.map_err(|e| format!("连接失败: {}", e))?;
         if resp.status().is_success() {
             let data: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
-            Ok(data)
+            // 验证指定模型是否存在于可用模型列表中
+            let model_exists = data.get("data").and_then(|m| m.as_array()).map(|models| {
+                models.iter().any(|m| {
+                    m.get("id").and_then(|id| id.as_str()).map(|id| id == model).unwrap_or(false)
+                })
+            }).unwrap_or(false);
+            if model_exists {
+                Ok(data)
+            } else {
+                Err(format!("模型 '{}' 不在可用列表中", model))
+            }
         } else {
             Err(format!("HTTP {}: {}", resp.status(), resp.text().await.unwrap_or_default()))
         }
+    }
+}
+
+#[tauri::command]
+async fn ai_proxy_list_models(
+    base_url: String,
+) -> Result<Vec<String>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let url = format!("{}/api/tags", base_url);
+    let resp = client.get(&url).send().await.map_err(|e| format!("连接失败: {}", e))?;
+    if resp.status().is_success() {
+        let data: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+        let models = data.get("models")
+            .and_then(|m| m.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|m| m.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()))
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+        Ok(models)
+    } else {
+        Err(format!("Ollama 返回 HTTP {}", resp.status()))
     }
 }
 
@@ -145,10 +197,7 @@ async fn ai_proxy_stream(
         .build()
         .map_err(|e| e.to_string())?;
 
-    let event_id = format!("ai-stream-{}", std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis());
+    let event_id = request.event_id;
 
     if request.provider == "ollama" {
         let url = format!("{}/api/chat", request.base_url);
@@ -598,6 +647,13 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
+        .setup(|app| {
+            let app_dir = app.path().app_data_dir().expect("无法获取应用数据目录");
+            std::fs::create_dir_all(&app_dir).ok();
+            let db_path = app_dir.join("ai_markdown.db");
+            db::set_db_path(db_path);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             read_dir,
             read_file,
@@ -611,8 +667,14 @@ pub fn run() {
             export_html,
             export_markdown,
             ai_proxy_test,
+            ai_proxy_list_models,
             ai_proxy_chat,
-            ai_proxy_stream
+            ai_proxy_stream,
+            commands::ocr::ocr_extract_text,
+            commands::pdf::pdf_extract_text,
+            commands::embedding::index_document,
+            commands::rag::rag_search,
+            commands::rag::rag_list_documents
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

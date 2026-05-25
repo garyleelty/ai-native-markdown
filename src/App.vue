@@ -308,6 +308,7 @@ const saveCurrentFile = async () => {
 let saveTimer: number | null = null
 
 watch(() => editorStore.content, () => {
+  if (!editorStore.currentFile) return
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(async () => { await saveCurrentFile() }, 2000)
 })

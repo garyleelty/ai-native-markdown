@@ -113,12 +113,21 @@ export const useSettingsStore = defineStore('settings', () => {
     initialized.value = true
   }
 
-  initSettings()
+  const initPromise = initSettings()
+
+  // 监听系统主题变化，使 isDark 在 system 模式下也能响应式更新
+  const systemIsDark = ref(window.matchMedia('(prefers-color-scheme: dark)').matches)
+  if (typeof window !== 'undefined') {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      systemIsDark.value = e.matches
+      if (theme.value === 'system') applyTheme()
+    })
+  }
 
   const isDark = () => {
     if (theme.value === 'dark') return true
     if (theme.value === 'light') return false
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
+    return systemIsDark.value
   }
 
   const applyTheme = () => {
@@ -178,6 +187,7 @@ export const useSettingsStore = defineStore('settings', () => {
     enableAIActions, enableSmartPaste, enableStatusBar,
     isDark, applyTheme, setTheme, toggleTheme, updateAIConfig, toggleSidebar, toggleAIPanel, toggleLivePreview, setActiveTab,
     setSidebarWidth, setAIPanelHeight,
-    setVoiceInputMode, setVoiceInputLanguage, updateGhostTextConfig
+    setVoiceInputMode, setVoiceInputLanguage, updateGhostTextConfig,
+    initPromise
   }
 })

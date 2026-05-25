@@ -44,9 +44,36 @@ import { ref } from 'vue'
 
 const isTauri = '__TAURI_INTERNALS__' in window
 
-// 静态导入 Tauri API，避免动态导入的竞态问题
-import { invoke } from '@tauri-apps/api/core'
-import { open as openDialog } from '@tauri-apps/plugin-dialog'
+// 惰性加载 Tauri API，避免浏览器环境下静态导入报错
+let _invoke: any = null
+let _openDialog: any = null
+
+async function ensureTauriAPI() {
+  if (!isTauri) return
+  if (_invoke && _openDialog) return
+  try {
+    const core = await import('@tauri-apps/api/core')
+    const dialog = await import('@tauri-apps/plugin-dialog')
+    _invoke = core.invoke
+    _openDialog = dialog.open
+  } catch {
+    console.warn('Tauri API 加载失败')
+  }
+}
+
+async function tauriInvoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
+  await ensureTauriAPI()
+  if (!_invoke) throw new Error('Tauri API 不可用')
+  return _invoke(cmd, args)
+}
+
+async function tauriOpenDialog(options: Record<string, unknown>) {
+  await ensureTauriAPI()
+  if (!_openDialog) throw new Error('Tauri API 不可用')
+  return _openDialog(options)
+}
+
+ensureTauriAPI()
 
 interface FileItem { name: string; path: string }
 const emit = defineEmits<{ (e: 'select', path: string): void; (e: 'close'): void }>()
@@ -70,7 +97,7 @@ const openFolder = async () => {
     return
   }
   try {
-    const selected = await openDialog({ directory: true, multiple: false, title: '选择工作区文件夹' })
+    const selected = await tauriOpenDialog({ directory: true, multiple: false, title: '选择工作区文件夹' })
     if (selected) {
       rootPath.value = selected as string
       rootName.value = (selected as string).split('/').pop() || '文件夹'
@@ -82,7 +109,7 @@ const openFolder = async () => {
 const loadFiles = async (dirPath: string) => {
   if (!isTauri) return
   try {
-    const entries = await invoke('read_dir', { path: dirPath }) as any[]
+    const entries = await tauriInvoke('read_dir', { path: dirPath }) as any[]
     files.value = entries
       .filter((e: any) => e.name.endsWith('.md') || e.name.endsWith('.markdown'))
       .map((e: any) => ({ name: e.name, path: e.path }))
@@ -98,12 +125,12 @@ const selectFile = (file: FileItem) => { currentFilePath.value = file.path; emit
 
 const readFile = async (filePath: string): Promise<string> => {
   if (!isTauri) return ''
-  try { return await invoke('read_file', { path: filePath }) as string } catch { return '' }
+  try { return await tauriInvoke('read_file', { path: filePath }) as string } catch { return '' }
 }
 const saveFile = async (filePath: string, content: string): Promise<boolean> => {
   if (!isTauri) return false
   try {
-    await invoke('write_file', { path: filePath, content })
+    await tauriInvoke('write_file', { path: filePath, content })
     console.log('✅ 文件保存成功:', filePath)
     return true
   } catch (error) {

@@ -1,3 +1,4 @@
+import { computed } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 
 export function useTheme() {
@@ -5,7 +6,7 @@ export function useTheme() {
   
   return {
     theme: settingsStore.theme,
-    isDark: settingsStore.isDark(),
+    isDark: computed(() => settingsStore.isDark()),
     setTheme: settingsStore.setTheme,
     toggleTheme: settingsStore.toggleTheme,
     applyTheme: settingsStore.applyTheme

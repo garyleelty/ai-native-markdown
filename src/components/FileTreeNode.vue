@@ -97,6 +97,7 @@
         @rename="$emit('rename', $event)"
         @delete="$emit('delete', $event)"
         @cancel-edit="$emit('cancel-edit', $event)"
+        @start-edit="$emit('start-edit', $event)"
       />
     </div>
 
@@ -164,6 +165,7 @@ const emit = defineEmits<{
   (e: 'rename', payload: { oldPath: string; newPath: string }): void
   (e: 'delete', path: string): void
   (e: 'cancel-edit', path: string): void
+  (e: 'start-edit', path: string): void
 }>()
 
 const isActive = computed(() => props.node.path === props.currentFilePath)
@@ -259,8 +261,7 @@ const hideContextMenu = () => {
 
 const handleRename = () => {
   hideContextMenu()
-  props.node.isEditing = true
-  props.node.editValue = props.node.name
+  emit('start-edit', props.node.path)
   editValue.value = props.node.name
   nextTick(() => editInput.value?.focus())
 }

@@ -90,7 +90,7 @@ import { indentWithTab } from '@codemirror/commands'
 import { useSettingsStore } from '@/stores/settings'
 import { livePreviewPlugin } from '@/plugins/live-preview'
 import '@/plugins/live-preview/styles.css'
-import { ghostTextPlugin } from '@/extensions/ghost-text/ghostTextPlugin'
+import { ghostTextPlugin, updateGhostTextConfig } from '@/extensions/ghost-text/ghostTextPlugin'
 import { inlineEditPlugin, inlineEditKeymap } from '@/extensions/inline-edit/inlineEditPlugin'
 import { dropHandlerExtension } from '@/extensions/multimodal/dropHandler'
 import { aiActionPlugin, aiActionKeymap } from '@/extensions/ai-actions/aiActionPlugin'
@@ -168,7 +168,7 @@ const createEditor = () => {
       aiActionCompartment.of(settingsStore.enableAIActions ? [aiActionPlugin, aiActionKeymap] : []),
       ...(settingsStore.enableSmartPaste ? [smartPasteExtension] : []),
       ghostTextCompartment.of(settingsStore.ghostTextConfig.enabled ? ghostTextPlugin : []),
-      inlineEditCompartment.of(settingsStore.ghostTextConfig.enabled ? [inlineEditPlugin, inlineEditKeymap] : []),
+      inlineEditCompartment.of(settingsStore.enableInlineEdit ? [inlineEditPlugin, inlineEditKeymap] : []),
       dropHandlerExtension,
       placeholder('开始写作...'),
       EditorView.updateListener.of((update) => {
@@ -216,15 +216,6 @@ const createEditor = () => {
           fontFamily: 'var(--font-mono)',
           lineHeight: '1.8'
         },
-        '.cm-content': {
-          fontFamily: 'var(--font-mono)',
-          lineHeight: '1.8',
-          padding: '16px 0'
-        },
-        '.cm-gutters': {
-          fontFamily: 'var(--font-mono)',
-          lineHeight: '1.8'
-        },
         '.cm-scroller': {
           overflow: 'auto',
           fontFamily: 'var(--font-mono)'
@@ -240,6 +231,9 @@ const createEditor = () => {
     state: startState,
     parent: editorContainer.value
   })
+
+  // 同步 Ghost Text 配置到插件
+  updateGhostTextConfig(settingsStore.ghostTextConfig)
 }
 
 watch(() => props.modelValue, (newValue) => {
@@ -365,16 +359,6 @@ const toggleLivePreview = () => {
   })
 }
 
-const toggleGhostText = () => {
-  settingsStore.updateGhostTextConfig({ enabled: !settingsStore.ghostTextConfig.enabled })
-  if (!editorView.value) return
-  editorView.value.dispatch({
-    effects: ghostTextCompartment.reconfigure(
-      settingsStore.ghostTextConfig.enabled ? ghostTextPlugin : []
-    )
-  })
-}
-
 defineExpose({
   setContent,
   insertText,
@@ -495,6 +479,9 @@ onBeforeUnmount(() => {
 }
 
 .editor-container :deep(.cm-content) {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.8;
   padding: 0 var(--space-8);
   max-width: 720px;
   margin: 0 auto;
@@ -507,27 +494,11 @@ onBeforeUnmount(() => {
 }
 
 .editor-container :deep(.cm-selectionBackground) {
-  background: var(--accent-soft) !important;
+  background: rgba(129, 140, 248, 0.2) !important;
 }
 
 .editor-container :deep(.cm-focused .cm-selectionBackground) {
   background: rgba(129, 140, 248, 0.2) !important;
-}
-
-.editor-container :deep(.cm-gutters) {
-  display: none;
-}
-
-.editor-container :deep(.cm-activeLine) {
-  background: var(--bg-hover);
-  border-radius: var(--radius-sm);
-}
-
-.editor-container :deep(.cm-content) {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  line-height: 1.8;
-  caret-color: var(--accent-primary);
 }
 
 .editor-container :deep(.cm-gutters) {
@@ -546,14 +517,7 @@ onBeforeUnmount(() => {
 
 .editor-container :deep(.cm-activeLine) {
   background: var(--bg-hover);
-}
-
-.editor-container :deep(.cm-selectionBackground) {
-  background: rgba(129, 140, 248, 0.2) !important;
-}
-
-.editor-container :deep(.cm-cursor) {
-  border-left-color: var(--accent-primary);
+  border-radius: var(--radius-sm);
 }
 
 .editor-container :deep(.cm-foldGutter) {
