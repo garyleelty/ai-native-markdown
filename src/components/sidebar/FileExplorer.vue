@@ -3,8 +3,8 @@
     <div class="panel-header">
       <span class="panel-title">资源管理器</span>
       <div class="panel-actions" v-if="rootPath">
-        <el-button :icon="DocumentAdd" size="small" circle @click="handleCreateFile" title="新建文件" />
-        <el-button :icon="FolderAdd" size="small" circle @click="handleCreateFolder" title="新建文件夹" />
+        <el-button :icon="DocumentAdd" size="small" circle aria-label="新建文件" @click="handleCreateFile" title="新建文件" />
+        <el-button :icon="FolderAdd" size="small" circle aria-label="新建文件夹" @click="handleCreateFolder" title="新建文件夹" />
       </div>
     </div>
 

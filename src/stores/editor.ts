@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import type { ViewMode } from '@/types'
 
 interface Tab {
@@ -10,15 +10,41 @@ interface Tab {
   isModified: boolean
 }
 
+const TAB_STATE_KEY = 'editor_tab_state'
+
+function loadTabState(): { tabs: Tab[]; activeTabId: string | null; viewMode: ViewMode } {
+  try {
+    const raw = localStorage.getItem(TAB_STATE_KEY)
+    if (!raw) return { tabs: [], activeTabId: null, viewMode: 'split' }
+    return JSON.parse(raw)
+  } catch {
+    return { tabs: [], activeTabId: null, viewMode: 'split' }
+  }
+}
+
+function saveTabState(tabs: Tab[], activeTabId: string | null, viewMode: ViewMode) {
+  try {
+    const state = {
+      tabs: tabs.map(t => ({ ...t, content: t.isModified ? t.content : '' })),
+      activeTabId,
+      viewMode,
+    }
+    localStorage.setItem(TAB_STATE_KEY, JSON.stringify(state))
+  } catch {
+  }
+}
+
+const savedState = loadTabState()
+
 export const useEditorStore = defineStore('editor', () => {
   const content = ref('')
   const currentFile = ref('')
-  const viewMode = ref<ViewMode>('split')
+  const viewMode = ref<ViewMode>(savedState.viewMode || 'split')
   const cursorLine = ref(0)
   const cursorColumn = ref(0)
   const isModified = ref(false)
-  const openTabs = ref<Tab[]>([])
-  const activeTabId = ref<string | null>(null)
+  const openTabs = ref<Tab[]>(savedState.tabs || [])
+  const activeTabId = ref<string | null>(savedState.activeTabId)
 
   const setContent = (value: string) => {
     if (content.value === value) return

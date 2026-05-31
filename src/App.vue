@@ -9,7 +9,7 @@
     <el-header class="app-header" height="48px">
       <div class="header-left">
         <el-tooltip content="切换侧边栏" placement="bottom">
-          <el-button :icon="Operation" circle size="small" @click="toggleSidebar" />
+          <el-button :icon="Operation" circle size="small" aria-label="切换侧边栏" @click="toggleSidebar" />
         </el-tooltip>
         <div class="app-brand">
           <el-icon :size="20" color="var(--el-color-primary)"><Document /></el-icon>
@@ -23,16 +23,16 @@
       </div>
       <div class="header-right">
         <el-tooltip content="AI 助手" placement="bottom">
-          <el-button :icon="ChatDotRound" circle size="small" :type="settingsStore.showAIPanel ? 'primary' : 'default'" @click="toggleAIPanel" />
+          <el-button :icon="ChatDotRound" circle size="small" aria-label="AI 助手" :type="settingsStore.showAIPanel ? 'primary' : 'default'" @click="toggleAIPanel" />
         </el-tooltip>
         <el-tooltip :content="viewModeTooltip" placement="bottom">
-          <el-button :icon="editorStore.viewMode === 'preview' ? EditPen : View" circle size="small" @click="cycleViewMode" />
+          <el-button :icon="editorStore.viewMode === 'preview' ? EditPen : View" circle size="small" aria-label="切换视图模式" @click="cycleViewMode" />
         </el-tooltip>
         <el-tooltip content="版本历史" placement="bottom" v-if="editorStore.currentFile">
-          <el-button :icon="Clock" circle size="small" @click="showVersionHistory = true" />
+          <el-button :icon="Clock" circle size="small" aria-label="版本历史" @click="showVersionHistory = true" />
         </el-tooltip>
         <el-dropdown trigger="click" @command="handleExport">
-          <el-button :icon="Download" circle size="small" />
+          <el-button :icon="Download" circle size="small" aria-label="导出" />
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="export">导出...</el-dropdown-item>
@@ -41,10 +41,10 @@
           </template>
         </el-dropdown>
         <el-tooltip content="专注模式 (F11)" placement="bottom">
-          <el-button :icon="FullScreen" circle size="small" :type="focusMode ? 'primary' : 'default'" @click="focusMode = !focusMode" />
+          <el-button :icon="FullScreen" circle size="small" aria-label="专注模式" :type="focusMode ? 'primary' : 'default'" @click="focusMode = !focusMode" />
         </el-tooltip>
         <el-tooltip content="切换主题" placement="bottom">
-          <el-button :icon="isDark ? Moon : Sunny" circle size="small" @click="toggleTheme" />
+          <el-button :icon="isDark ? Moon : Sunny" circle size="small" aria-label="切换主题" @click="toggleTheme" />
         </el-tooltip>
       </div>
     </el-header>

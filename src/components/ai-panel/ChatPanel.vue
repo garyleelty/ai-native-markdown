@@ -11,6 +11,7 @@
         :icon="Delete"
         circle
         size="small"
+        aria-label="清空对话"
         @click="clearMessages"
         title="清空对话"
       />
@@ -36,6 +37,7 @@
               :icon="CopyDocument"
               size="small"
               circle
+              aria-label="复制"
               @click="copyMessage(msg.content)"
               title="复制"
             />
@@ -43,6 +45,7 @@
               :icon="Plus"
               size="small"
               circle
+              aria-label="插入到编辑器"
               @click="$emit('insert', msg.content)"
               title="插入到编辑器"
             />
@@ -50,6 +53,7 @@
               :icon="Refresh"
               size="small"
               circle
+              aria-label="重新生成"
               @click="regenerate(msg)"
               title="重新生成"
               :disabled="streaming"
@@ -84,19 +88,21 @@
         @keydown.shift.enter.exact.stop
       />
       <el-button
-        v-if="streaming"
-        type="danger"
-        :icon="VideoPause"
-        circle
-        @click="stopStreaming"
-        title="停止"
-      />
+          v-if="streaming"
+          type="danger"
+          :icon="VideoPause"
+          circle
+          aria-label="停止"
+          @click="stopStreaming"
+          title="停止"
+        />
       <template v-else>
         <VoiceInputButton mode="toggle" @result="handleVoiceResult" />
         <el-button
           type="primary"
           :icon="Promotion"
           circle
+          aria-label="发送"
           @click="sendMessage"
           :disabled="!inputText.trim()"
           title="发送"
@@ -136,7 +142,29 @@ const emit = defineEmits<{
   (e: 'insert', content: string): void
 }>()
 
-const messages = ref<AIMessage[]>([])
+const CHAT_HISTORY_KEY = 'ai_chat_history'
+const MAX_HISTORY_MESSAGES = 100
+
+function loadChatHistory(): AIMessage[] {
+  try {
+    const raw = localStorage.getItem(CHAT_HISTORY_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as AIMessage[]
+    return parsed.slice(-MAX_HISTORY_MESSAGES)
+  } catch {
+    return []
+  }
+}
+
+function saveChatHistory(msgs: AIMessage[]) {
+  try {
+    const toSave = msgs.slice(-MAX_HISTORY_MESSAGES)
+    localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(toSave))
+  } catch {
+  }
+}
+
+const messages = ref<AIMessage[]>(loadChatHistory())
 const inputText = ref('')
 const streaming = ref(false)
 let currentAbortController: AbortController | null = null
@@ -319,7 +347,7 @@ const handleVoiceResult = (text: string) => {
   inputText.value += text
 }
 
-watch(messages, () => { scrollToBottom(); addCopyButtons() }, { deep: true })
+watch(messages, () => { scrollToBottom(); addCopyButtons(); saveChatHistory(messages.value) }, { deep: true })
 </script>
 
 <style scoped>

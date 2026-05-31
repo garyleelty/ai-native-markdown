@@ -107,7 +107,8 @@ export function useFileOperations(editorRef: Ref<any>) {
   }
 
   const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-    if (editorStore.isModified) {
+    const hasUnsaved = editorStore.openTabs.some(t => t.isModified)
+    if (hasUnsaved) {
       e.preventDefault()
       e.returnValue = ''
     }
