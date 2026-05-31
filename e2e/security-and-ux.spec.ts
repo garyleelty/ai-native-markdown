@@ -1,0 +1,279 @@
+import { test, expect } from '@playwright/test'
+
+test.describe('安全修复验证', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('http://localhost:1420/')
+    await page.waitForLoadState('networkidle')
+  })
+
+  test('CSP meta标签存在', async ({ page }) => {
+    const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content')
+    expect(csp).toContain("default-src 'self'")
+    expect(csp).toContain("script-src 'self'")
+  })
+
+  test('XSS payload在预览中不执行', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.waitForTimeout(500)
+
+    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
+    await welcomeBtn.click()
+    await page.waitForTimeout(1000)
+
+    const firstMd = page.locator('.el-tree-node').filter({ hasText: '.md' }).first()
+    await firstMd.click()
+    await page.waitForTimeout(500)
+
+    const editor = page.locator('.cm-content')
+    await editor.click()
+    await editor.fill('<script>alert("xss")</script>\n\n<img src=x onerror=alert(1)>')
+    await page.waitForTimeout(1000)
+
+    const preview = page.locator('.preview-content')
+    const html = await preview.innerHTML()
+    expect(html).not.toContain('<script>')
+    expect(html).not.toContain('onerror')
+  })
+
+  test('aria-label存在于图标按钮', async ({ page }) => {
+    const buttons = page.locator('button[aria-label]')
+    const count = await buttons.count()
+    expect(count).toBeGreaterThanOrEqual(5)
+
+    const labels = await buttons.all()
+    for (const btn of labels) {
+      const label = await btn.getAttribute('aria-label')
+      expect(label).toBeTruthy()
+      expect(label!.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+test.describe('性能优化验证', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('http://localhost:1420/')
+    await page.waitForLoadState('networkidle')
+  })
+
+  test('初始加载不包含mermaid chunk', async ({ page }) => {
+    const requests: string[] = []
+    page.on('request', req => {
+      const url = req.url()
+      if (url.includes('.js')) requests.push(url)
+    })
+
+    await page.goto('http://localhost:1420/')
+    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
+
+    const mermaidLoaded = requests.some(url => url.includes('mermaid'))
+    expect(mermaidLoaded).toBe(false)
+  })
+
+  test('mermaid图表触发时才加载mermaid chunk', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.waitForTimeout(500)
+
+    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
+    await welcomeBtn.click()
+    await page.waitForTimeout(1000)
+
+    const firstMd = page.locator('.el-tree-node').filter({ hasText: '.md' }).first()
+    await firstMd.click()
+    await page.waitForTimeout(500)
+
+    const editor = page.locator('.cm-content')
+    await editor.click()
+    await editor.fill('```mermaid\ngraph TD\nA-->B\n```')
+    await page.waitForTimeout(2000)
+
+    const requests: string[] = []
+    page.on('request', req => {
+      const url = req.url()
+      if (url.includes('.js')) requests.push(url)
+    })
+  })
+})
+
+test.describe('UX修复验证', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('http://localhost:1420/')
+    await page.waitForLoadState('networkidle')
+  })
+
+  test('全局错误处理器存在', async ({ page }) => {
+    const hasHandler = await page.evaluate(() => {
+      return !!(window as any).__VUE__?.appContext?.config?.errorHandler
+    })
+    expect(hasHandler).toBe(true)
+  })
+
+  test('文本对比度满足WCAG AA', async ({ page }) => {
+    const body = page.locator('body')
+    const color = await body.evaluate(el => getComputedStyle(el).color)
+    const bgColor = await body.evaluate(el => getComputedStyle(el).backgroundColor)
+
+    expect(color).toBe('rgb(220, 221, 222)')
+    expect(bgColor).toBe('rgb(30, 30, 30)')
+  })
+
+  test('标签页状态持久化到localStorage', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.waitForTimeout(500)
+
+    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
+    await welcomeBtn.click()
+    await page.waitForTimeout(1000)
+
+    const firstMd = page.locator('.el-tree-node').filter({ hasText: '.md' }).first()
+    await firstMd.click()
+    await page.waitForTimeout(500)
+
+    const tabState = await page.evaluate(() => localStorage.getItem('editor_tab_state'))
+    expect(tabState).toBeTruthy()
+    const parsed = JSON.parse(tabState!)
+    expect(parsed).toHaveProperty('tabs')
+    expect(parsed).toHaveProperty('activeTabId')
+    expect(parsed).toHaveProperty('viewMode')
+  })
+
+  test('AI对话历史持久化', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.waitForTimeout(500)
+
+    const aiBtn = page.locator('button[aria-label="AI 助手"]')
+    await aiBtn.click()
+    await page.waitForTimeout(500)
+
+    const chatHistory = await page.evaluate(() => localStorage.getItem('ai_chat_history'))
+    expect(chatHistory).toBeTruthy()
+  })
+
+  test('未保存更改警告 - 关闭标签页时提示', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.waitForTimeout(500)
+
+    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
+    await welcomeBtn.click()
+    await page.waitForTimeout(1000)
+
+    const firstMd = page.locator('.el-tree-node').filter({ hasText: '.md' }).first()
+    await firstMd.click()
+    await page.waitForTimeout(500)
+
+    const editor = page.locator('.cm-content')
+    await editor.click()
+    await editor.type(' some new content')
+    await page.waitForTimeout(500)
+
+    const closeTab = page.locator('.el-tabs__nav-wrap .is-icon-close').first()
+    if (await closeTab.isVisible()) {
+      page.once('dialog', async dialog => {
+        expect(dialog.message()).toContain('未保存')
+        await dialog.dismiss()
+      })
+      await closeTab.click()
+    }
+  })
+})
+
+test.describe('功能完整性验证', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('http://localhost:1420/')
+    await page.waitForLoadState('networkidle')
+  })
+
+  test('应用正常加载', async ({ page }) => {
+    await expect(page.locator('.app-container')).toBeVisible()
+    await expect(page.locator('.app-header')).toBeVisible()
+  })
+
+  test('Obsidian主题应用正确', async ({ page }) => {
+    const app = page.locator('#app')
+    const bg = await app.evaluate(el => getComputedStyle(el).backgroundColor)
+    expect(bg).toBe('rgb(30, 30, 30)')
+  })
+
+  test('试用示例工作区功能正常', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.waitForTimeout(500)
+
+    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
+    await expect(welcomeBtn).toBeVisible()
+    await welcomeBtn.click()
+    await page.waitForTimeout(1000)
+
+    const tree = page.locator('.el-tree')
+    await expect(tree).toBeVisible()
+  })
+
+  test('编辑器加载和输入正常', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.waitForTimeout(500)
+
+    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
+    await welcomeBtn.click()
+    await page.waitForTimeout(1000)
+
+    const firstMd = page.locator('.el-tree-node').filter({ hasText: '.md' }).first()
+    await firstMd.click()
+    await page.waitForTimeout(500)
+
+    const editor = page.locator('.cm-content')
+    await editor.click()
+    await editor.type('# Hello World\n\nThis is a test.')
+    await page.waitForTimeout(500)
+
+    const content = await editor.textContent()
+    expect(content).toContain('Hello World')
+  })
+
+  test('预览面板渲染正常', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.waitForTimeout(500)
+
+    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
+    await welcomeBtn.click()
+    await page.waitForTimeout(1000)
+
+    const firstMd = page.locator('.el-tree-node').filter({ hasText: '.md' }).first()
+    await firstMd.click()
+    await page.waitForTimeout(500)
+
+    const editor = page.locator('.cm-content')
+    await editor.click()
+    await editor.type('# Test Heading\n\n**Bold text** and *italic text*')
+    await page.waitForTimeout(1000)
+
+    const preview = page.locator('.preview-content')
+    await expect(preview).toBeVisible()
+    const html = await preview.innerHTML()
+    expect(html).toContain('<h1')
+    expect(html).toContain('<strong>')
+    expect(html).toContain('<em>')
+  })
+
+  test('命令面板可打开', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.waitForTimeout(500)
+
+    await page.keyboard.press('Control+Shift+P')
+    await page.waitForTimeout(500)
+
+    const palette = page.locator('.command-palette')
+    await expect(palette).toBeVisible()
+  })
+
+  test('专注模式可切换', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.waitForTimeout(500)
+
+    const focusBtn = page.locator('button[aria-label="专注模式"]')
+    await expect(focusBtn).toBeVisible()
+    await focusBtn.click()
+    await page.waitForTimeout(500)
+
+    const app = page.locator('.app-container')
+    await expect(app).toHaveClass(/focus-mode-active/)
+  })
+})

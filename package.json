@@ -18,6 +18,7 @@
     "@codemirror/theme-one-dark": "^6.1.2",
     "@codemirror/view": "^6.34.0",
     "@element-plus/icons-vue": "^2.3.1",
+    "@playwright/test": "^1.60.0",
     "@traptitech/markdown-it-katex": "^3.6.0",
     "@types/dompurify": "^3.0.5",
     "@vueuse/core": "^13.0.0",

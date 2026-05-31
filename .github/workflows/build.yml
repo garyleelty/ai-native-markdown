@@ -2,11 +2,11 @@ name: Build Electron App
 
 on:
   push:
-    branches: [main]
+    branches: [main, web]
     tags:
       - 'v*'
   pull_request:
-    branches: [main]
+    branches: [main, web]
 
 jobs:
   build:
