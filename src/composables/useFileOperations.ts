@@ -13,7 +13,7 @@ export function useFileOperations(editorRef: Ref<any>) {
   const saveStatusMessage = ref('')
   const saveStatusClass = ref('')
 
-  let saveTimer: number | null = null
+  let saveTimer: ReturnType<typeof setTimeout> | null = null
 
   const saveCurrentFile = async (filePath?: string) => {
     const path = filePath || editorStore.currentFile

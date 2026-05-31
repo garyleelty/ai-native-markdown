@@ -32,7 +32,7 @@ const emit = defineEmits<{
 const previewRef = ref<HTMLElement>()
 const previewContainer = previewRef
 const debouncedContent = ref(props.content)
-let debounceTimer: number | null = null
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(() => props.content, () => {
   if (debounceTimer) clearTimeout(debounceTimer)
@@ -153,7 +153,7 @@ function highlightCurrentLine() {
   }
 }
 
-let renderTimer: number | null = null
+let renderTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(debouncedContent, () => {
   if (renderTimer) clearTimeout(renderTimer)

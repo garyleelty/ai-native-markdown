@@ -153,6 +153,9 @@ export const fileSystem = {
   },
 
   async importFromPicker(): Promise<number> {
+    if (!('showDirectoryPicker' in window)) {
+      return this.importFromFileInput()
+    }
     try {
       const dirHandle = await (window as any).showDirectoryPicker()
       let count = 0
@@ -176,5 +179,28 @@ export const fileSystem = {
       if (e.name === 'AbortError') return 0
       throw e
     }
+  },
+
+  async importFromFileInput(): Promise<number> {
+    return new Promise((resolve) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.multiple = true
+      input.accept = '.md,.markdown'
+      input.onchange = async () => {
+        const files = input.files
+        if (!files) { resolve(0); return }
+        let count = 0
+        for (const file of Array.from(files)) {
+          const path = `/workspace/${file.name}`
+          const content = await file.text()
+          await this.writeFile(path, content)
+          count++
+        }
+        resolve(count)
+      }
+      input.oncancel = () => resolve(0)
+      input.click()
+    })
   }
 }

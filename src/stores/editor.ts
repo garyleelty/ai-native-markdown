@@ -146,6 +146,10 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
+  watch([openTabs, activeTabId, viewMode], () => {
+    saveTabState(openTabs.value, activeTabId.value, viewMode.value)
+  }, { deep: true })
+
   return {
     content, currentFile, viewMode, cursorLine, cursorColumn, isModified,
     openTabs, activeTabId,
