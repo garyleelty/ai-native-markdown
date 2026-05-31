@@ -1,41 +1,66 @@
 :root {
   /* ═══════════════════════════════════════════════════
-     Design System Tokens - Modern Dark Cinema
-     基于 UI-UX-REDESIGN.md 规范
+     Design System Tokens - Obsidian-inspired Modern Dark
      ═══════════════════════════════════════════════════ */
 
-  /* ── 背景层 ── */
-  --bg-deep: #020203;
-  --bg-base: #0A0A0C;
-  --bg-elevated: #141418;
-  --bg-surface: #1C1C22;
-  --bg-hover: rgba(255, 255, 255, 0.04);
+  /* ── Obsidian 色彩体系 ── */
+  --obsidian-bg-primary: #1e1e1e;
+  --obsidian-bg-secondary: #252525;
+  --obsidian-bg-tertiary: #2a2a2a;
+  --obsidian-bg-hover: #303030;
+  --obsidian-bg-active: #363636;
+  --obsidian-bg-modifier: #1a1a1a;
+  --obsidian-text-normal: #dcddde;
+  --obsidian-text-muted: #999;
+  --obsidian-text-faint: #666;
+  --obsidian-accent: #7f6df2;
+  --obsidian-accent-hover: #8b7cf3;
+  --obsidian-accent-soft: rgba(127, 109, 242, 0.12);
+  --obsidian-border: rgba(255, 255, 255, 0.06);
+
+  /* ── Element Plus 变量映射 ── */
+  --bg-deep: var(--obsidian-bg-primary);
+  --bg-base: var(--obsidian-bg-primary);
+  --bg-elevated: var(--obsidian-bg-secondary);
+  --bg-surface: var(--obsidian-bg-tertiary);
+  --bg-secondary: var(--obsidian-bg-secondary);
+  --bg-primary: var(--obsidian-bg-primary);
+  --bg-crust: #1a1a1a;
+  --text-primary: var(--obsidian-text-normal);
+  --text-secondary: var(--obsidian-text-muted);
+  --text-muted: var(--obsidian-text-faint);
+  --accent-primary: var(--obsidian-accent);
+  --accent-glow: rgba(127, 109, 242, 0.4);
+  --border-subtle: var(--obsidian-border);
+  --border-default: rgba(255, 255, 255, 0.08);
+  --bg-hover: rgba(255, 255, 255, 0.05);
   --bg-active: rgba(255, 255, 255, 0.08);
 
   /* ── 文字层 ── */
-  --text-primary: #EDEDEF;
-  --text-secondary: #9CA3AF;
-  --text-muted: #6B7280;
-  --text-disabled: #4B5563;
+  --text-disabled: #555;
 
   /* ── 强调色 ── */
-  --accent-primary: #818CF8;
-  --accent-secondary: #6366F1;
-  --accent-glow: rgba(129, 140, 248, 0.15);
-  --accent-gradient: linear-gradient(135deg, #818CF8, #A78BFA);
+  --accent-secondary: #7f6df2;
+  --accent-gradient: linear-gradient(135deg, #7f6df2, #a78bfa);
+  --accent-soft: rgba(127, 109, 242, 0.12);
+  --accent-soft-hover: rgba(127, 109, 242, 0.20);
+  --accent-red: #f38ba8;
+  --accent-green: #a6e3a1;
+  --accent-teal: #94e2d5;
+  --accent-mauve: #cba6f7;
+  --accent: var(--accent-primary);
 
   /* ── 功能色 ── */
-  --success: #34D399;
-  --warning: #FBBF24;
-  --error: #F87171;
-  --info: #60A5FA;
+  --success: #a6e3a1;
+  --warning: #f9e2af;
+  --error: #f38ba8;
+  --info: #89b4fa;
 
   /* ── 边框 ── */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-default: rgba(255, 255, 255, 0.10);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-strong: rgba(255, 255, 255, 0.12);
 
   /* ── 圆角 ── */
+  --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -53,10 +78,10 @@
   --space-10: 40px;
 
   /* ── 阴影 ── */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px rgba(129, 140, 248, 0.15);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 20px rgba(127, 109, 242, 0.15);
 
   /* ── 动效曲线 ── */
   --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
@@ -66,6 +91,7 @@
   --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
   /* ── 动效时长 ── */
+  --transition-fast: 100ms;
   --duration-instant: 0ms;
   --duration-fast: 100ms;
   --duration-normal: 150ms;
@@ -76,156 +102,111 @@
   /* ── 字体 ── */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', Consolas, monospace;
-
-  /* ── 旧版兼容变量 ── */
-  --bg-mantle: var(--bg-elevated);
-  --bg-crust: var(--bg-deep);
-  --bg-primary: var(--bg-base);
-  --bg-secondary: var(--bg-elevated);
-  --bg-tertiary: var(--bg-deep);
-  --bg-surface0: var(--bg-surface);
-  --bg-surface1: var(--bg-elevated);
-  --bg-surface2: var(--bg-hover);
-  --bg-overlay0: var(--text-muted);
-  --bg-overlay1: var(--text-secondary);
-  --text: var(--text-primary);
-  --text-subtext0: var(--text-secondary);
-  --text-subtext1: var(--text-secondary);
-  --text-overlay0: var(--text-muted);
-  --accent: var(--accent-primary);
-  --accent-hover: #A5B4FC;
-  --accent-soft: rgba(129, 140, 248, 0.12);
-  --accent-soft-hover: rgba(129, 140, 248, 0.18);
-  --accent-glow-strong: rgba(129, 140, 248, 0.25);
-  --accent-blue: var(--accent-primary);
-  --accent-green: var(--success);
-  --accent-red: var(--error);
-  --accent-yellow: var(--warning);
-  --accent-mauve: #A78BFA;
-  --accent-peach: #FB923C;
-  --accent-teal: #2DD4BF;
-  --accent-pink: #F472B6;
-  --accent-lavender: #A78BFA;
-  --border-color: var(--border-subtle);
-  --border-focus: var(--accent-primary);
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
-  --shadow-glow-strong: 0 0 20px var(--accent-glow);
-  --radius-xs: 4px;
-  --space-7: 32px;
-  --transition-fast: 0.15s ease-out;
-  --transition: 0.2s ease-in-out;
-  --transition-smooth: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ═══════════════════════════════════════════════════
-   浅色主题
-   ═══════════════════════════════════════════════════ */
 :root.light {
-  /* ── 背景层 ── */
-  --bg-deep: #F3F4F6;
-  --bg-base: #FFFFFF;
-  --bg-elevated: #F9FAFB;
-  --bg-surface: #FFFFFF;
-  --bg-hover: rgba(0, 0, 0, 0.03);
-  --bg-active: rgba(0, 0, 0, 0.06);
+  --obsidian-bg-primary: #ffffff;
+  --obsidian-bg-secondary: #f6f6f6;
+  --obsidian-bg-tertiary: #ececec;
+  --obsidian-bg-hover: #e8e8e8;
+  --obsidian-bg-active: #ddd;
+  --obsidian-bg-modifier: #fbfbfb;
+  --obsidian-text-normal: #1e1e1e;
+  --obsidian-text-muted: #777;
+  --obsidian-text-faint: #aaa;
+  --obsidian-accent: #7f6df2;
+  --obsidian-accent-hover: #6b59e0;
+  --obsidian-accent-soft: rgba(127, 109, 242, 0.08);
+  --obsidian-border: rgba(0, 0, 0, 0.08);
 
-  /* ── 文字层 ── */
-  --text-primary: #111827;
-  --text-secondary: #4B5563;
-  --text-muted: #9CA3AF;
-  --text-disabled: #D1D5DB;
+  --bg-deep: var(--obsidian-bg-primary);
+  --bg-base: var(--obsidian-bg-primary);
+  --bg-elevated: var(--obsidian-bg-secondary);
+  --bg-surface: var(--obsidian-bg-tertiary);
+  --bg-secondary: var(--obsidian-bg-secondary);
+  --bg-primary: var(--obsidian-bg-primary);
+  --bg-crust: #fbfbfb;
+  --text-primary: var(--obsidian-text-normal);
+  --text-secondary: var(--obsidian-text-muted);
+  --text-muted: var(--obsidian-text-faint);
+  --accent-primary: var(--obsidian-accent);
+  --accent-glow: rgba(127, 109, 242, 0.25);
+  --border-subtle: var(--obsidian-border);
+  --border-default: rgba(0, 0, 0, 0.10);
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.07);
 
-  /* ── 强调色 ── */
-  --accent-primary: #4F46E5;
-  --accent-secondary: #4338CA;
-  --accent-glow: rgba(79, 70, 229, 0.15);
-  --accent-gradient: linear-gradient(135deg, #4F46E5, #7C3AED);
-
-  /* ── 功能色 ── */
-  --success: #10B981;
-  --warning: #F59E0B;
-  --error: #EF4444;
-  --info: #3B82F6;
-
-  /* ── 边框 ── */
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-default: #E5E7EB;
-  --border-strong: #D1D5DB;
-
-  /* ── 阴影 ── */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --text-disabled: #bbb;
+  --accent-secondary: #6b59e0;
+  --accent-gradient: linear-gradient(135deg, #7f6df2, #a78bfa);
+  --accent-soft: rgba(127, 109, 242, 0.08);
+  --accent-soft-hover: rgba(127, 109, 242, 0.15);
+  --accent-red: #e74c3c;
+  --accent-green: #2ecc71;
+  --accent-teal: #1abc9c;
+  --accent-mauve: #8b5cf6;
+  --accent: var(--accent-primary);
+  --success: #2ecc71;
+  --warning: #f39c12;
+  --error: #e74c3c;
+  --info: #3498db;
+  --border-strong: rgba(0, 0, 0, 0.15);
+  --radius-xs: 4px;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
-  --shadow-glow: 0 0 20px rgba(79, 70, 229, 0.12);
-
-  /* ── 旧版兼容 ── */
-  --bg-mantle: var(--bg-elevated);
-  --bg-crust: var(--bg-deep);
-  --bg-primary: var(--bg-base);
-  --bg-secondary: var(--bg-elevated);
-  --bg-tertiary: var(--bg-deep);
-  --accent: var(--accent-primary);
-  --accent-hover: #6366F1;
-  --accent-soft: rgba(79, 70, 229, 0.10);
-  --accent-soft-hover: rgba(79, 70, 229, 0.15);
-  --accent-glow-strong: rgba(79, 70, 229, 0.20);
-  --accent-blue: var(--accent-primary);
-  --accent-green: var(--success);
-  --accent-red: var(--error);
-  --accent-yellow: var(--warning);
-  --border-color: var(--border-subtle);
-  --border-focus: var(--accent-primary);
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 20px rgba(127, 109, 242, 0.10);
 }
 
-/* ── 系统主题适配 ── */
 @media (prefers-color-scheme: light) {
   :root:not(.dark):not(.light) {
-    --bg-deep: #F3F4F6;
-    --bg-base: #FFFFFF;
-    --bg-elevated: #F9FAFB;
-    --bg-surface: #FFFFFF;
-    --bg-hover: rgba(0, 0, 0, 0.03);
-    --bg-active: rgba(0, 0, 0, 0.06);
-    --text-primary: #111827;
-    --text-secondary: #4B5563;
-    --text-muted: #9CA3AF;
-    --text-disabled: #D1D5DB;
-    --accent-primary: #4F46E5;
-    --accent-secondary: #4338CA;
-    --accent-glow: rgba(79, 70, 229, 0.15);
-    --accent-gradient: linear-gradient(135deg, #4F46E5, #7C3AED);
-    --success: #10B981;
-    --warning: #F59E0B;
-    --error: #EF4444;
-    --info: #3B82F6;
-    --border-subtle: rgba(0, 0, 0, 0.06);
-    --border-default: #E5E7EB;
-    --border-strong: #D1D5DB;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --obsidian-bg-primary: #ffffff;
+    --obsidian-bg-secondary: #f6f6f6;
+    --obsidian-bg-tertiary: #ececec;
+    --obsidian-bg-hover: #e8e8e8;
+    --obsidian-bg-active: #ddd;
+    --obsidian-text-normal: #1e1e1e;
+    --obsidian-text-muted: #777;
+    --obsidian-text-faint: #aaa;
+    --obsidian-accent: #7f6df2;
+    --obsidian-border: rgba(0, 0, 0, 0.08);
+
+    --bg-deep: var(--obsidian-bg-primary);
+    --bg-base: var(--obsidian-bg-primary);
+    --bg-elevated: var(--obsidian-bg-secondary);
+    --bg-surface: var(--obsidian-bg-tertiary);
+    --bg-secondary: var(--obsidian-bg-secondary);
+    --bg-primary: var(--obsidian-bg-primary);
+    --bg-crust: #fbfbfb;
+    --text-primary: var(--obsidian-text-normal);
+    --text-secondary: var(--obsidian-text-muted);
+    --text-muted: var(--obsidian-text-faint);
+    --accent-primary: var(--obsidian-accent);
+    --accent-glow: rgba(127, 109, 242, 0.25);
+    --border-subtle: var(--obsidian-border);
+    --border-default: rgba(0, 0, 0, 0.10);
+    --bg-hover: rgba(0, 0, 0, 0.04);
+    --bg-active: rgba(0, 0, 0, 0.07);
+    --text-disabled: #bbb;
+    --accent-secondary: #6b59e0;
+    --accent-gradient: linear-gradient(135deg, #7f6df2, #a78bfa);
+    --accent-soft: rgba(127, 109, 242, 0.08);
+    --accent-soft-hover: rgba(127, 109, 242, 0.15);
+    --accent-red: #e74c3c;
+    --accent-green: #2ecc71;
+    --accent-teal: #1abc9c;
+    --accent-mauve: #8b5cf6;
+    --accent: var(--accent-primary);
+    --success: #2ecc71;
+    --warning: #f39c12;
+    --error: #e74c3c;
+    --info: #3498db;
+    --border-strong: rgba(0, 0, 0, 0.15);
+    --radius-xs: 4px;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
-    --shadow-glow: 0 0 20px rgba(79, 70, 229, 0.12);
-    --bg-mantle: var(--bg-elevated);
-    --bg-crust: var(--bg-deep);
-    --bg-primary: var(--bg-base);
-    --bg-secondary: var(--bg-elevated);
-    --bg-tertiary: var(--bg-deep);
-    --accent: var(--accent-primary);
-    --accent-hover: #6366F1;
-    --accent-soft: rgba(79, 70, 229, 0.10);
-    --accent-soft-hover: rgba(79, 70, 229, 0.15);
-    --accent-glow-strong: rgba(79, 70, 229, 0.20);
-    --accent-blue: var(--accent-primary);
-    --accent-green: var(--success);
-    --accent-red: var(--error);
-    --accent-yellow: var(--warning);
-    --border-color: var(--border-subtle);
-    --border-focus: var(--accent-primary);
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
-    --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12);
+    --shadow-glow: 0 0 20px rgba(127, 109, 242, 0.10);
   }
 }
 
@@ -239,21 +220,23 @@ html, body {
   height: 100%;
   overflow: hidden;
   font-family: var(--font-sans);
-  background: var(--bg-base);
-  color: var(--text-primary);
+  background: var(--obsidian-bg-primary);
+  color: var(--obsidian-text-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-feature-settings: 'kern' 1, 'liga' 1, 'tnum' 1;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 #app {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  background: var(--obsidian-bg-primary);
 }
 
-/* ── 滚动条 ── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -264,70 +247,59 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 3px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--bg-active);
-  background-clip: padding-box;
+  background: rgba(255, 255, 255, 0.14);
 }
 
-/* ── 选中文字 ── */
+:root.light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+:root.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.20);
+}
+
 ::selection {
-  background: var(--accent-soft);
+  background: var(--accent-glow);
   color: inherit;
   text-shadow: none;
 }
 
-/* ── 全局焦点样式 ── */
 :focus-visible {
-  outline: 2px solid var(--accent-primary);
+  outline: 2px solid var(--obsidian-accent);
   outline-offset: 2px;
 }
 
-/* ── 全局按钮重置 ── */
 button {
   font-family: inherit;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ── 响应式工具类 ── */
-.mobile-hidden {
-  display: block;
-}
-
-.desktop-hidden {
-  display: none;
-}
-
-.touch-target {
-  min-height: 44px;
-  min-width: 44px;
-}
+.mobile-hidden { display: block; }
+.desktop-hidden { display: none; }
+.touch-target { min-height: 44px; min-width: 44px; }
 
 @media (max-width: 768px) {
-  .mobile-hidden {
-    display: none !important;
-  }
-  .desktop-hidden {
-    display: block !important;
-  }
-  ::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
-  }
+  .mobile-hidden { display: none !important; }
+  .desktop-hidden { display: block !important; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
 }
 
-/* ── 减少动效偏好 ── */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.slide-enter-active, .slide-leave-active { transition: transform 0.3s ease, opacity 0.3s ease; }
+.slide-enter-from { transform: translateY(10px); opacity: 0; }
+.slide-leave-to { transform: translateY(-10px); opacity: 0; }

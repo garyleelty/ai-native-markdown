@@ -1,0 +1,477 @@
+/* ═══════════════════════════════════════════════════
+   App Layout - Obsidian-inspired Modern Dark
+   ═══════════════════════════════════════════════════ */
+
+.app-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--obsidian-bg-primary);
+  color: var(--obsidian-text-normal);
+  font-family: var(--font-sans);
+}
+
+/* ── Header: Obsidian 风格极简标题栏 ── */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px !important;
+  padding: 0 12px;
+  background: var(--obsidian-bg-primary);
+  border-bottom: 1px solid var(--obsidian-border);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.app-header .header-left,
+.app-header .header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.app-header .header-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--obsidian-text-muted);
+  letter-spacing: -0.01em;
+}
+
+.brand-text {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Header 按钮: Obsidian 风格 ── */
+.app-header .el-button {
+  width: 30px;
+  height: 30px;
+  border: none !important;
+  background: transparent !important;
+  color: var(--obsidian-text-muted) !important;
+  border-radius: var(--radius-sm) !important;
+  transition: all var(--duration-fast) var(--ease-default);
+}
+
+.app-header .el-button:hover {
+  background: var(--obsidian-bg-hover) !important;
+  color: var(--obsidian-text-normal) !important;
+}
+
+.app-header .el-button:active {
+  background: var(--obsidian-bg-active) !important;
+  transform: scale(0.95);
+}
+
+.app-header .el-button.el-button--primary {
+  color: var(--obsidian-accent) !important;
+  background: var(--obsidian-accent-soft) !important;
+}
+
+/* ── 文件名标签 ── */
+.header-center .el-tag {
+  background: transparent !important;
+  border: none !important;
+  color: var(--obsidian-text-muted) !important;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 8px;
+  height: 28px;
+  line-height: 28px;
+}
+
+/* ── 主容器 ── */
+.main-container {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+}
+
+/* ── 侧边栏 ── */
+.sidebar-aside {
+  position: relative;
+  background: var(--obsidian-bg-secondary);
+  border-right: 1px solid var(--obsidian-border);
+  overflow: hidden;
+  transition: width 0s;
+}
+
+/* ── 编辑器主区域 ── */
+.editor-container-main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--obsidian-bg-primary);
+}
+
+.editor-main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+}
+
+/* ── 标签栏: Obsidian 风格 ── */
+.tabs-bar {
+  background: var(--obsidian-bg-modifier);
+  border-bottom: 1px solid var(--obsidian-border);
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.tabs-bar .el-tabs {
+  --el-tabs-header-height: 36px;
+}
+
+.tabs-bar .el-tabs__header {
+  margin: 0 !important;
+  border-bottom: none !important;
+  background: var(--obsidian-bg-modifier);
+}
+
+.tabs-bar .el-tabs__nav-wrap {
+  padding: 0 8px;
+}
+
+.tabs-bar .el-tabs__item {
+  height: 36px !important;
+  line-height: 36px !important;
+  padding: 0 16px !important;
+  font-size: 12px !important;
+  color: var(--obsidian-text-faint) !important;
+  border: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  transition: all var(--duration-fast) var(--ease-default);
+}
+
+.tabs-bar .el-tabs__item:hover {
+  color: var(--obsidian-text-muted) !important;
+  background: var(--obsidian-bg-hover) !important;
+}
+
+.tabs-bar .el-tabs__item.is-active {
+  color: var(--obsidian-text-normal) !important;
+  background: var(--obsidian-bg-primary) !important;
+  position: relative;
+}
+
+.tabs-bar .el-tabs__item.is-active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--obsidian-accent);
+  border-radius: 0 0 2px 2px;
+}
+
+.tabs-bar .el-tabs__item .is-icon-close {
+  color: var(--obsidian-text-faint) !important;
+  opacity: 0;
+  transition: opacity var(--duration-fast);
+}
+
+.tabs-bar .el-tabs__item:hover .is-icon-close {
+  opacity: 1;
+}
+
+.tab-label.modified::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--obsidian-accent);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ── 编辑器/预览视图 ── */
+.editor-preview-view {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.editor-preview-view.split-mode {
+  position: relative;
+}
+
+.editor-preview-view.split-mode .editor-pane {
+  border-right: 1px solid var(--obsidian-border);
+}
+
+.editor-pane {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.preview-pane {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: var(--obsidian-bg-primary);
+}
+
+/* ── AI 面板 ── */
+.ai-panel-section {
+  background: var(--obsidian-bg-secondary);
+  border-top: 1px solid var(--obsidian-border);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ai-slide-enter-active {
+  transition: height var(--duration-slower) var(--ease-spring), opacity var(--duration-slow);
+}
+
+.ai-slide-leave-active {
+  transition: height var(--duration-slow) var(--ease-exit), opacity var(--duration-fast);
+}
+
+.ai-slide-enter-from,
+.ai-slide-leave-to {
+  opacity: 0;
+}
+
+/* ── 状态栏: Obsidian 风格极窄 ── */
+.status-bar {
+  display: flex;
+  align-items: center;
+  height: 24px !important;
+  padding: 0 12px;
+  background: var(--obsidian-bg-modifier);
+  border-top: 1px solid var(--obsidian-border);
+  font-size: 11px;
+  color: var(--obsidian-text-faint);
+  flex-shrink: 0;
+  gap: 16px;
+  user-select: none;
+}
+
+.status-bar .status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.status-bar .status-spacer {
+  flex: 1;
+}
+
+.status-bar .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-bar .status-dot.primary {
+  background: var(--obsidian-accent);
+  box-shadow: 0 0 6px var(--obsidian-accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-bar .status-dot.saving {
+  background: var(--warning);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.status-bar .status-clickable {
+  cursor: pointer;
+  transition: color var(--duration-fast);
+}
+
+.status-bar .status-clickable:hover {
+  color: var(--obsidian-text-muted);
+}
+
+.status-bar .view-mode-btn {
+  cursor: pointer;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  transition: all var(--duration-fast);
+}
+
+.status-bar .view-mode-btn:hover {
+  background: var(--obsidian-bg-hover);
+  color: var(--obsidian-text-muted);
+}
+
+.status-bar .el-tag {
+  background: transparent !important;
+  border: none !important;
+  color: var(--obsidian-text-faint) !important;
+  font-size: 11px !important;
+  padding: 0 !important;
+  height: auto !important;
+  line-height: 1 !important;
+}
+
+.status-bar .save-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-bar .ai-status {
+  color: var(--obsidian-accent);
+}
+
+/* ── 拖放覆盖层 ── */
+.drag-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(30, 30, 30, 0.9);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drag-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: var(--obsidian-text-muted);
+  font-size: 16px;
+  border: 2px dashed var(--obsidian-accent);
+  border-radius: var(--radius-xl);
+  padding: 48px 64px;
+}
+
+.drag-content .el-icon {
+  color: var(--obsidian-accent);
+}
+
+/* ── 调整手柄 ── */
+.resize-handle-v {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+  transition: background var(--duration-fast);
+}
+
+.resize-handle-v:hover,
+.resize-handle-v:active {
+  background: var(--obsidian-accent);
+  opacity: 0.5;
+}
+
+.resize-handle-h {
+  height: 4px;
+  cursor: row-resize;
+  background: transparent;
+  transition: background var(--duration-fast);
+  flex-shrink: 0;
+}
+
+.resize-handle-h:hover,
+.resize-handle-h:active {
+  background: var(--obsidian-accent);
+  opacity: 0.5;
+}
+
+/* ── Focus Mode ── */
+.focus-mode-active .app-header,
+.focus-mode-active .status-bar,
+.focus-mode-active .tabs-bar,
+.focus-mode-active .ai-panel-section {
+  display: none;
+}
+
+.focus-mode-active .sidebar-aside {
+  width: 0 !important;
+  overflow: hidden;
+}
+
+.focus-mode-active .editor-toolbar {
+  display: none;
+}
+
+/* ── Element Plus 全局覆盖 ── */
+.el-button {
+  --el-button-hover-bg-color: var(--obsidian-bg-hover);
+  --el-button-hover-border-color: transparent;
+  --el-button-hover-color: var(--obsidian-text-normal);
+}
+
+.el-dropdown-menu {
+  background: var(--obsidian-bg-tertiary) !important;
+  border: 1px solid var(--obsidian-border) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: 4px !important;
+}
+
+.el-dropdown-menu__item {
+  color: var(--obsidian-text-normal) !important;
+  font-size: 13px !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 6px 12px !important;
+}
+
+.el-dropdown-menu__item:hover {
+  background: var(--obsidian-bg-hover) !important;
+  color: var(--obsidian-text-normal) !important;
+}
+
+.el-tooltip__trigger {
+  outline: none;
+}
+
+/* ── 响应式 ── */
+@media (max-width: 768px) {
+  .app-header {
+    height: 36px !important;
+    padding: 0 8px;
+  }
+
+  .app-brand .brand-text {
+    display: none;
+  }
+
+  .status-bar {
+    height: 22px !important;
+    padding: 0 8px;
+    font-size: 10px;
+    gap: 10px;
+  }
+
+  .status-bar .status-item:nth-child(n+4) {
+    display: none;
+  }
+}

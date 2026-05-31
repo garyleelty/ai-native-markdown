@@ -1,1 +1,9 @@
-export {}
+export { fileSystem } from './fileSystem'
+export { aiService, FetchAIProvider, ensureDefaultProvider } from './ai'
+export type { AIProvider, AIOptions } from './ai'
+export type { ChatMessage, AIConfig } from '@/types'
+export { extractTextFromImage, imageToBase64, terminateOCR } from './ocr'
+export { extractTextFromPDF } from './pdf'
+export { ragService } from './rag'
+export { versionHistory } from './versionHistory'
+export type { Snapshot } from './versionHistory'

@@ -2,12 +2,18 @@
   <div class="chat-panel">
     <div class="chat-header">
       <div class="chat-header-left">
-        <span class="chat-title">AI 助手</span>
-        <span class="chat-model" v-if="activeModel">{{ activeModel }}</span>
+        <el-text class="chat-title" type="info" tag="strong">AI 助手</el-text>
+        <el-tag v-if="activeModel" size="small" type="info" effect="plain">
+          {{ activeModel }}
+        </el-tag>
       </div>
-      <button class="chat-clear" @click="clearMessages" title="清空对话">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-      </button>
+      <el-button
+        :icon="Delete"
+        circle
+        size="small"
+        @click="clearMessages"
+        title="清空对话"
+      />
     </div>
 
     <div class="chat-messages" ref="messagesRef">
@@ -18,28 +24,45 @@
         :class="msg.role"
       >
         <div class="message-avatar">
-          <svg v-if="msg.role === 'assistant'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v1a1 1 0 001 1h1a4 4 0 010 8h-1a1 1 0 00-1 1v1a4 4 0 01-8 0v-1a1 1 0 00-1-1H6a4 4 0 010-8h1a1 1 0 001-1V6a4 4 0 014-4z"/></svg>
-          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <el-icon :size="18">
+            <ChatDotRound v-if="msg.role === 'assistant'" />
+            <User v-else />
+          </el-icon>
         </div>
         <div class="message-content">
           <div class="message-text" v-html="renderMarkdown(msg.content)"></div>
           <div class="message-actions" v-if="msg.role === 'assistant'">
-            <button @click="copyMessage(msg.content)" title="复制">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
-            <button @click="$emit('insert', msg.content)" title="插入到编辑器">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-            </button>
-            <button @click="regenerate(msg)" title="重新生成" :disabled="streaming">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-            </button>
+            <el-button
+              :icon="CopyDocument"
+              size="small"
+              circle
+              @click="copyMessage(msg.content)"
+              title="复制"
+            />
+            <el-button
+              :icon="Plus"
+              size="small"
+              circle
+              @click="$emit('insert', msg.content)"
+              title="插入到编辑器"
+            />
+            <el-button
+              :icon="Refresh"
+              size="small"
+              circle
+              @click="regenerate(msg)"
+              title="重新生成"
+              :disabled="streaming"
+            />
           </div>
         </div>
       </div>
 
       <div v-if="streaming" class="chat-message assistant streaming">
         <div class="message-avatar">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v1a1 1 0 001 1h1a4 4 0 010 8h-1a1 1 0 00-1 1v1a4 4 0 01-8 0v-1a1 1 0 00-1-1H6a4 4 0 010-8h1a1 1 0 001-1V6a4 4 0 014-4z"/></svg>
+          <el-icon :size="18">
+            <ChatDotRound />
+          </el-icon>
         </div>
         <div class="message-content">
           <div class="typing-indicator">
@@ -50,36 +73,60 @@
     </div>
 
     <div class="chat-input-area">
-      <div class="input-wrapper">
-        <textarea
-          v-model="inputText"
-          class="chat-input"
-          placeholder="输入问题..."
-          rows="2"
-          @keydown.enter.exact.prevent="sendMessage"
-        ></textarea>
-        <VoiceInputButton
-          :mode="settingsStore.voiceInputMode"
-          :language="settingsStore.voiceInputLanguage"
-          @result="handleVoiceResult"
-          @error="handleVoiceError"
+      <QuickActions v-if="messages.length === 0" @action="handleQuickAction" />
+      <el-input
+        v-model="inputText"
+        type="textarea"
+        :rows="2"
+        placeholder="输入问题..."
+        resize="none"
+        @keydown.enter.exact.prevent="sendMessage"
+        @keydown.shift.enter.exact.stop
+      />
+      <el-button
+        v-if="streaming"
+        type="danger"
+        :icon="VideoPause"
+        circle
+        @click="stopStreaming"
+        title="停止"
+      />
+      <template v-else>
+        <VoiceInputButton mode="toggle" @result="handleVoiceResult" />
+        <el-button
+          type="primary"
+          :icon="Promotion"
+          circle
+          @click="sendMessage"
+          :disabled="!inputText.trim()"
+          title="发送"
         />
-        <button class="chat-send" @click="sendMessage" :disabled="!inputText.trim() || streaming">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        </button>
-      </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
-import { aiService } from '../../services/ai'
+import { aiService } from '@/services/ai'
+import { ragService } from '@/services/rag'
 import type { AIMessage } from '@/types'
-import VoiceInputButton from '../ui/VoiceInputButton.vue'
 import { useSettingsStore } from '@/stores'
 import { throttle } from '@/composables/useDebounce'
-import { useRAG } from '@/composables/useRAG'
+import { ElMessage } from 'element-plus'
+import { sanitizeMarkdown } from '@/utils/security'
+import {
+  User,
+  ChatDotRound,
+  Delete,
+  CopyDocument,
+  Plus,
+  Refresh,
+  Promotion,
+  VideoPause
+} from '@element-plus/icons-vue'
+import QuickActions from './QuickActions.vue'
+import VoiceInputButton from '@/components/ui/VoiceInputButton.vue'
 
 const props = defineProps<{
   context?: string
@@ -92,10 +139,10 @@ const emit = defineEmits<{
 const messages = ref<AIMessage[]>([])
 const inputText = ref('')
 const streaming = ref(false)
+let currentAbortController: AbortController | null = null
 const messagesRef = ref<HTMLDivElement>()
 
 const settingsStore = useSettingsStore()
-const { buildContext } = useRAG()
 
 const activeModel = computed(() => {
   const provider = aiService.getActiveProvider()
@@ -110,7 +157,6 @@ const scrollToBottom = throttle(async () => {
 }, 100)
 
 const renderMarkdown = (text: string) => {
-  // 先提取 code block 和 inline code，避免内部内容被 Markdown 替换破坏
   const codeBlocks: string[] = []
   const inlineCodes: string[] = []
 
@@ -124,7 +170,6 @@ const renderMarkdown = (text: string) => {
       return `\x00IC${inlineCodes.length - 1}\x00`
     })
 
-  // 对剩余文本做 HTML 转义和 Markdown 替换
   const rendered = preserved
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -133,32 +178,53 @@ const renderMarkdown = (text: string) => {
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     .replace(/\n/g, '<br>')
 
-  // 还原 code block 和 inline code
-  return rendered
+  return sanitizeMarkdown(rendered
     .replace(/\x00CB(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i)])
-    .replace(/\x00IC(\d+)\x00/g, (_, i) => inlineCodes[parseInt(i)])
+    .replace(/\x00IC(\d+)\x00/g, (_, i) => inlineCodes[parseInt(i)]))
+}
+
+const addCopyButtons = () => {
+  nextTick(() => {
+    const codeBlocks = messagesRef.value?.querySelectorAll('pre code')
+    codeBlocks?.forEach((block) => {
+      const pre = block.parentElement
+      if (pre && !pre.querySelector('.copy-btn')) {
+        const btn = document.createElement('button')
+        btn.className = 'copy-btn'
+        btn.textContent = '复制'
+        btn.onclick = () => {
+          navigator.clipboard.writeText(block.textContent || '')
+          btn.textContent = '已复制'
+          setTimeout(() => { btn.textContent = '复制' }, 2000)
+        }
+        pre.style.position = 'relative'
+        pre.appendChild(btn)
+      }
+    })
+  })
 }
 
 const sendMessage = async () => {
   const text = inputText.value.trim()
   if (!text || streaming.value) return
 
-  const userMsg: AIMessage = {
-    id: Date.now().toString(),
-    role: 'user',
-    content: text,
-    timestamp: Date.now()
-  }
-  messages.value.push(userMsg)
-  inputText.value = ''
-  await scrollToBottom()
+  const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const userMsg: AIMessage = {
+      id: uid(),
+      role: 'user',
+      content: text,
+      timestamp: Date.now()
+    }
+    messages.value.push(userMsg)
+    inputText.value = ''
+    await scrollToBottom()
 
-  const assistantMsg: AIMessage = {
-    id: (Date.now() + 1).toString(),
-    role: 'assistant',
-    content: '',
-    timestamp: Date.now()
-  }
+    const assistantMsg: AIMessage = {
+      id: uid(),
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now()
+    }
   messages.value.push(assistantMsg)
   streaming.value = true
 
@@ -176,10 +242,12 @@ const sendMessage = async () => {
       .map(m => ({ role: m.role, content: m.content }))
 
     let ragContext = ''
-    try {
-      ragContext = await buildContext(inputText.value || messages.value[messages.value.length - 1]?.content || '')
-    } catch {
-      // RAG not available, continue without context
+    if (settingsStore.enableRAG) {
+      try {
+        ragContext = await ragService.buildContext(text, 2000)
+      } catch {
+        ragContext = ''
+      }
     }
 
     const systemContent = ragContext
@@ -193,14 +261,17 @@ const sendMessage = async () => {
       chatMessages.unshift({ role: 'system', content: contextParts.join('\n\n') })
     }
 
-    for await (const chunk of provider.streamChat(chatMessages)) {
+    currentAbortController = new AbortController()
+    for await (const chunk of provider.streamChat(chatMessages, { signal: currentAbortController.signal })) {
       assistantMsg.content += chunk
       await scrollToBottom()
     }
   } catch (error: any) {
     assistantMsg.content = `错误: ${error.message || String(error)}`
+    ElMessage.error('AI 请求失败')
   } finally {
     streaming.value = false
+    currentAbortController = null
   }
 }
 
@@ -215,6 +286,7 @@ const regenerate = async (msg: AIMessage) => {
 const copyMessage = async (content: string) => {
   try {
     await navigator.clipboard.writeText(content)
+    ElMessage.success('已复制到剪贴板')
   } catch {
     const textarea = document.createElement('textarea')
     textarea.value = content
@@ -222,22 +294,32 @@ const copyMessage = async (content: string) => {
     textarea.select()
     document.execCommand('copy')
     document.body.removeChild(textarea)
+    ElMessage.success('已复制到剪贴板')
   }
+}
+
+const stopStreaming = () => {
+  if (currentAbortController) {
+    currentAbortController.abort()
+    currentAbortController = null
+  }
+  streaming.value = false
 }
 
 const clearMessages = () => {
   messages.value = []
 }
 
+const handleQuickAction = (prompt: string, _label: string) => {
+  inputText.value = prompt
+  sendMessage()
+}
+
 const handleVoiceResult = (text: string) => {
   inputText.value += text
 }
 
-const handleVoiceError = (message: string) => {
-  console.warn('语音输入错误:', message)
-}
-
-watch(messages, scrollToBottom, { deep: true })
+watch(messages, () => { scrollToBottom(); addCopyButtons() }, { deep: true })
 </script>
 
 <style scoped>
@@ -246,218 +328,246 @@ watch(messages, scrollToBottom, { deep: true })
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--bg-base);
+  background: var(--obsidian-bg-secondary);
 }
+
 .chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 8px 12px;
+  background: var(--obsidian-bg-secondary);
+  border-bottom: 1px solid var(--obsidian-border);
   flex-shrink: 0;
 }
+
 .chat-header-left {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 6px;
 }
+
 .chat-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  letter-spacing: 0.5px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--obsidian-text-normal);
 }
-.chat-model {
-  font-size: 10px;
-  color: var(--text-muted);
-  background: var(--bg-surface);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-}
-.chat-clear {
-  width: 24px;
-  height: 24px;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--duration-fast) var(--ease-default);
-}
-.chat-clear:hover {
-  color: var(--error);
-  background: rgba(248, 113, 113, 0.1);
-}
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-3) var(--space-4);
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--obsidian-text-faint) transparent;
 }
+
+.chat-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: var(--obsidian-text-faint);
+  border-radius: 2px;
+}
+
 .chat-message {
   display: flex;
-  gap: var(--space-2);
+  gap: 8px;
   max-width: 100%;
-  animation: messageIn 0.2s ease-out;
+  animation: messageIn var(--duration-fast) var(--ease-default);
 }
+
 @keyframes messageIn {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
 .chat-message.user {
   flex-direction: row-reverse;
 }
+
 .message-avatar {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: var(--bg-surface);
-  color: var(--text-muted);
+  background: var(--obsidian-bg-tertiary);
+  color: var(--obsidian-text-muted);
   margin-top: 2px;
 }
+
 .chat-message.assistant .message-avatar {
-  background: var(--accent-soft);
-  color: var(--accent-primary);
+  background: var(--obsidian-accent-soft);
+  color: var(--obsidian-accent);
 }
+
+.chat-message.user .message-avatar {
+  background: var(--obsidian-accent-soft);
+  color: var(--obsidian-accent);
+}
+
 .message-content {
-  max-width: calc(100% - 36px);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-lg);
-  background: var(--bg-elevated);
-  border-left: 3px solid var(--accent-primary);
+  max-width: calc(100% - 40px);
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
   font-size: 13px;
-  line-height: 1.6;
-  color: var(--text-primary);
+  line-height: 1.55;
+  color: var(--obsidian-text-normal);
+  font-family: var(--font-sans);
 }
+
 .chat-message.user .message-content {
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  border-radius: var(--radius-lg);
+  background: var(--obsidian-accent-soft);
+  border: none;
 }
+
+.chat-message.assistant .message-content {
+  background: var(--obsidian-bg-hover);
+  border: none;
+  border-left: 2px solid var(--obsidian-accent);
+}
+
 .message-text :deep(pre) {
-  background: var(--bg-elevated);
-  padding: var(--space-3);
+  background: var(--obsidian-bg-primary);
+  padding: 10px;
   border-radius: var(--radius-sm);
   overflow-x: auto;
   font-size: 12px;
-  margin: var(--space-2) 0;
-  border: 1px solid var(--border-subtle);
+  margin: 6px 0;
+  border: none;
+  font-family: var(--font-mono);
 }
+
 .message-text :deep(code) {
-  background: var(--bg-elevated);
-  padding: 2px 5px;
-  border-radius: 3px;
+  background: var(--obsidian-bg-primary);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-family: var(--font-mono);
-  color: var(--accent-primary);
+  color: var(--obsidian-accent);
 }
+
+.message-text :deep(pre code) {
+  background: none;
+  padding: 0;
+  color: var(--obsidian-text-normal);
+}
+
 .message-actions {
   display: flex;
-  gap: var(--space-1);
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border-subtle);
+  gap: 2px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--obsidian-border);
 }
-.message-actions button {
-  width: 24px;
-  height: 24px;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--duration-fast) var(--ease-default);
+
+.message-actions :deep(.el-button) {
+  width: 22px;
+  height: 22px;
 }
-.message-actions button:hover {
-  color: var(--accent-primary);
-  background: var(--bg-hover);
-}
+
 .typing-indicator {
   display: flex;
   gap: 4px;
   padding: 4px 0;
 }
+
 .typing-indicator span {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--accent-primary);
+  background: var(--obsidian-accent);
   animation: typing 1.4s infinite ease-in-out both;
 }
+
 .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
 .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+
 @keyframes typing {
   0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
   40% { transform: scale(1); opacity: 1; }
 }
+
 .chat-input-area {
-  padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--border-subtle);
+  padding: 8px 12px;
+  border-top: 1px solid var(--obsidian-border);
   flex-shrink: 0;
-  background: var(--bg-base);
-}
-.input-wrapper {
+  background: var(--obsidian-bg-secondary);
   display: flex;
-  gap: var(--space-2);
+  gap: 6px;
   align-items: flex-end;
 }
-.chat-input {
-  flex: 1;
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
+
+.chat-input-area :deep(.el-textarea__inner) {
+  background: var(--obsidian-bg-primary);
+  color: var(--obsidian-text-normal);
+  border-color: var(--obsidian-border);
   border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
-  font-size: 13px;
-  resize: none;
-  outline: none;
   font-family: var(--font-sans);
-  transition: all var(--duration-fast) var(--ease-default);
-  min-height: 40px;
+  font-size: 13px;
+  padding: 6px 10px;
+  box-shadow: none;
 }
-.chat-input:focus {
-  border-color: var(--accent-primary);
-  box-shadow: var(--shadow-glow);
+
+.chat-input-area :deep(.el-textarea__inner:focus) {
+  border-color: var(--obsidian-accent);
+  box-shadow: none;
 }
-.chat-input::placeholder {
-  color: var(--text-muted);
+
+.chat-input-area :deep(.el-textarea__inner::placeholder) {
+  color: var(--obsidian-text-faint);
 }
-.chat-send {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent-primary);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-md);
+
+.chat-input-area :deep(.el-button--primary) {
+  background: var(--obsidian-accent);
+  border-color: var(--obsidian-accent);
+}
+
+.chat-input-area :deep(.el-button--primary:hover) {
+  background: var(--obsidian-accent);
+  border-color: var(--obsidian-accent);
+  opacity: 0.85;
+}
+
+.chat-input-area :deep(.el-button--danger) {
+  background: transparent;
+  border-color: var(--obsidian-text-faint);
+  color: var(--obsidian-text-muted);
+}
+
+.copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: var(--obsidian-bg-tertiary);
+  border: 1px solid var(--obsidian-border);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  font-size: 11px;
+  font-family: var(--font-sans);
+  color: var(--obsidian-text-muted);
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-default);
-  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-default);
 }
-.chat-send:hover:not(:disabled) {
-  background: var(--accent-hover);
+
+pre:hover .copy-btn {
+  opacity: 1;
 }
-.chat-send:active:not(:disabled) {
-  transform: scale(0.97);
-}
-.chat-send:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+
+.copy-btn:hover {
+  background: var(--obsidian-bg-hover);
+  color: var(--obsidian-text-normal);
 }
 </style>

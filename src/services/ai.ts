@@ -1,3 +1,14 @@
+import type { AIConfig, ChatMessage } from '@/types'
+
+function createTimeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms)
+  }
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), ms)
+  return controller.signal
+}
+
 export interface AIProvider {
   id: string
   name: string
@@ -12,35 +23,12 @@ export interface AIOptions {
   temperature?: number
   maxTokens?: number
   model?: string
-}
-
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant'
-  content: string
-}
-
-export interface AIConfig {
-  provider: 'ollama' | 'openai' | 'deepseek' | 'custom'
-  apiKey?: string
-  baseURL?: string
-  model?: string
-  temperature?: number
-  maxTokens?: number
+  signal?: AbortSignal
 }
 
 type ProviderStatusListener = (id: string, status: AIProvider['status'], error?: string) => void
 
-const isTauri = '__TAURI_INTERNALS__' in window
-
-async function tauriInvoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
-  if (!isTauri) {
-    throw new Error('Tauri 环境不可用，AI 功能需要桌面端')
-  }
-  const { invoke } = await import('@tauri-apps/api/core')
-  return invoke(cmd, args)
-}
-
-export class TauriAIProvider implements AIProvider {
+export class FetchAIProvider implements AIProvider {
   id: string
   name: string
   type: 'cloud' | 'local'
@@ -57,11 +45,17 @@ export class TauriAIProvider implements AIProvider {
   constructor(config: AIConfig) {
     this.providerType = config.provider || 'ollama'
     this.id = this.providerType
-    this.name = this.providerType === 'ollama' ? 'Ollama' : 'OpenAI'
+    const nameMap: Record<string, string> = {
+      ollama: 'Ollama',
+      openai: 'OpenAI',
+      deepseek: 'DeepSeek',
+      custom: 'Custom',
+    }
+    this.name = nameMap[this.providerType] || this.providerType
     this.type = this.providerType === 'ollama' ? 'local' : 'cloud'
     this.baseURL = config.baseURL || (this.providerType === 'ollama' ? 'http://localhost:11434' : 'https://api.openai.com/v1')
     this.apiKey = config.apiKey || ''
-    this.model = config.model || (this.providerType === 'ollama' ? 'qwen2.5:7b' : 'gpt-4o-mini')
+    this.model = config.model || (this.providerType === 'ollama' ? 'qwen2.5:7b' : this.providerType === 'deepseek' ? 'deepseek-chat' : 'gpt-4o-mini')
     this.temperature = config.temperature ?? 0.7
     this.maxTokens = config.maxTokens ?? 4096
   }
@@ -70,20 +64,32 @@ export class TauriAIProvider implements AIProvider {
     return { baseURL: this.baseURL, model: this.model, temperature: this.temperature }
   }
 
-  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+  async testConnection(signal?: AbortSignal): Promise<{ ok: boolean; error?: string }> {
     try {
       this.status = 'connecting'
-      await tauriInvoke('ai_proxy_test', {
-        provider: this.providerType,
-        baseUrl: this.baseURL,
-        apiKey: this.apiKey,
-        model: this.model,
-      })
+      const timeoutSignal = createTimeoutSignal(8000)
+      const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+      if (this.providerType === 'ollama') {
+        const resp = await fetch(`${this.baseURL}/api/tags`, { signal: combinedSignal })
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+        const data = await resp.json()
+        const models = data.models?.map((m: any) => m.name) || []
+        if (!models.includes(this.model)) {
+          this.status = 'connected'
+          this.lastError = undefined
+          return { ok: true, error: `模型 '${this.model}' 未安装，可用: ${models.join(', ')}` }
+        }
+      } else {
+        const headers: Record<string, string> = {}
+        if (this.apiKey) headers['Authorization'] = `Bearer ${this.apiKey}`
+        const resp = await fetch(`${this.baseURL}/models`, { headers, signal: combinedSignal })
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      }
       this.status = 'connected'
       this.lastError = undefined
       return { ok: true }
     } catch (e: any) {
-      const error = e?.toString?.() || String(e)
+      const error = e?.message || String(e)
       this.status = 'error'
       this.lastError = error
       return { ok: false, error }
@@ -93,109 +99,154 @@ export class TauriAIProvider implements AIProvider {
   async chat(messages: ChatMessage[], options?: AIOptions): Promise<string> {
     try {
       this.status = 'connecting'
-      const result = await tauriInvoke('ai_proxy_chat', {
-        request: {
-          provider: this.providerType,
-          baseUrl: this.baseURL,
-          apiKey: this.apiKey,
-          model: options?.model || this.model,
-          messages: messages.map(m => ({ role: m.role, content: m.content })),
-          temperature: options?.temperature ?? this.temperature,
-          maxTokens: options?.maxTokens ?? this.maxTokens,
-        }
-      }) as string
+      const timeoutSignal = createTimeoutSignal(60000)
+      const signal = options?.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal
+      let result: string
+      if (this.providerType === 'ollama') {
+        const resp = await fetch(`${this.baseURL}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: options?.model || this.model,
+            messages,
+            stream: false,
+            options: { temperature: options?.temperature ?? this.temperature, num_predict: options?.maxTokens ?? this.maxTokens }
+          }),
+          signal
+        })
+        if (!resp.ok) throw new Error(`Ollama HTTP ${resp.status}`)
+        const data = await resp.json()
+        result = data.message?.content || ''
+      } else {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (this.apiKey) headers['Authorization'] = `Bearer ${this.apiKey}`
+        const resp = await fetch(`${this.baseURL}/chat/completions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model: options?.model || this.model,
+            messages,
+            temperature: options?.temperature ?? this.temperature,
+            max_tokens: options?.maxTokens ?? this.maxTokens,
+            stream: false,
+          }),
+          signal
+        })
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+        const data = await resp.json()
+        result = data.choices?.[0]?.message?.content || ''
+      }
       this.status = 'connected'
       this.lastError = undefined
       return result
     } catch (e: any) {
+      if (e.name === 'AbortError') {
+        this.status = 'idle'
+        return ''
+      }
       this.status = 'error'
-      this.lastError = e?.toString?.() || String(e)
+      this.lastError = e?.message || String(e)
       throw new Error(this.lastError)
     }
   }
 
   async *streamChat(messages: ChatMessage[], options?: AIOptions): AsyncGenerator<string> {
-    const { listen } = await import('@tauri-apps/api/event')
-
-    const eventId = `ai-stream-${Date.now()}`
-
-    const streamPromise = tauriInvoke('ai_proxy_stream', {
-      request: {
-        provider: this.providerType,
-        baseUrl: this.baseURL,
-        apiKey: this.apiKey,
-        model: options?.model || this.model,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-        temperature: options?.temperature ?? this.temperature,
-        maxTokens: options?.maxTokens ?? this.maxTokens,
-        eventId: eventId,
-      }
-    })
-
-    const chunkQueue: string[] = []
-    let errorQueue: string[] = []
-    let done = false
-    let resolveNext: (() => void) | null = null
-
-    const unlistenChunk = await listen<{ event_id: string; content?: string; error?: string }>('ai-chunk', (event) => {
-      if (event.payload.event_id !== eventId) return
-      if (event.payload.error) {
-        errorQueue.push(event.payload.error)
-      } else if (event.payload.content) {
-        chunkQueue.push(event.payload.content)
-      }
-      if (resolveNext) {
-        resolveNext()
-        resolveNext = null
-      }
-    })
-
-    const unlistenDone = await listen<{ event_id: string }>('ai-done', (event) => {
-      if (event.payload.event_id !== eventId) return
-      done = true
-      if (resolveNext) {
-        resolveNext()
-        resolveNext = null
-      }
-    })
-
-    streamPromise.catch((e: any) => {
-      errorQueue.push(e?.toString?.() || String(e))
-      done = true
-      if (resolveNext) {
-        resolveNext()
-        resolveNext = null
-      }
-    })
-
+    this.status = 'connecting'
     try {
-      while (true) {
-        if (chunkQueue.length > 0) {
-          yield chunkQueue.shift()!
-          continue
-        }
-        if (errorQueue.length > 0) {
-          throw new Error(errorQueue.shift()!)
-        }
-        if (done) break
-
-        await new Promise<void>((resolve) => {
-          resolveNext = resolve
+      const timeoutSignal = createTimeoutSignal(60000)
+      const signal = options?.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal
+      if (this.providerType === 'ollama') {
+        const resp = await fetch(`${this.baseURL}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: options?.model || this.model,
+            messages,
+            stream: true,
+            options: { temperature: options?.temperature ?? this.temperature, num_predict: options?.maxTokens ?? this.maxTokens }
+          }),
+          signal
         })
+        if (!resp.ok) throw new Error(`Ollama HTTP ${resp.status}`)
+        const reader = resp.body?.getReader()
+        if (!reader) throw new Error('No response body')
+        const decoder = new TextDecoder()
+        let buffer = ''
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+          for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+              const json = JSON.parse(line)
+              if (json.message?.content) yield json.message.content
+              if (json.error) throw new Error(json.error)
+            } catch (e: any) {
+              if (e.message && !e.message.includes('JSON')) throw e
+            }
+          }
+        }
+      } else {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (this.apiKey) headers['Authorization'] = `Bearer ${this.apiKey}`
+        const resp = await fetch(`${this.baseURL}/chat/completions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model: options?.model || this.model,
+            messages,
+            temperature: options?.temperature ?? this.temperature,
+            max_tokens: options?.maxTokens ?? this.maxTokens,
+            stream: true,
+          }),
+          signal
+        })
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+        const reader = resp.body?.getReader()
+        if (!reader) throw new Error('No response body')
+        const decoder = new TextDecoder()
+        let buffer = ''
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            const data = line.slice(6)
+            if (data === '[DONE]') return
+            try {
+              const json = JSON.parse(data)
+              const content = json.choices?.[0]?.delta?.content
+              if (content) yield content
+            } catch {}
+          }
+        }
       }
-    } finally {
-      unlistenChunk()
-      unlistenDone()
+      this.status = 'connected'
+      this.lastError = undefined
+    } catch (e: any) {
+      if (e.name === 'AbortError') {
+        this.status = 'idle'
+        return
+      }
+      this.status = 'error'
+      this.lastError = e?.message || String(e)
+      throw new Error(this.lastError)
     }
   }
 }
 
 export class AIService {
-  private providers: Map<string, TauriAIProvider> = new Map()
+  private providers: Map<string, FetchAIProvider> = new Map()
   private activeProviderId: string = 'ollama'
   private listeners: ProviderStatusListener[] = []
 
-  registerProvider(provider: TauriAIProvider) {
+  registerProvider(provider: FetchAIProvider) {
     this.providers.set(provider.id, provider)
   }
 
@@ -205,11 +256,11 @@ export class AIService {
     }
   }
 
-  getActiveProvider(): TauriAIProvider | undefined {
+  getActiveProvider(): FetchAIProvider | undefined {
     return this.providers.get(this.activeProviderId)
   }
 
-  getProvider(id: string): TauriAIProvider | undefined {
+  getProvider(id: string): FetchAIProvider | undefined {
     return this.providers.get(id)
   }
 
@@ -217,7 +268,7 @@ export class AIService {
     return this.activeProviderId
   }
 
-  listProviders(): TauriAIProvider[] {
+  listProviders(): FetchAIProvider[] {
     return Array.from(this.providers.values())
   }
 
@@ -226,16 +277,32 @@ export class AIService {
     return () => { this.listeners = this.listeners.filter(l => l !== listener) }
   }
 
-  private notifyStatus(id: string, status: AIProvider['status'], error?: string) {
-    this.listeners.forEach(l => l(id, status, error))
+  async listOllamaModels(baseURL: string): Promise<string[]> {
+    try {
+      const resp = await fetch(`${baseURL}/api/tags`, { signal: createTimeoutSignal(8000) })
+      if (!resp.ok) return []
+      const data = await resp.json()
+      return data.models?.map((m: any) => m.name) || []
+    } catch {
+      return []
+    }
   }
 }
 
 export const aiService = new AIService()
 
-aiService.registerProvider(new TauriAIProvider({
-  provider: 'ollama',
-  baseURL: 'http://localhost:11434',
-  model: 'qwen2.5:7b',
-  temperature: 0.7,
-}))
+let _defaultRegistered = false
+
+export function ensureDefaultProvider() {
+  if (_defaultRegistered || aiService.listProviders().length > 0) return
+  _defaultRegistered = true
+  aiService.registerProvider(new FetchAIProvider({
+    provider: 'ollama',
+    baseURL: 'http://localhost:11434',
+    apiKey: '',
+    model: 'qwen2.5:7b',
+    temperature: 0.7,
+    maxTokens: 4096,
+    systemPrompt: '',
+  }))
+}

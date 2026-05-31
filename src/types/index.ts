@@ -45,22 +45,16 @@ export interface AIConfig {
   systemPrompt: string
 }
 
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
 export interface AIMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: number
-}
-
-export interface ScheduledTask {
-  id: string
-  name: string
-  type: 'backup' | 'reminder' | 'ai-process'
-  cron: string
-  enabled: boolean
-  lastRun: number
-  nextRun: number
-  config: Record<string, unknown>
 }
 
 export interface Workspace {
@@ -70,10 +64,9 @@ export interface Workspace {
   lastOpened: number
 }
 
-export type ViewMode = 'source' | 'preview'
+export type ViewMode = 'source' | 'preview' | 'split'
 export type ThemeMode = 'dark' | 'light' | 'system'
-export type SidebarTab = 'files' | 'search' | 'knowledge' | 'tasks' | 'settings'
-export type VoiceInputMode = 'hold' | 'toggle'
+export type SidebarTab = 'files' | 'graph' | 'ai' | 'outline' | 'settings'
 
 export interface GraphNode {
   id: string
@@ -111,10 +104,4 @@ export interface KnowledgeGraphData {
     orphanCount: number
     avgLinkCount: number
   }
-}
-
-export interface AIActionConfig {
-  enabled: boolean
-  position: 'top' | 'bottom'
-  showIcons: boolean
 }

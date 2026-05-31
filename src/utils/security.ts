@@ -1,16 +1,9 @@
-/**
- * 安全工具函数
- * 提供 XSS 防护、输入验证、内容净化等功能
- */
+import DOMPurify from 'dompurify'
 
-// XSS 防护：转义 HTML 特殊字符
 export function escapeHtml(text: string): string {
-  const div = document.createElement('div')
-  div.textContent = text
-  return div.innerHTML
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
-// 验证文件路径，防止路径遍历攻击
 export function sanitizeFilePath(path: string): string {
   let sanitized = path.replace(/\0/g, '')
   sanitized = sanitized.replace(/\\/g, '/')
@@ -23,35 +16,99 @@ export function sanitizeFilePath(path: string): string {
   return sanitized
 }
 
-// 验证文件名
 export function isValidFileName(name: string): boolean {
-  // 不允许空文件名
   if (!name || name.trim().length === 0) return false
-  // 不允许包含路径分隔符
   if (name.includes('/') || name.includes('\\')) return false
-  // 不允许以 . 开头（隐藏文件）
   if (name.startsWith('.')) return false
-  // 不允许控制字符
   if (/[\x00-\x1f\x7f]/.test(name)) return false
-  // 最大长度限制
   if (name.length > 255) return false
   return true
 }
 
-// 验证 Markdown 内容，防止恶意脚本
+const MARKDOWN_ALLOWED_TAGS = [
+  'b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li',
+  'code', 'pre', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'table', 'thead', 'tbody', 'tr', 'th', 'td', 'img', 'hr',
+  'span', 'div', 'del', 'sup', 'sub', 'input', 'button',
+  'svg', 'path', 'circle', 'rect', 'line', 'polygon', 'polyline',
+  'ellipse', 'text', 'g', 'defs', 'use', 'clippath', 'title', 'desc',
+  'tspan', 'image', 'marker', 'pattern', 'stop',
+  'lineargradient', 'radialgradient',
+  'math', 'mrow', 'mi', 'mn', 'mo', 'msup', 'msub', 'mfrac',
+  'msqrt', 'mroot', 'munder', 'mover', 'munderover', 'mtable',
+  'mtr', 'mtd', 'mtext', 'mspace', 'mpadded', 'mphantom',
+  'mfenced', 'menclose', 'mstyle', 'merror', 'annotation', 'semantics',
+]
+
+const MARKDOWN_ALLOWED_ATTR = [
+  'href', 'src', 'alt', 'title', 'class', 'target', 'rel',
+  'checked', 'disabled', 'type',
+  'data-filename', 'data-line',
+  'style',
+  'd', 'r', 'cx', 'cy', 'x', 'y', 'width', 'height', 'x1', 'y1', 'x2', 'y2',
+  'points', 'transform', 'fill', 'stroke', 'stroke-width', 'stroke-dasharray',
+  'stroke-opacity', 'fill-opacity', 'opacity', 'font-size', 'text-anchor',
+  'viewbox', 'preserveaspectratio', 'xmlns', 'id',
+  'mathvariant', 'displaystyle', 'scriptlevel',
+  'colspan', 'rowspan',
+  'offset', 'stop-color', 'stop-opacity',
+  'textlength', 'lengthadjust', 'font-family', 'font-weight',
+  'dominant-baseline', 'alignment-baseline',
+]
+
+const DANGEROUS_ATTRS = [
+  'onload', 'onclick', 'onerror', 'onmouseover', 'onfocus', 'onblur',
+  'onsubmit', 'onreset', 'onchange', 'oninput', 'onkeydown', 'onkeyup',
+  'onkeypress', 'onmouseout', 'onmousedown', 'onmouseup',
+]
+
 export function sanitizeMarkdown(content: string): string {
-  // 移除 script 标签
-  let sanitized = content.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-  // 移除事件处理器属性
-  sanitized = sanitized.replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '')
-  // 移除 javascript: 伪协议
-  sanitized = sanitized.replace(/javascript:/gi, '')
-  // 移除 data: URI（可能包含脚本）
-  sanitized = sanitized.replace(/data:text\/html[^\s]*/gi, '')
-  return sanitized
+  return DOMPurify.sanitize(content, {
+    ALLOWED_TAGS: MARKDOWN_ALLOWED_TAGS,
+    ALLOWED_ATTR: MARKDOWN_ALLOWED_ATTR,
+    ALLOW_DATA_ATTR: false,
+    FORBID_ATTR: DANGEROUS_ATTRS,
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
+  })
 }
 
-// 安全的 localStorage 操作
+export function sanitizeSvg(svgContent: string): string {
+  return DOMPurify.sanitize(svgContent, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    ADD_TAGS: ['foreignobject'],
+    ALLOW_DATA_ATTR: false,
+    FORBID_ATTR: DANGEROUS_ATTRS,
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
+  })
+}
+
+const ENC_PREFIX = 'enc:v1:'
+const CRYPTO_KEY = 'ai-native-md-obf-2024'
+
+export function encryptValue(plaintext: string): string {
+  if (!plaintext) return ''
+  const encoded = btoa(unescape(encodeURIComponent(plaintext)))
+  let result = ''
+  for (let i = 0; i < encoded.length; i++) {
+    result += String.fromCharCode(encoded.charCodeAt(i) ^ CRYPTO_KEY.charCodeAt(i % CRYPTO_KEY.length))
+  }
+  return ENC_PREFIX + btoa(result)
+}
+
+export function decryptValue(ciphertext: string): string {
+  if (!ciphertext || !ciphertext.startsWith(ENC_PREFIX)) return ciphertext
+  try {
+    const decoded = atob(ciphertext.slice(ENC_PREFIX.length))
+    let result = ''
+    for (let i = 0; i < decoded.length; i++) {
+      result += String.fromCharCode(decoded.charCodeAt(i) ^ CRYPTO_KEY.charCodeAt(i % CRYPTO_KEY.length))
+    }
+    return decodeURIComponent(escape(atob(result)))
+  } catch {
+    return ''
+  }
+}
+
 export const safeStorage = {
   get<T>(key: string, defaultValue: T): T {
     try {
@@ -68,7 +125,6 @@ export const safeStorage = {
       localStorage.setItem(key, JSON.stringify(value))
       return true
     } catch {
-      // 存储空间不足或其他错误
       return false
     }
   },
@@ -77,7 +133,6 @@ export const safeStorage = {
     try {
       localStorage.removeItem(key)
     } catch {
-      // 忽略错误
     }
   },
 
@@ -85,19 +140,16 @@ export const safeStorage = {
     try {
       localStorage.clear()
     } catch {
-      // 忽略错误
     }
   },
 }
 
-// 安全的剪贴板操作
 export async function safeCopyToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text)
       return true
     }
-    // 降级方案
     const textarea = document.createElement('textarea')
     textarea.value = text
     textarea.style.position = 'fixed'

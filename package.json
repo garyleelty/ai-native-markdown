@@ -1,13 +1,15 @@
 {
   "name": "ai-native-markdown",
   "private": true,
-  "version": "0.1.0",
-  "type": "module",
+  "version": "0.2.0",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "build": "vite build",
+    "typecheck": "vue-tsc -b",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "electron:dev": "vite & electron .",
+    "electron:build": "vite build && electron-builder"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.3.1",
@@ -15,35 +17,96 @@
     "@codemirror/state": "^6.5.0",
     "@codemirror/theme-one-dark": "^6.1.2",
     "@codemirror/view": "^6.34.0",
-    "@tauri-apps/plugin-dialog": "^2.7.1",
-    "@tauri-apps/plugin-fs": "^2",
-    "@tauri-apps/plugin-notification": "^2",
-    "@tauri-apps/plugin-process": "^2",
-    "@tauri-apps/plugin-shell": "^2",
-    "@tauri-apps/plugin-store": "^2",
+    "@element-plus/icons-vue": "^2.3.1",
+    "@traptitech/markdown-it-katex": "^3.6.0",
+    "@types/dompurify": "^3.0.5",
     "@vueuse/core": "^13.0.0",
     "codemirror": "^6.0.1",
     "d3": "^7.9.0",
+    "dexie": "^4.0.11",
+    "dompurify": "^3.4.7",
+    "element-plus": "^2.9.1",
     "highlight.js": "^11.11.1",
     "katex": "^0.16.45",
     "markdown-it": "^14.1.0",
     "markdown-it-anchor": "^9.2.0",
-    "markdown-it-katex": "^2.0.3",
     "markdown-it-task-lists": "^2.1.1",
     "mermaid": "^11.14.0",
+    "pdfjs-dist": "^4.9.155",
     "pinia": "^2.3.0",
-    "vue": "^3.5.13",
-    "vue-router": "^4.5.0"
+    "tesseract.js": "^5.1.1",
+    "vue": "^3.5.13"
   },
   "devDependencies": {
-    "@tauri-apps/api": "^2.3.0",
-    "@tauri-apps/cli": "^2.11.1",
     "@types/d3": "^7.4.3",
     "@types/katex": "^0.16.8",
     "@types/markdown-it": "^14.1.2",
     "@vitejs/plugin-vue": "^5.2.1",
+    "electron": "^35",
+    "electron-builder": "^26",
+    "playwright": "^1.60.0",
+    "sass": "^1.83.0",
     "typescript": "~5.7.2",
+    "unplugin-auto-import": "^19.1.0",
+    "unplugin-vue-components": "^28.4.1",
     "vite": "^6.1.0",
     "vue-tsc": "^2.2.0"
+  },
+  "build": {
+    "appId": "com.ainative.markdown",
+    "productName": "AI Native Markdown",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/icon.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "public/icon.icns"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

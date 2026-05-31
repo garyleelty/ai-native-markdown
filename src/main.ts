@@ -1,15 +1,29 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import App from './App.vue'
-import { useSettingsStore } from './stores/settings'
 import './style.css'
 
 const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
 
-// 等待设置初始化完成后再挂载，避免竞态条件
-const settingsStore = useSettingsStore()
-settingsStore.initPromise.finally(() => {
-  app.mount('#app')
+app.config.errorHandler = (err, instance, info) => {
+  console.error('[Global Error]', err, info)
+  const message = err instanceof Error ? err.message : String(err)
+  if (!message.includes('ResizeObserver') && !message.includes('NetworkError')) {
+    import('element-plus').then(({ ElMessage }) => {
+      ElMessage.error(`应用错误: ${message.slice(0, 100)}`)
+    })
+  }
+}
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[Unhandled Rejection]', event.reason)
+  const message = event.reason instanceof Error ? event.reason.message : String(event.reason)
+  if (!message.includes('AbortError') && !message.includes('NetworkError')) {
+    event.preventDefault()
+  }
 })
+
+app.mount('#app')

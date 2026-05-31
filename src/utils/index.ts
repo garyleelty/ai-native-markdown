@@ -1,1 +1,9 @@
-export {}
+export { extractWikiLinks, extractTags, buildLinkGraph, getAllTags, buildKnowledgeGraph } from './knowledge'
+export type { WikiLinkData, TagData } from './knowledge'
+export { mark, measure, getPerformanceEntries, createLazyLoader, requestIdleCallbackPromise, processInBatches, getMemoryInfo, observeLongTasks, observeLCP, observeCLS } from './performance'
+export { escapeHtml, sanitizeFilePath, isValidFileName, sanitizeMarkdown, safeStorage, safeCopyToClipboard } from './security'
+export { handleError, wrapAsync, ErrorLevel } from './errorHandler'
+export type { AppError } from './errorHandler'
+export { shortcutManager } from './shortcuts'
+export type { ShortcutDef } from './shortcuts'
+export { notify } from './notification'

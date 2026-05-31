@@ -10,13 +10,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import MarkdownIt from 'markdown-it'
-import hljs from 'highlight.js'
+import hljs from 'highlight.js/lib/common'
 import taskLists from 'markdown-it-task-lists'
 import anchor from 'markdown-it-anchor'
-import katex from 'markdown-it-katex'
-import mermaid from 'mermaid'
+import katex from '@traptitech/markdown-it-katex'
+import { sanitizeMarkdown, sanitizeSvg } from '@/utils/security'
 
 interface Props {
   content?: string
@@ -30,9 +30,19 @@ const emit = defineEmits<{
 }>()
 
 const previewRef = ref<HTMLElement>()
+const previewContainer = previewRef
+const debouncedContent = ref(props.content)
+let debounceTimer: number | null = null
+
+watch(() => props.content, () => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => {
+    debouncedContent.value = props.content
+  }, 300)
+})
 
 const md: MarkdownIt = new MarkdownIt({
-  html: true,
+  html: false,
   linkify: true,
   typographer: true,
   highlight(str: string, lang: string): string {
@@ -88,19 +98,35 @@ function processMermaid(content: string): string {
 }
 
 function processWikiLinks(content: string): string {
-  return content.replace(/\[\[([^\]]+)\]\]/g, '<a class="wiki-link" data-filename="$1">$1</a>')
+  return content.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target, display) => {
+    const text = display || target
+    return `<a class="wiki-link" data-filename="${target}">${text}</a>`
+  })
 }
 
 const renderedContent = computed(() => {
-  let processed = processWikiLinks(props.content)
+  let processed = processWikiLinks(debouncedContent.value)
   processed = processMermaid(processed)
-  return md.render(processed)
+  return sanitizeMarkdown(md.render(processed))
 })
+
+let mermaidInstance: any = null
+
+async function getMermaid() {
+  if (!mermaidInstance) {
+    const mod = await import('mermaid')
+    mermaidInstance = mod.default
+    mermaidInstance.initialize({ startOnLoad: false, theme: 'default' })
+  }
+  return mermaidInstance
+}
 
 async function renderMermaid() {
   await nextTick()
   if (!previewRef.value) return
   const els = previewRef.value.querySelectorAll<HTMLElement>('.mermaid')
+  if (els.length === 0) return
+  const mermaid = await getMermaid()
   for (const el of Array.from(els)) {
     const graphDefinition = el.textContent || ''
     try {
@@ -108,7 +134,7 @@ async function renderMermaid() {
         'mermaid-svg-' + Math.random().toString(36).slice(2),
         graphDefinition
       )
-      el.innerHTML = svg
+      el.innerHTML = sanitizeSvg(svg)
     } catch {
       el.textContent = 'Mermaid diagram error'
     }
@@ -127,11 +153,16 @@ function highlightCurrentLine() {
   }
 }
 
-watch(() => props.content, async () => {
-  await renderMermaid()
-  lineMap.value = buildLineMap()
-  highlightCurrentLine()
-})
+let renderTimer: number | null = null
+
+watch(debouncedContent, () => {
+  if (renderTimer) clearTimeout(renderTimer)
+  renderTimer = setTimeout(async () => {
+    await renderMermaid()
+    lineMap.value = buildLineMap()
+    highlightCurrentLine()
+  }, 150)
+}, { flush: 'post' })
 
 watch(() => props.cursorLine, async () => {
   await nextTick()
@@ -166,9 +197,29 @@ function handleClick(event: MouseEvent) {
 }
 
 onMounted(() => {
-  mermaid.initialize({ startOnLoad: false, theme: 'default' })
   renderMermaid()
   lineMap.value = buildLineMap()
+})
+
+onUnmounted(() => {
+  if (renderTimer !== null) { clearTimeout(renderTimer); renderTimer = null }
+})
+
+const scrollToLine = (line: number) => {
+  const container = previewContainer.value
+  if (!container) return
+  const lineElements = container.querySelectorAll('[data-line]')
+  for (const el of lineElements) {
+    const elLine = parseInt((el as HTMLElement).dataset.line || '0')
+    if (elLine >= line) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      break
+    }
+  }
+}
+
+defineExpose({
+  scrollToLine
 })
 </script>
 
@@ -176,7 +227,7 @@ onMounted(() => {
 .preview-container {
   height: 100%;
   overflow: hidden;
-  background: var(--bg-base);
+  background: var(--obsidian-bg-primary);
 }
 
 .preview-content {
@@ -188,7 +239,7 @@ onMounted(() => {
 }
 
 .markdown-body {
-  color: var(--text-primary);
+  color: var(--obsidian-text-normal);
   font-size: 15px;
   line-height: 1.8;
   letter-spacing: 0.008em;
@@ -201,40 +252,28 @@ onMounted(() => {
   margin-bottom: 0.65em;
   font-weight: 600;
   line-height: 1.35;
-  color: var(--text-primary);
-  letter-spacing: -0.03em;
+  color: var(--obsidian-text-normal);
+  letter-spacing: -0.02em;
   position: relative;
 }
 
 .markdown-body h1 {
-  font-size: 20px;
+  font-size: 28px;
   padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--obsidian-border);
 }
-.markdown-body h1::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 60px;
-  height: 3px;
-  background: linear-gradient(90deg, var(--accent-primary), transparent);
-  border-radius: 2px;
-}
-
 .markdown-body h2 {
-  font-size: 16px;
+  font-size: 24px;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--obsidian-border);
 }
 
 .markdown-body h3 {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-size: 20px;
+  font-weight: 600;
 }
 .markdown-body h4 {
   font-size: 1.08em;
-  color: var(--text-secondary);
 }
 
 .markdown-body h1:first-child, .markdown-body h2:first-child,
@@ -243,11 +282,11 @@ onMounted(() => {
 }
 
 .markdown-body .header-anchor {
-  color: var(--text-muted);
+  color: var(--obsidian-text-muted);
   text-decoration: none;
   margin-right: 0.4em;
   opacity: 0;
-  transition: opacity var(--duration-fast) var(--ease-default);
+  transition: opacity 0.15s ease;
   cursor: pointer;
 }
 .markdown-body h1:hover .header-anchor,
@@ -261,93 +300,57 @@ onMounted(() => {
 
 .markdown-body p {
   margin-bottom: 1.15em;
-  text-align: justify;
 }
 
 .markdown-body strong {
-  color: var(--accent-primary);
-  font-weight: 650;
+  color: var(--obsidian-text-normal);
+  font-weight: 700;
 }
 
 .markdown-body em {
-  color: var(--text-secondary);
   font-style: italic;
 }
 
 .markdown-body a {
-  color: var(--accent-primary);
+  color: var(--obsidian-accent);
   text-decoration: none;
-  position: relative;
-  transition: all var(--duration-fast) var(--ease-default);
-}
-.markdown-body a::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 0;
-  height: 1.5px;
-  background: linear-gradient(90deg, var(--accent-primary), var(--accent-mauve));
-  transition: width var(--duration-slow) var(--ease-default);
-  border-radius: 1px;
-}
-.markdown-body a:hover::after {
-  width: 100%;
 }
 .markdown-body a:hover {
-  text-shadow: 0 0 10px var(--accent-soft);
+  text-decoration: underline;
 }
 
 .markdown-body .wiki-link {
-  color: var(--accent-teal);
+  color: var(--obsidian-accent);
   cursor: pointer;
-}
-.markdown-body .wiki-link::after {
-  background: linear-gradient(90deg, var(--accent-teal), var(--accent-green));
 }
 
 .markdown-body code {
-  background: var(--bg-surface);
-  color: var(--accent-primary);
-  padding: 2.5px 7px;
-  border-radius: 5px;
+  background: var(--obsidian-bg-secondary);
+  color: var(--obsidian-accent);
+  padding: 2px 6px;
+  border-radius: 0;
   font-family: var(--font-mono);
   font-size: 0.87em;
   font-weight: 500;
-  border: 1px solid var(--border-subtle);
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.04);
 }
 
 .markdown-body pre {
-  background: var(--bg-elevated);
-  padding: 18px 22px;
-  border-radius: var(--radius-md);
+  background: var(--obsidian-bg-secondary);
+  padding: 16px 20px;
+  border-radius: 0;
   overflow-x: auto;
   margin: 1.4em 0;
-  border: 1px solid var(--border-subtle);
+  border: none;
   position: relative;
-}
-.markdown-body pre::before {
-  content: '';
-  position: absolute;
-  top: 12px;
-  left: 16px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #ff5f56;
-  box-shadow: 14px 0 0 #ffbd2e, 28px 0 0 #27ca40;
 }
 .markdown-body pre code {
   background: none;
-  color: var(--text-primary);
+  color: var(--obsidian-text-normal);
   padding: 0;
   font-size: 0.86em;
   line-height: 1.65;
   border: none;
-  box-shadow: none;
   display: block;
-  padding-top: 8px;
 }
 
 .markdown-body ul, .markdown-body ol {
@@ -359,8 +362,7 @@ onMounted(() => {
   line-height: 1.7;
 }
 .markdown-body li::marker {
-  color: var(--accent-primary);
-  font-weight: 600;
+  color: var(--obsidian-text-muted);
 }
 
 .markdown-body .task-list-item {
@@ -368,7 +370,7 @@ onMounted(() => {
   padding-left: 0;
 }
 .markdown-body .task-list-item input[type="checkbox"] {
-  accent-color: var(--accent-primary);
+  accent-color: var(--obsidian-accent);
   width: 16px;
   height: 16px;
   cursor: pointer;
@@ -377,12 +379,12 @@ onMounted(() => {
 }
 
 .markdown-body blockquote {
-  border-left: 3px solid var(--accent-primary);
+  border-left: 2px solid var(--obsidian-accent);
   padding: 0.6em 1.2em;
   margin: 1.3em 0;
-  color: var(--text-secondary);
-  background: var(--accent-soft);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--obsidian-text-muted);
+  background: transparent;
+  border-radius: 0;
 }
 .markdown-body blockquote p:last-child {
   margin-bottom: 0;
@@ -391,77 +393,45 @@ onMounted(() => {
 .markdown-body hr {
   border: none;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
+  background: var(--obsidian-border);
   margin: 2.5em 0;
-  position: relative;
-}
-.markdown-body hr::after {
-  content: '·';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  color: var(--text-muted);
-  font-size: 1.2em;
-  background: var(--bg-base);
-  padding: 0 12px;
 }
 
 .markdown-body table {
-  border-collapse: separate;
+  border-collapse: collapse;
   border-spacing: 0;
   width: 100%;
   margin: 1.3em 0;
   font-size: 0.93em;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--obsidian-border);
 }
 .markdown-body th, .markdown-body td {
-  border: none;
-  border-bottom: 1px solid var(--border-subtle);
-  border-right: 1px solid var(--border-subtle);
-  padding: 10px 14px;
+  border: 1px solid var(--obsidian-border);
+  padding: 8px 12px;
   text-align: left;
 }
-.markdown-body th:last-child, .markdown-body td:last-child {
-  border-right: none;
-}
 .markdown-body th {
-  background: var(--bg-elevated);
+  background: var(--obsidian-bg-secondary);
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--obsidian-text-normal);
   font-size: 0.85em;
-  letter-spacing: 0.02em;
-}
-.markdown-body tr:last-child td {
-  border-bottom: none;
-}
-.markdown-body tr:nth-child(even) td {
-  background: var(--bg-hover);
 }
 .markdown-body tr:hover td {
-  background: var(--bg-active);
+  background: var(--obsidian-bg-hover);
 }
 
 .markdown-body img {
   max-width: 100%;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
   margin: 1.3em 0;
-  box-shadow: var(--shadow-md);
-  transition: transform var(--duration-slow) var(--ease-default), box-shadow var(--duration-slow) var(--ease-default);
-}
-.markdown-body img:hover {
-  transform: scale(1.01);
-  box-shadow: var(--shadow-lg);
 }
 
 .markdown-body .mermaid {
-  background: var(--bg-deep);
-  padding: 18px 22px;
-  border-radius: var(--radius-md);
+  background: var(--obsidian-bg-secondary);
+  padding: 16px 20px;
+  border-radius: 0;
   margin: 1.4em 0;
-  border: 1px solid var(--border-subtle);
+  border: none;
   overflow-x: auto;
   text-align: center;
 }
@@ -476,12 +446,12 @@ onMounted(() => {
 
 .hljs {
   background: transparent !important;
-  color: var(--text-primary) !important;
+  color: var(--obsidian-text-normal) !important;
 }
 
 .current-line {
-  background: var(--accent-soft-hover);
+  background: var(--obsidian-bg-hover);
   border-radius: var(--radius-sm);
-  transition: background var(--duration-fast) var(--ease-default);
+  transition: background 0.15s ease;
 }
 </style>

@@ -1,2 +1,5 @@
 export { default as Editor } from '../Editor.vue'
 export { default as OutlinePanel } from './OutlinePanel.vue'
+export { default as VersionHistoryPanel } from './VersionHistoryPanel.vue'
+export { default as FocusMode } from './FocusMode.vue'
+export { default as WritingGoal } from './WritingGoal.vue'

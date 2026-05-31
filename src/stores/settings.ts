@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import type { AIConfig, ThemeMode, SidebarTab, VoiceInputMode, GhostTextConfig } from '@/types'
+import type { AIConfig, ThemeMode, SidebarTab, GhostTextConfig } from '@/types'
+import { encryptValue, decryptValue } from '@/utils/security'
 
 const defaultAIConfig: AIConfig = {
   provider: 'ollama',
@@ -12,35 +13,7 @@ const defaultAIConfig: AIConfig = {
   systemPrompt: '你是一个专业的 Markdown 写作助手。'
 }
 
-const isTauri = '__TAURI_INTERNALS__' in window
-
-let tauriStore: any = null
-
-async function getTauriStore() {
-  if (!isTauri) return null
-  if (tauriStore) return tauriStore
-  try {
-    const { load } = await import('@tauri-apps/plugin-store')
-    tauriStore = await load('settings.json', {
-      autoSave: 100,
-      defaults: {}
-    })
-    return tauriStore
-  } catch {
-    return null
-  }
-}
-
-async function persistGet<T>(key: string, defaultValue: T): Promise<T> {
-  const store = await getTauriStore()
-  if (store) {
-    try {
-      const val = await store.get(key) as T | undefined
-      return val ?? defaultValue
-    } catch {
-      return defaultValue
-    }
-  }
+function loadFromStorage<T>(key: string, defaultValue: T): T {
   const raw = localStorage.getItem(key)
   if (raw === null) return defaultValue
   try {
@@ -50,79 +23,58 @@ async function persistGet<T>(key: string, defaultValue: T): Promise<T> {
   }
 }
 
-async function persistSet(key: string, value: unknown): Promise<void> {
-  const store = await getTauriStore()
-  if (store) {
-    try {
-      await store.set(key, value)
-      return
-    } catch {
-      // fallback to localStorage
+function loadEncryptedConfig(key: string, defaultValue: AIConfig): AIConfig {
+  const raw = localStorage.getItem(key)
+  if (raw === null) return defaultValue
+  try {
+    const parsed = JSON.parse(raw) as AIConfig
+    if (parsed.apiKey) {
+      parsed.apiKey = decryptValue(parsed.apiKey)
     }
+    return parsed
+  } catch {
+    return defaultValue
   }
+}
+
+function saveEncryptedConfig(key: string, value: AIConfig): void {
+  const toStore = { ...value }
+  if (toStore.apiKey) {
+    toStore.apiKey = encryptValue(toStore.apiKey)
+  }
+  localStorage.setItem(key, JSON.stringify(toStore))
+}
+
+function saveToStorage(key: string, value: unknown): void {
   localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value))
 }
 
 export const useSettingsStore = defineStore('settings', () => {
-  const theme = ref<ThemeMode>('system')
-  const aiConfig = ref<AIConfig>({ ...defaultAIConfig })
-  const sidebarWidth = ref(260)
-  const aiPanelHeight = ref(220)
+  const theme = ref<ThemeMode>(loadFromStorage('theme', 'system'))
+  const aiConfig = ref<AIConfig>(loadEncryptedConfig('ai_config', { ...defaultAIConfig }))
+  const sidebarWidth = ref(loadFromStorage('sidebar_width', 280))
+  const aiPanelHeight = ref(loadFromStorage('ai_panel_height', 260))
   const showSidebar = ref(true)
   const showAIPanel = ref(false)
   const activeSidebarTab = ref<SidebarTab>('files')
-  const livePreview = ref(true)
-  const voiceInputMode = ref<VoiceInputMode>('hold')
-  const voiceInputLanguage = ref('zh-CN')
-  const enableAIActions = ref(true)
-  const enableSmartPaste = ref(true)
-  const enableStatusBar = ref(true)
-
-  const enableInlineEdit = ref(true)
-  const enableMultimodal = ref(true)
-  const enableRAG = ref(false)
-
-  const ghostTextConfig = ref<GhostTextConfig>({
+  const livePreview = ref(loadFromStorage('live_preview', true))
+  const enableRAG = ref(loadFromStorage('enable_rag', false))
+  const enableAIActions = ref(loadFromStorage('enable_ai_actions', true))
+  const enableSmartPaste = ref(loadFromStorage('enable_smart_paste', true))
+  const ghostTextConfig = ref<GhostTextConfig>(loadFromStorage('ghost_text_config', {
     enabled: true,
-    debounceMs: 800,
-    maxPrefixChars: 1500,
+    debounceMs: 1500,
+    maxPrefixChars: 500,
     maxCompletionChars: 200,
-    triggerMode: 'pause'
-  })
+    triggerMode: 'pause' as const,
+  }))
+  const enableInlineEdit = ref(loadFromStorage('enable_inline_edit', true))
 
-  const initialized = ref(false)
-
-  const initSettings = async () => {
-    if (initialized.value) return
-
-    theme.value = await persistGet<ThemeMode>('theme', 'system')
-    aiConfig.value = await persistGet<AIConfig>('ai_config', { ...defaultAIConfig })
-    sidebarWidth.value = await persistGet<number>('sidebar_width', 260)
-    aiPanelHeight.value = await persistGet<number>('ai_panel_height', 220)
-    livePreview.value = await persistGet<boolean>('live_preview', true)
-    voiceInputMode.value = await persistGet<VoiceInputMode>('voice_input_mode', 'hold')
-    voiceInputLanguage.value = await persistGet<string>('voice_input_language', 'zh-CN')
-    enableAIActions.value = await persistGet<boolean>('enable_ai_actions', true)
-    enableSmartPaste.value = await persistGet<boolean>('enable_smart_paste', true)
-    enableStatusBar.value = await persistGet<boolean>('enable_status_bar', true)
-    ghostTextConfig.value = await persistGet<GhostTextConfig>('ghost_text_config', ghostTextConfig.value)
-    enableInlineEdit.value = await persistGet<boolean>('enable_inline_edit', true)
-    enableMultimodal.value = await persistGet<boolean>('enable_multimodal', true)
-    enableRAG.value = await persistGet<boolean>('enable_rag', false)
-
-    initialized.value = true
-  }
-
-  const initPromise = initSettings()
-
-  // 监听系统主题变化，使 isDark 在 system 模式下也能响应式更新
   const systemIsDark = ref(window.matchMedia('(prefers-color-scheme: dark)').matches)
-  if (typeof window !== 'undefined') {
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-      systemIsDark.value = e.matches
-      if (theme.value === 'system') applyTheme()
-    })
-  }
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    systemIsDark.value = e.matches
+    if (theme.value === 'system') applyTheme()
+  })
 
   const isDark = () => {
     if (theme.value === 'dark') return true
@@ -132,62 +84,55 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const applyTheme = () => {
     const dark = isDark()
-    document.documentElement.classList.toggle('light', !dark)
     document.documentElement.classList.toggle('dark', dark)
+    document.documentElement.classList.toggle('light', !dark)
   }
 
   const setTheme = (mode: ThemeMode) => {
     theme.value = mode
     applyTheme()
+    saveToStorage('theme', mode)
   }
 
   const toggleTheme = () => {
-    const themes: ThemeMode[] = ['dark', 'light']
+    const themes: ThemeMode[] = ['dark', 'light', 'system']
     const idx = themes.indexOf(theme.value)
     setTheme(themes[(idx + 1) % themes.length])
   }
 
   const updateAIConfig = (config: Partial<AIConfig>) => {
     aiConfig.value = { ...aiConfig.value, ...config }
+    saveEncryptedConfig('ai_config', aiConfig.value)
   }
 
   const toggleSidebar = () => { showSidebar.value = !showSidebar.value }
   const toggleAIPanel = () => { showAIPanel.value = !showAIPanel.value }
-  const toggleLivePreview = () => { livePreview.value = !livePreview.value }
+  const toggleLivePreview = () => {
+    livePreview.value = !livePreview.value
+    saveToStorage('live_preview', livePreview.value)
+  }
   const setActiveTab = (tab: SidebarTab) => { activeSidebarTab.value = tab }
-  const setSidebarWidth = (width: number) => { sidebarWidth.value = width }
-  const setAIPanelHeight = (height: number) => { aiPanelHeight.value = height }
-  const setVoiceInputMode = (mode: VoiceInputMode) => { voiceInputMode.value = mode }
-  const setVoiceInputLanguage = (lang: string) => { voiceInputLanguage.value = lang }
-
-  const updateGhostTextConfig = (config: Partial<GhostTextConfig>) => {
-    ghostTextConfig.value = { ...ghostTextConfig.value, ...config }
+  const setSidebarWidth = (width: number) => {
+    sidebarWidth.value = width
+    saveToStorage('sidebar_width', width)
+  }
+  const setAIPanelHeight = (height: number) => {
+    aiPanelHeight.value = height
+    saveToStorage('ai_panel_height', height)
   }
 
-  watch(theme, (val) => { persistSet('theme', val) })
-  watch(aiConfig, (val) => { persistSet('ai_config', val) }, { deep: true })
-  watch(sidebarWidth, (val) => { persistSet('sidebar_width', val) })
-  watch(aiPanelHeight, (val) => { persistSet('ai_panel_height', val) })
-  watch(livePreview, (val) => { persistSet('live_preview', val) })
-  watch(voiceInputMode, (val) => { persistSet('voice_input_mode', val) })
-  watch(voiceInputLanguage, (val) => { persistSet('voice_input_language', val) })
-  watch(enableAIActions, (val) => { persistSet('enable_ai_actions', val) })
-  watch(enableSmartPaste, (val) => { persistSet('enable_smart_paste', val) })
-  watch(enableStatusBar, (val) => { persistSet('enable_status_bar', val) })
-  watch(ghostTextConfig, (val) => { persistSet('ghost_text_config', val) }, { deep: true })
-  watch(enableInlineEdit, (val) => { persistSet('enable_inline_edit', val) })
-  watch(enableMultimodal, (val) => { persistSet('enable_multimodal', val) })
-  watch(enableRAG, (val) => { persistSet('enable_rag', val) })
+  watch(aiConfig, (val) => { saveEncryptedConfig('ai_config', val) }, { deep: true })
+  watch(enableRAG, (val) => { saveToStorage('enable_rag', val) })
+  watch(ghostTextConfig, (val) => { saveToStorage('ghost_text_config', val) }, { deep: true })
+
+  applyTheme()
 
   return {
     theme, aiConfig, sidebarWidth, aiPanelHeight,
-    showSidebar, showAIPanel, activeSidebarTab, livePreview,
-    voiceInputMode, voiceInputLanguage, ghostTextConfig,
-    enableInlineEdit, enableMultimodal, enableRAG,
-    enableAIActions, enableSmartPaste, enableStatusBar,
-    isDark, applyTheme, setTheme, toggleTheme, updateAIConfig, toggleSidebar, toggleAIPanel, toggleLivePreview, setActiveTab,
+    showSidebar, showAIPanel, activeSidebarTab, livePreview, enableRAG,
+    enableAIActions, enableSmartPaste, ghostTextConfig, enableInlineEdit,
+    isDark, applyTheme, setTheme, toggleTheme, updateAIConfig,
+    toggleSidebar, toggleAIPanel, toggleLivePreview, setActiveTab,
     setSidebarWidth, setAIPanelHeight,
-    setVoiceInputMode, setVoiceInputLanguage, updateGhostTextConfig,
-    initPromise
   }
 })

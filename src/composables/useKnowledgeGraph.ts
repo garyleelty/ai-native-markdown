@@ -5,9 +5,13 @@ import type { GraphNode, GraphEdge, KnowledgeGraphData } from '@/types'
 type SimulationNode = GraphNode & d3.SimulationNodeDatum
 type SimulationEdge = d3.SimulationLinkDatum<SimulationNode>
 
-export function useKnowledgeGraph(container: Ref<HTMLElement | null>) {
+export function useKnowledgeGraph(
+  container: Ref<HTMLElement | null>,
+  onNodeClick?: (node: GraphNode) => void
+) {
   const simulation = ref<d3.Simulation<SimulationNode, SimulationEdge> | null>(null)
   const svg = ref<d3.Selection<SVGSVGElement, unknown, null, undefined> | null>(null)
+  const zoomBehavior = ref<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
   const hoveredNode = ref<SimulationNode | null>(null)
   const selectedNode = ref<SimulationNode | null>(null)
 
@@ -50,13 +54,14 @@ export function useKnowledgeGraph(container: Ref<HTMLElement | null>) {
 
     const g = svgEl.append('g')
 
-    const zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.2, 5])
       .on('zoom', (event) => {
         g.attr('transform', event.transform.toString())
       })
 
-    svgEl.call(zoomBehavior)
+    svgEl.call(zoom)
+    zoomBehavior.value = zoom
 
     const edgeGroup = g.append('g').attr('class', 'edges')
     const nodeGroup = g.append('g').attr('class', 'nodes')
@@ -90,6 +95,9 @@ export function useKnowledgeGraph(container: Ref<HTMLElement | null>) {
           d.fy = null
         })
       )
+      .on('click', (_event, d) => {
+        if (onNodeClick) onNodeClick(d)
+      })
 
     nodeSelection
       .append('circle')
@@ -171,7 +179,7 @@ export function useKnowledgeGraph(container: Ref<HTMLElement | null>) {
   }
 
   function focusNode(nodeId: string) {
-    if (!svg.value || !simulation.value) return
+    if (!svg.value || !simulation.value || !zoomBehavior.value) return
     const nodes = simulation.value.nodes()
     const target = nodes.find(n => n.id === nodeId)
     if (!target || target.x == null || target.y == null) return
@@ -180,9 +188,7 @@ export function useKnowledgeGraph(container: Ref<HTMLElement | null>) {
     const height = container.value?.clientHeight ?? 400
 
     svg.value.transition().duration(500).call(
-      d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.2, 5]).on('zoom', (event) => {
-        svg.value?.select('g').attr('transform', event.transform.toString())
-      }).transform,
+      zoomBehavior.value.transform,
       d3.zoomIdentity.translate(width / 2, height / 2).scale(1.5).translate(-target.x, -target.y)
     )
   }
@@ -192,10 +198,14 @@ export function useKnowledgeGraph(container: Ref<HTMLElement | null>) {
       simulation.value.stop()
       simulation.value = null
     }
+    if (svg.value) {
+      svg.value.on('.zoom', null)
+    }
     if (container.value) {
       d3.select(container.value).selectAll('svg').remove()
     }
     svg.value = null
+    zoomBehavior.value = null
     hoveredNode.value = null
     selectedNode.value = null
   }

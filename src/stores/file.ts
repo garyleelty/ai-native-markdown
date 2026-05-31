@@ -1,100 +1,94 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { FileItem, Workspace } from '@/types'
+import type { FileItem, TreeNode } from '@/types'
+import { fileSystem, type FileRecord } from '@/services/fileSystem'
 
-const isTauri = '__TAURI_INTERNALS__' in window
+function recordToFileItem(record: FileRecord): FileItem {
+  return {
+    id: String(record.id),
+    name: record.name,
+    path: record.path,
+    parentPath: record.parentPath,
+    isDirectory: record.isDirectory,
+    isMarkdown: !record.isDirectory && (record.name.endsWith('.md') || record.name.endsWith('.markdown')),
+    modifiedAt: record.updatedAt,
+    size: record.size,
+  }
+}
 
-async function getTauriAPI() {
-  if (!isTauri) return null
-  const { invoke } = await import('@tauri-apps/api/core')
-  const { open } = await import('@tauri-apps/plugin-dialog')
-  return { invoke, open }
+function buildTree(items: FileItem[], parentPath: string): TreeNode[] {
+  return items
+    .filter(item => item.parentPath === parentPath)
+    .sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
+    .map(item => ({
+      id: item.id,
+      name: item.name,
+      path: item.path,
+      isDirectory: item.isDirectory,
+      isMarkdown: item.isMarkdown,
+      children: item.isDirectory ? buildTree(items, item.path) : undefined,
+    }))
 }
 
 export const useFileStore = defineStore('file', () => {
-  const rootPath = ref('')
-  const rootName = ref('')
   const files = ref<FileItem[]>([])
-  const currentFilePath = ref('')
-  const workspaces = ref<Workspace[]>(JSON.parse(localStorage.getItem('workspaces') || '[]'))
-  const searchQuery = ref('')
-  const searchResults = ref<FileItem[]>([])
+  const tree = ref<TreeNode[]>([])
+  const currentPath = ref('/')
+  const loading = ref(false)
 
-  const loadFiles = async (dirPath: string) => {
-    if (!isTauri) return
+  const loadFiles = async (path: string = '/') => {
+    loading.value = true
     try {
-      const api = await getTauriAPI()
-      if (!api) return
-      const entries = await api.invoke('read_dir', { path: dirPath }) as any[]
-      files.value = entries
-        .filter((e: any) => e.name.endsWith('.md') || e.name.endsWith('.markdown') || e.is_dir)
-        .map((e: any) => ({
-          id: e.path,
-          name: e.name,
-          path: e.path,
-          parentPath: dirPath,
-          isDirectory: e.is_dir,
-          isMarkdown: e.name.endsWith('.md') || e.name.endsWith('.markdown'),
-          modifiedAt: 0,
-          size: 0
-        }))
-    } catch (error) {
-      console.error('加载文件失败:', error)
+      const records = await fileSystem.readDirectory(path)
+      files.value = records.map(recordToFileItem)
+      tree.value = buildTree(files.value, path)
+      currentPath.value = path
+    } finally {
+      loading.value = false
     }
   }
 
-  const openFolder = async () => {
-    if (!isTauri) {
-      console.warn('打开文件夹功能仅在 Tauri 桌面端可用')
-      return
-    }
-    try {
-      const api = await getTauriAPI()
-      if (!api) return
-      const selected = await api.open({ directory: true, multiple: false, title: '选择工作区文件夹' })
-      if (selected) {
-        rootPath.value = selected as string
-        rootName.value = (selected as string).split('/').pop() || '文件夹'
-        await loadFiles(selected as string)
-        addWorkspace(selected as string, rootName.value)
-      }
-    } catch (error) {
-      console.error('打开文件夹失败:', error)
-    }
+  const refreshTree = async () => {
+    const allRecords = await fileSystem.readDirectory(currentPath.value)
+    files.value = allRecords.map(recordToFileItem)
+    tree.value = buildTree(files.value, currentPath.value)
   }
 
-  const selectFile = (path: string) => {
-    currentFilePath.value = path
+  const createFile = async (path: string) => {
+    await fileSystem.createFile(path)
+    await refreshTree()
   }
 
-  const searchFiles = async (query: string) => {
-    searchQuery.value = query
-    if (!query.trim()) {
-      searchResults.value = []
-      return
-    }
-    const q = query.toLowerCase()
-    searchResults.value = files.value.filter(f => f.name.toLowerCase().includes(q))
+  const createDirectory = async (path: string) => {
+    await fileSystem.createDirectory(path)
+    await refreshTree()
   }
 
-  const addWorkspace = (path: string, name: string) => {
-    const exists = workspaces.value.find(w => w.path === path)
-    if (exists) {
-      exists.lastOpened = Date.now()
-    } else {
-      workspaces.value.push({ id: path, name, path, lastOpened: Date.now() })
-    }
-    localStorage.setItem('workspaces', JSON.stringify(workspaces.value))
+  const deleteFile = async (path: string) => {
+    await fileSystem.deleteFile(path)
+    await refreshTree()
   }
 
-  const removeWorkspace = (path: string) => {
-    workspaces.value = workspaces.value.filter(w => w.path !== path)
-    localStorage.setItem('workspaces', JSON.stringify(workspaces.value))
+  const renameFile = async (oldPath: string, newPath: string) => {
+    await fileSystem.renameFile(oldPath, newPath)
+    await refreshTree()
+  }
+
+  const readFile = async (path: string): Promise<string> => {
+    return fileSystem.readFile(path)
+  }
+
+  const writeFile = async (path: string, content: string) => {
+    await fileSystem.writeFile(path, content)
+    await refreshTree()
   }
 
   return {
-    rootPath, rootName, files, currentFilePath, workspaces,
-    searchQuery, searchResults,
-    openFolder, loadFiles, selectFile, searchFiles, addWorkspace, removeWorkspace
+    files, tree, currentPath, loading,
+    loadFiles, refreshTree, createFile, createDirectory,
+    deleteFile, renameFile, readFile, writeFile,
   }
 })

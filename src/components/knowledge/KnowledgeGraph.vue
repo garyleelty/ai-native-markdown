@@ -56,7 +56,10 @@ const graphContainer = ref<HTMLElement | null>(null)
 const searchQuery = ref('')
 const mousePos = ref({ x: 0, y: 0 })
 
-const { initGraph, hoveredNode, focusNode, destroyGraph } = useKnowledgeGraph(graphContainer)
+const { initGraph, hoveredNode, focusNode, destroyGraph } = useKnowledgeGraph(
+  graphContainer,
+  (node) => emit('nodeClick', node)
+)
 
 const tooltipStyle = computed(() => ({
   left: `${mousePos.value.x + 12}px`,
@@ -66,20 +69,6 @@ const tooltipStyle = computed(() => ({
 const buildGraph = () => {
   nextTick(() => {
     initGraph(props.graphData)
-    attachNodeClickHandler()
-  })
-}
-
-const attachNodeClickHandler = () => {
-  if (!graphContainer.value) return
-  const nodeEls = graphContainer.value.querySelectorAll('g[cursor="pointer"]')
-  const nodes = props.graphData.nodes
-  nodeEls.forEach((el, i) => {
-    if (nodes[i]) {
-      el.addEventListener('click', () => {
-        emit('nodeClick', nodes[i])
-      })
-    }
   })
 }
 

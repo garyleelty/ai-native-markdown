@@ -13,18 +13,17 @@ interface Tab {
 export const useEditorStore = defineStore('editor', () => {
   const content = ref('')
   const currentFile = ref('')
-  const viewMode = ref<ViewMode>('source')
+  const viewMode = ref<ViewMode>('split')
   const cursorLine = ref(0)
   const cursorColumn = ref(0)
   const isModified = ref(false)
-
   const openTabs = ref<Tab[]>([])
   const activeTabId = ref<string | null>(null)
 
   const setContent = (value: string) => {
+    if (content.value === value) return
     content.value = value
     isModified.value = true
-    
     if (activeTabId.value) {
       const tab = openTabs.value.find(t => t.id === activeTabId.value)
       if (tab) {
@@ -34,9 +33,19 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
-  const setViewMode = (mode: ViewMode) => {
-    viewMode.value = mode
+  const setContentSilent = (value: string) => {
+    content.value = value
+    isModified.value = false
+    if (activeTabId.value) {
+      const tab = openTabs.value.find(t => t.id === activeTabId.value)
+      if (tab) {
+        tab.content = value
+        tab.isModified = false
+      }
+    }
   }
+
+  const setViewMode = (mode: ViewMode) => { viewMode.value = mode }
 
   const setCursor = (line: number, column: number) => {
     cursorLine.value = line
@@ -45,28 +54,23 @@ export const useEditorStore = defineStore('editor', () => {
 
   const markSaved = () => {
     isModified.value = false
-    
-    if (activeTabId.value) {
-      markTabSaved(activeTabId.value)
-    }
+    if (activeTabId.value) markTabSaved(activeTabId.value)
   }
 
-  const addTab = (filePath: string, content: string) => {
+  const addTab = (filePath: string, contentStr: string) => {
     const existingTab = openTabs.value.find(t => t.filePath === filePath)
     if (existingTab) {
       switchTab(existingTab.id)
       return
     }
-
     const fileName = filePath.split('/').pop() || 'untitled.md'
     const newTab: Tab = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       filePath,
       fileName,
-      content,
+      content: contentStr,
       isModified: false
     }
-
     openTabs.value.push(newTab)
     switchTab(newTab.id)
   }
@@ -74,9 +78,7 @@ export const useEditorStore = defineStore('editor', () => {
   const closeTab = (tabId: string) => {
     const index = openTabs.value.findIndex(t => t.id === tabId)
     if (index === -1) return
-
     openTabs.value.splice(index, 1)
-
     if (activeTabId.value === tabId) {
       const newActiveIndex = Math.min(index, openTabs.value.length - 1)
       if (openTabs.value.length > 0) {
@@ -93,35 +95,17 @@ export const useEditorStore = defineStore('editor', () => {
   const switchTab = (tabId: string) => {
     const tab = openTabs.value.find(t => t.id === tabId)
     if (!tab) return
-
     activeTabId.value = tabId
     content.value = tab.content
     currentFile.value = tab.filePath
     isModified.value = tab.isModified
   }
 
-  const updateTabContent = (tabId: string, newContent: string) => {
-    const tab = openTabs.value.find(t => t.id === tabId)
-    if (!tab) return
-
-    tab.content = newContent
-    tab.isModified = true
-
-    if (activeTabId.value === tabId) {
-      content.value = newContent
-      isModified.value = true
-    }
-  }
-
   const markTabSaved = (tabId: string) => {
     const tab = openTabs.value.find(t => t.id === tabId)
     if (!tab) return
-
     tab.isModified = false
-
-    if (activeTabId.value === tabId) {
-      isModified.value = false
-    }
+    if (activeTabId.value === tabId) isModified.value = false
   }
 
   const getActiveTab = () => {
@@ -129,10 +113,17 @@ export const useEditorStore = defineStore('editor', () => {
     return openTabs.value.find(t => t.id === activeTabId.value) || null
   }
 
+  const moveTab = (fromIndex: number, toIndex: number) => {
+    const tab = openTabs.value.splice(fromIndex, 1)[0]
+    if (tab) {
+      openTabs.value.splice(toIndex, 0, tab)
+    }
+  }
+
   return {
     content, currentFile, viewMode, cursorLine, cursorColumn, isModified,
     openTabs, activeTabId,
-    setContent, setViewMode, setCursor, markSaved,
-    addTab, closeTab, switchTab, updateTabContent, markTabSaved, getActiveTab
+    setContent, setContentSilent, setViewMode, setCursor, markSaved,
+    addTab, closeTab, switchTab, markTabSaved, getActiveTab, moveTab
   }
 })

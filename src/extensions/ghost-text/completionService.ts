@@ -39,7 +39,8 @@ export function requestCompletion(
         { role: 'user', content: prompt }
       ], {
         temperature: 0.4,
-        maxTokens: config.maxCompletionChars * 2
+        maxTokens: config.maxCompletionChars * 2,
+        signal: abortController.signal
       })) {
         if (abortController.signal.aborted) return
         result += chunk

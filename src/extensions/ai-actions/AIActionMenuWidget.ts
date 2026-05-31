@@ -1,6 +1,7 @@
 import { WidgetType, EditorView } from '@codemirror/view'
 import { AI_ACTIONS, type AIAction } from './types'
 import { aiService } from '@/services/ai'
+import { sanitizeMarkdown } from '@/utils/security'
 
 export class AIActionMenuWidget extends WidgetType {
   private selectedText: string
@@ -109,21 +110,24 @@ export class AIActionMenuWidget extends WidgetType {
           <button class="cm-ai-result-close" title="关闭">&times;</button>
         </div>
       </div>
-      <div class="cm-ai-result-body">${this.escapeHtml(text)}</div>
+      <div class="cm-ai-result-body">${sanitizeMarkdown(text)}</div>
     `
 
     if (type === 'success') {
       resultEl.querySelector('.cm-ai-result-btn.accept')?.addEventListener('click', () => {
         this.view.dispatch({
-          changes: { from: this.from, to: this.to, insert: text }
+          changes: { from: this.from, to: this.to, insert: text },
+          selection: { anchor: this.from + text.length }
         })
-        this.destroyWidget()
+        this.view.focus()
       })
       resultEl.querySelector('.cm-ai-result-btn.insert')?.addEventListener('click', () => {
+        const inserted = '\n\n' + text
         this.view.dispatch({
-          changes: { from: this.to, insert: '\n\n' + text }
+          changes: { from: this.to, insert: inserted },
+          selection: { anchor: this.to + inserted.length }
         })
-        this.destroyWidget()
+        this.view.focus()
       })
     }
     resultEl.querySelector('.cm-ai-result-close')?.addEventListener('click', () => {

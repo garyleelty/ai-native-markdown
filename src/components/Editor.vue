@@ -1,103 +1,165 @@
 <template>
   <div class="editor-wrapper">
-    <div class="editor-container" ref="editorContainer"></div>
     <div class="editor-toolbar">
       <div class="toolbar-inner">
-        <div class="toolbar-group">
-          <button class="tool-btn" @click="wrapSelection('**', '**')" title="粗体 (Ctrl+B)" aria-label="粗体">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 014 4 4 4 0 01-4 4H6z"/><path d="M6 12h9a4 4 0 014 4 4 4 0 01-4 4H6z"/></svg>
-          </button>
-          <button class="tool-btn" @click="wrapSelection('*', '*')" title="斜体 (Ctrl+I)" aria-label="斜体">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>
-          </button>
-          <button class="tool-btn" @click="wrapSelection('~~', '~~')" title="删除线" aria-label="删除线">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
-          </button>
-        </div>
-        <div class="toolbar-divider"></div>
-        <div class="toolbar-group">
-          <button class="tool-btn" @click="insertLine('# ')" title="H1" aria-label="一级标题">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17 12h3"/><path d="M17 18V6"/></svg>
-          </button>
-          <button class="tool-btn" @click="insertLine('## ')" title="H2" aria-label="二级标题">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M21 18h-4c0-4 4-3 4-6 0-1.5-2-2.5-4-1"/></svg>
-          </button>
-          <button class="tool-btn" @click="insertLine('### ')" title="H3" aria-label="三级标题">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17.5 10.5c1.7-1 3.5 0 3.5 1.5a2 2 0 01-2 2"/><path d="M17 17v4"/><path d="M21 17v4"/></svg>
-          </button>
-        </div>
-        <div class="toolbar-divider"></div>
-        <div class="toolbar-group">
-          <button class="tool-btn" @click="wrapSelection('`', '`')" title="行内代码" aria-label="行内代码">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-          </button>
-          <button class="tool-btn" @click="wrapSelection('```\n', '\n```')" title="代码块" aria-label="代码块">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-          </button>
-          <button class="tool-btn" @click="wrapSelection('> ', '')" title="引用" aria-label="引用">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/></svg>
-          </button>
-        </div>
-        <div class="toolbar-divider"></div>
-        <div class="toolbar-group">
-          <button class="tool-btn" @click="wrapSelection('- ', '')" title="无序列表" aria-label="无序列表">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-          </button>
-          <button class="tool-btn" @click="wrapSelection('1. ', '')" title="有序列表" aria-label="有序列表">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>
-          </button>
-          <button class="tool-btn" @click="insertLink" title="链接" aria-label="链接">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-          </button>
-          <button class="tool-btn" @click="insertImage" title="图片" aria-label="图片">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          </button>
-        </div>
-        <div class="toolbar-divider"></div>
-        <div class="toolbar-group">
-          <button
-            class="tool-btn"
-            :class="{ active: settingsStore.livePreview }"
+        <el-button-group>
+          <el-tooltip content="粗体 (Ctrl+B)" placement="bottom">
+            <el-button :icon="EditPen" aria-label="加粗" @click="wrapSelection('**', '**')" />
+          </el-tooltip>
+          <el-tooltip content="斜体 (Ctrl+I)" placement="bottom">
+            <el-button aria-label="斜体" @click="wrapSelection('*', '*')">
+              <template #icon>
+                <span style="font-style: italic; font-weight: 600;">I</span>
+              </template>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="删除线" placement="bottom">
+            <el-button aria-label="删除线" @click="wrapSelection('~~', '~~')">
+              <template #icon>
+                <span style="text-decoration: line-through; font-weight: 600;">S</span>
+              </template>
+            </el-button>
+          </el-tooltip>
+        </el-button-group>
+
+        <el-divider direction="vertical" />
+
+        <el-button-group>
+          <el-tooltip content="一级标题" placement="bottom">
+            <el-button aria-label="一级标题" @click="insertLine('# ')">
+              <template #icon>
+                <span style="font-weight: 700; font-size: 14px;">H1</span>
+              </template>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="二级标题" placement="bottom">
+            <el-button aria-label="二级标题" @click="insertLine('## ')">
+              <template #icon>
+                <span style="font-weight: 700; font-size: 14px;">H2</span>
+              </template>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="三级标题" placement="bottom">
+            <el-button aria-label="三级标题" @click="insertLine('### ')">
+              <template #icon>
+                <span style="font-weight: 700; font-size: 14px;">H3</span>
+              </template>
+            </el-button>
+          </el-tooltip>
+        </el-button-group>
+
+        <el-divider direction="vertical" />
+
+        <el-button-group>
+          <el-tooltip content="行内代码" placement="bottom">
+            <el-button :icon="DocumentCopy" aria-label="行内代码" @click="wrapSelection('`', '`')" />
+          </el-tooltip>
+          <el-tooltip content="代码块" placement="bottom">
+            <el-button :icon="Monitor" aria-label="代码块" @click="wrapSelection('```\n', '\n```')" />
+          </el-tooltip>
+          <el-tooltip content="引用" placement="bottom">
+            <el-button :icon="ChatDotRound" aria-label="引用" @click="wrapSelection('> ', '')" />
+          </el-tooltip>
+        </el-button-group>
+
+        <el-divider direction="vertical" />
+
+        <el-button-group>
+          <el-tooltip content="无序列表" placement="bottom">
+            <el-button :icon="List" aria-label="无序列表" @click="wrapSelection('- ', '')" />
+          </el-tooltip>
+          <el-tooltip content="有序列表" placement="bottom">
+            <el-button :icon="Finished" aria-label="有序列表" @click="wrapSelection('1. ', '')" />
+          </el-tooltip>
+          <el-tooltip content="链接" placement="bottom">
+            <el-button :icon="Link" aria-label="链接" @click="insertLink" />
+          </el-tooltip>
+          <el-tooltip content="图片" placement="bottom">
+            <el-button :icon="Picture" aria-label="图片" @click="insertImage" />
+          </el-tooltip>
+        </el-button-group>
+
+        <el-divider direction="vertical" />
+
+        <el-tooltip content="实时预览" placement="bottom">
+          <el-button
+            :type="settingsStore.livePreview ? 'primary' : 'default'"
+            :icon="View"
+            aria-label="实时预览"
             @click="toggleLivePreview"
-            title="实时预览"
-            aria-label="切换实时预览"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-        </div>
+          />
+        </el-tooltip>
+
+        <el-divider direction="vertical" />
+
+        <el-tooltip content="自动换行" placement="bottom">
+          <el-button
+            :type="wordWrap ? 'primary' : 'default'"
+            :icon="ScaleToOriginal"
+            circle
+            aria-label="自动换行"
+            @click="toggleWordWrap"
+          />
+        </el-tooltip>
+
+        <el-divider direction="vertical" />
+
+        <el-tooltip content="语音输入" placement="bottom">
+          <VoiceInputButton mode="toggle" @result="insertText" />
+        </el-tooltip>
+
+        <el-divider direction="vertical" />
+
+        <el-tooltip content="智能补全 (Alt+\ 切换)" placement="bottom">
+          <el-button
+            :type="settingsStore.ghostTextConfig.enabled ? 'primary' : 'default'"
+            :icon="MagicStick"
+            circle
+            aria-label="智能补全"
+            @click="toggleGhostText"
+          />
+        </el-tooltip>
       </div>
     </div>
-    <StatusBar
-      v-if="settingsStore.enableStatusBar"
-      :char-count="docStats.charCount"
-      :line-count="docStats.lineCount"
-      :cursor-line="docStats.cursorLine"
-      :cursor-col="docStats.cursorCol"
-      :selected-text="docStats.selectedText"
-      :ai-connected="docStats.aiConnected"
-    />
+      <FindReplace ref="findReplaceRef" :visible="showFindReplace" @update:visible="showFindReplace = $event" @close="showFindReplace = false" @find="handleFind" @replace="handleReplace" @replace-all="handleReplaceAll" />
+    <div class="editor-container" ref="editorContainer"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, shallowRef } from 'vue'
+import { ref, onMounted, onBeforeUnmount, onUnmounted, watch, shallowRef, nextTick } from 'vue'
 import { EditorView, keymap, placeholder } from '@codemirror/view'
 import { EditorState, Compartment } from '@codemirror/state'
 import { markdown } from '@codemirror/lang-markdown'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { basicSetup } from 'codemirror'
 import { indentWithTab } from '@codemirror/commands'
+import { SearchCursor } from '@codemirror/search'
 import { useSettingsStore } from '@/stores/settings'
-import { livePreviewPlugin } from '@/plugins/live-preview'
-import '@/plugins/live-preview/styles.css'
-import { ghostTextPlugin, updateGhostTextConfig } from '@/extensions/ghost-text/ghostTextPlugin'
+import { ghostTextPlugin, updateGhostTextConfig, ghostTextKeymap } from '@/extensions/ghost-text/ghostTextPlugin'
 import { inlineEditPlugin, inlineEditKeymap } from '@/extensions/inline-edit/inlineEditPlugin'
 import { dropHandlerExtension } from '@/extensions/multimodal/dropHandler'
 import { aiActionPlugin, aiActionKeymap } from '@/extensions/ai-actions/aiActionPlugin'
 import '@/extensions/ai-actions/styles.css'
+import { livePreviewPlugin } from '@/extensions/live-preview/livePreviewPlugin'
+import '@/extensions/live-preview/styles.css'
 import { smartPasteExtension } from '@/extensions/smart-paste/pasteHandler'
-import StatusBar from '@/components/editor/StatusBar.vue'
 import { aiService } from '@/services/ai'
+import FindReplace from './editor/FindReplace.vue'
+import VoiceInputButton from '@/components/ui/VoiceInputButton.vue'
+import {
+  EditPen,
+  DocumentCopy,
+  Monitor,
+  ChatDotRound,
+  List,
+  Finished,
+  Link,
+  Picture,
+  View,
+  ScaleToOriginal,
+  MagicStick
+} from '@element-plus/icons-vue'
 
 interface Props {
   modelValue?: string
@@ -118,40 +180,20 @@ const settingsStore = useSettingsStore()
 
 const editorContainer = ref<HTMLElement>()
 const editorView = shallowRef<EditorView>()
+const showFindReplace = ref(false)
+const findReplaceRef = ref()
 const readOnlyCompartment = new Compartment()
 const livePreviewCompartment = new Compartment()
 const ghostTextCompartment = new Compartment()
 const inlineEditCompartment = new Compartment()
+const themeCompartment = new Compartment()
+const lineWrappingCompartment = new Compartment()
 let ignoreNextUpdate = false
+
+const wordWrap = ref(true)
 
 const aiActionCompartment = new Compartment()
 const activeHeadingFrom = ref(-1)
-
-const docStats = ref({
-  charCount: 0,
-  lineCount: 0,
-  cursorLine: 1,
-  cursorCol: 1,
-  selectedText: '',
-  aiConnected: false
-})
-
-const updateDocStats = (view: EditorView) => {
-  const doc = view.state.doc
-  const pos = view.state.selection.main.head
-  const line = doc.lineAt(pos)
-  const { from, to } = view.state.selection.main
-  const selected = view.state.sliceDoc(from, to)
-
-  docStats.value = {
-    charCount: doc.length,
-    lineCount: doc.lines,
-    cursorLine: line.number,
-    cursorCol: pos - line.from + 1,
-    selectedText: selected,
-    aiConnected: aiService.getActiveProvider()?.status === 'connected'
-  }
-}
 
 const createEditor = () => {
   if (!editorContainer.value) return
@@ -161,15 +203,16 @@ const createEditor = () => {
     extensions: [
       basicSetup,
       markdown(),
-      oneDark,
+      themeCompartment.of(oneDark),
       keymap.of([indentWithTab]),
       readOnlyCompartment.of(EditorState.readOnly.of(false)),
-      livePreviewCompartment.of(settingsStore.livePreview ? livePreviewPlugin : []),
+      livePreviewCompartment.of(settingsStore.livePreview ? [livePreviewPlugin] : []),
       aiActionCompartment.of(settingsStore.enableAIActions ? [aiActionPlugin, aiActionKeymap] : []),
       ...(settingsStore.enableSmartPaste ? [smartPasteExtension] : []),
-      ghostTextCompartment.of(settingsStore.ghostTextConfig.enabled ? ghostTextPlugin : []),
+      ghostTextCompartment.of(settingsStore.ghostTextConfig.enabled ? [ghostTextPlugin, ghostTextKeymap] : []),
       inlineEditCompartment.of(settingsStore.enableInlineEdit ? [inlineEditPlugin, inlineEditKeymap] : []),
       dropHandlerExtension,
+      lineWrappingCompartment.of(EditorView.lineWrapping),
       placeholder('开始写作...'),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
@@ -185,7 +228,6 @@ const createEditor = () => {
           const { from, to } = update.state.selection.main
           const selectedText = update.state.sliceDoc(from, to)
           emit('selection-change', selectedText)
-          updateDocStats(update.view)
         }
       }),
       EditorView.domEventHandlers({
@@ -232,7 +274,6 @@ const createEditor = () => {
     parent: editorContainer.value
   })
 
-  // 同步 Ghost Text 配置到插件
   updateGhostTextConfig(settingsStore.ghostTextConfig)
 }
 
@@ -248,6 +289,45 @@ watch(() => props.modelValue, (newValue) => {
         to: editorView.value.state.doc.length,
         insert: newValue
       }
+    })
+  }
+})
+
+watch(() => settingsStore.isDark(), (isDark) => {
+  if (editorView.value) {
+    editorView.value.dispatch({
+      effects: themeCompartment.reconfigure(isDark ? oneDark : [])
+    })
+  }
+})
+
+watch(() => settingsStore.ghostTextConfig, (config) => {
+  updateGhostTextConfig(config)
+  if (editorView.value) {
+    editorView.value.dispatch({
+      effects: ghostTextCompartment.reconfigure(
+        config.enabled ? [ghostTextPlugin, ghostTextKeymap] : []
+      )
+    })
+  }
+}, { deep: true })
+
+watch(() => settingsStore.enableInlineEdit, (enabled) => {
+  if (editorView.value) {
+    editorView.value.dispatch({
+      effects: inlineEditCompartment.reconfigure(
+        enabled ? [inlineEditPlugin, inlineEditKeymap] : []
+      )
+    })
+  }
+})
+
+watch(() => settingsStore.enableAIActions, (enabled) => {
+  if (editorView.value) {
+    editorView.value.dispatch({
+      effects: aiActionCompartment.reconfigure(
+        enabled ? [aiActionPlugin, aiActionKeymap] : []
+      )
     })
   }
 })
@@ -354,23 +434,147 @@ const toggleLivePreview = () => {
   if (!editorView.value) return
   editorView.value.dispatch({
     effects: livePreviewCompartment.reconfigure(
-      settingsStore.livePreview ? livePreviewPlugin : []
+      settingsStore.livePreview ? [livePreviewPlugin] : []
     )
   })
+}
+
+const toggleWordWrap = () => {
+  wordWrap.value = !wordWrap.value
+  if (editorView.value) {
+    editorView.value.dispatch({
+      effects: lineWrappingCompartment.reconfigure(wordWrap.value ? EditorView.lineWrapping : [])
+    })
+  }
+}
+
+const toggleGhostText = () => {
+  settingsStore.ghostTextConfig = {
+    ...settingsStore.ghostTextConfig,
+    enabled: !settingsStore.ghostTextConfig.enabled
+  }
+}
+
+const buildSearchRegExp = (text: string, options: { caseSensitive: boolean; useRegex: boolean }): RegExp | null => {
+  try {
+    const source = options.useRegex ? text : text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return new RegExp(source, options.caseSensitive ? 'g' : 'gi')
+  } catch {
+    return null
+  }
+}
+
+const getAllMatches = (text: string, query: RegExp): { from: number; to: number }[] => {
+  const matches: { from: number; to: number }[] = []
+  query.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = query.exec(text)) !== null) {
+    if (m[0].length === 0) { query.lastIndex++; continue }
+    matches.push({ from: m.index, to: m.index + m[0].length })
+  }
+  return matches
+}
+
+const handleFind = (text: string, options: { caseSensitive: boolean; useRegex: boolean; direction: 'next' | 'prev' }) => {
+  const view = editorView.value
+  if (!view || !text) return
+  const re = buildSearchRegExp(text, options)
+  if (!re) return
+  const docText = view.state.doc.toString()
+  const matches = getAllMatches(docText, re)
+  if (matches.length === 0) {
+    findReplaceRef.value?.setMatchInfo(0, 0)
+    return
+  }
+  const currentPos = view.state.selection.main.head
+  let targetIdx = 0
+  if (options.direction === 'next') {
+    targetIdx = matches.findIndex(m => m.from >= currentPos)
+    if (targetIdx === -1) targetIdx = 0
+  } else {
+    targetIdx = matches.findIndex(m => m.to > currentPos)
+    if (targetIdx === -1) targetIdx = matches.length - 1
+    else targetIdx = Math.max(0, targetIdx - 1)
+  }
+  const target = matches[targetIdx]
+  view.dispatch({
+    selection: { anchor: target.from, head: target.to },
+    scrollIntoView: true
+  })
+  findReplaceRef.value?.setMatchInfo(targetIdx + 1, matches.length)
+}
+
+const handleReplace = (findText: string, replaceText: string, options: { caseSensitive: boolean; useRegex: boolean }) => {
+  const view = editorView.value
+  if (!view || !findText) return
+  const { from, to } = view.state.selection.main
+  const selectedText = view.state.sliceDoc(from, to)
+  const re = buildSearchRegExp(findText, options)
+  if (!re) return
+  re.lastIndex = 0
+  const isSelectedMatch = re.test(selectedText) && (re.lastIndex === selectedText.length)
+  if (isSelectedMatch) {
+    view.dispatch({
+      changes: { from, to, insert: replaceText },
+      selection: { anchor: from + replaceText.length }
+    })
+  }
+  handleFind(findText, { ...options, direction: 'next' })
+}
+
+const handleReplaceAll = (findText: string, replaceText: string, options: { caseSensitive: boolean; useRegex: boolean }) => {
+  const view = editorView.value
+  if (!view || !findText) return
+  const re = buildSearchRegExp(findText, options)
+  if (!re) return
+  const docText = view.state.doc.toString()
+  const matches = getAllMatches(docText, re)
+  if (matches.length === 0) return
+  const changes = matches.map(m => ({ from: m.from, to: m.to, insert: replaceText }))
+  view.dispatch({ changes })
+  findReplaceRef.value?.setMatchInfo(0, 0)
+}
+
+const scrollToLine = (lineNumber: number) => {
+  const view = editorView.value
+  if (!view) return
+  const line = view.state.doc.line(Math.min(lineNumber, view.state.doc.lines))
+  view.dispatch({
+    selection: { anchor: line.from },
+    scrollIntoView: true
+  })
+  view.focus()
 }
 
 defineExpose({
   setContent,
   insertText,
   getSelectedText,
+  wrapSelection,
+  insertLink,
+  scrollToLine,
   activeHeadingFrom
 })
 
 onMounted(() => {
   createEditor()
-  if (editorView.value) {
-    updateDocStats(editorView.value)
+  const handleEditorKeyDown = (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault()
+      showFindReplace.value = true
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+      e.preventDefault()
+      showFindReplace.value = true
+      nextTick(() => {
+        findReplaceRef.value?.openReplace?.()
+      })
+    }
   }
+  document.addEventListener('keydown', handleEditorKeyDown)
+  onUnmounted(() => {
+    document.removeEventListener('keydown', handleEditorKeyDown)
+  })
 })
 
 onBeforeUnmount(() => {
@@ -385,79 +589,61 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-base);
+  background: var(--obsidian-bg-primary);
 }
 
 .editor-toolbar {
   display: flex;
   align-items: center;
-  height: 40px;
-  min-height: 40px;
-  padding: 0 var(--space-2);
-  background: var(--bg-elevated);
-  border-top: 1px solid var(--border-subtle);
+  height: 36px;
+  min-height: 36px;
+  padding: 0 8px;
+  background: var(--obsidian-bg-secondary);
+  border-bottom: 1px solid var(--obsidian-border);
   overflow: hidden;
-  backdrop-filter: blur(8px);
+  box-shadow: none;
 }
 
 .toolbar-inner {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   flex: 1;
   overflow: hidden;
 }
 
-.toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 2px;
+.toolbar-inner :deep(.el-button-group) {
+  display: inline-flex;
 }
 
-.toolbar-divider {
-  width: 1px;
-  height: 16px;
-  background: var(--border-default);
-  margin: 0 var(--space-1);
-  flex-shrink: 0;
-}
-
-.tool-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: none;
-  border-radius: var(--radius-sm);
+.toolbar-inner :deep(.el-button) {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 4px;
   background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-default),
-              color var(--duration-fast) var(--ease-default),
-              transform var(--duration-fast) var(--ease-default);
-  flex-shrink: 0;
+  color: var(--obsidian-text-muted);
+  border: none;
+  box-shadow: none;
+}
+.toolbar-inner :deep(.el-button:hover) {
+  background: var(--obsidian-bg-hover);
+  color: var(--obsidian-text-normal);
+}
+.toolbar-inner :deep(.el-button--primary) {
+  background: var(--obsidian-accent-soft);
+  color: var(--obsidian-accent);
+  border: none;
+}
+.toolbar-inner :deep(.el-button--primary:hover) {
+  background: var(--obsidian-accent-soft);
+  color: var(--obsidian-accent);
 }
 
-.tool-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.tool-btn:active {
-  transform: scale(0.95);
-  background: var(--bg-active);
-}
-
-.tool-btn:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 1px;
-}
-
-.tool-btn.active {
-  color: var(--accent-primary);
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px rgba(129, 140, 248, 0.15);
+.toolbar-inner :deep(.el-divider--vertical) {
+  margin: 0 4px;
+  height: 16px;
+  border-left: 1px solid var(--obsidian-border);
 }
 
 .editor-container {
@@ -467,14 +653,14 @@ onBeforeUnmount(() => {
 
 .editor-container :deep(.cm-editor) {
   height: 100%;
-  background: var(--bg-base);
+  background: var(--obsidian-bg-primary);
 }
 
 .editor-container :deep(.cm-scroller) {
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   font-size: 15px;
   line-height: 1.75;
-  color: var(--text-primary);
+  color: var(--obsidian-text-normal);
   padding: var(--space-4) 0;
 }
 
@@ -485,47 +671,47 @@ onBeforeUnmount(() => {
   padding: 0 var(--space-8);
   max-width: 720px;
   margin: 0 auto;
-  caret-color: var(--accent-primary);
+  caret-color: var(--obsidian-accent);
 }
 
 .editor-container :deep(.cm-cursor) {
-  border-left-color: var(--accent-primary);
+  border-left-color: var(--obsidian-accent);
   border-left-width: 2px;
 }
 
 .editor-container :deep(.cm-selectionBackground) {
-  background: rgba(129, 140, 248, 0.2) !important;
+  background: rgba(127, 109, 242, 0.2) !important;
 }
 
 .editor-container :deep(.cm-focused .cm-selectionBackground) {
-  background: rgba(129, 140, 248, 0.2) !important;
+  background: rgba(127, 109, 242, 0.25) !important;
 }
 
 .editor-container :deep(.cm-gutters) {
-  background: var(--bg-base);
-  border-right: 1px solid var(--border-subtle);
-  color: var(--text-muted);
+  background: var(--obsidian-bg-primary);
+  border-right: 1px solid var(--obsidian-border);
+  color: var(--obsidian-text-muted);
   font-family: var(--font-mono);
   font-size: 14px;
   line-height: 1.8;
 }
 
 .editor-container :deep(.cm-activeLineGutter) {
-  background: var(--bg-hover);
-  color: var(--text-secondary);
+  background: var(--obsidian-bg-hover);
+  color: var(--obsidian-text-normal);
 }
 
 .editor-container :deep(.cm-activeLine) {
-  background: var(--bg-hover);
+  background: var(--obsidian-bg-hover);
   border-radius: var(--radius-sm);
 }
 
 .editor-container :deep(.cm-foldGutter) {
-  color: var(--text-muted);
+  color: var(--obsidian-text-muted);
 }
 
 .editor-container :deep(.cm-placeholder) {
-  color: var(--text-muted);
+  color: var(--obsidian-text-muted);
   font-style: italic;
 }
 </style>

@@ -1,10 +1,10 @@
-import { ViewPlugin, ViewUpdate, EditorView, Decoration, DecorationSet, WidgetType } from '@codemirror/view'
+import { ViewPlugin, ViewUpdate, EditorView, Decoration, DecorationSet, WidgetType, keymap } from '@codemirror/view'
 import { RangeSetBuilder, StateEffect } from '@codemirror/state'
 import { requestCompletion, cancelCompletion, CompletionResult } from './completionService'
 import type { GhostTextConfig } from '@/types'
 
-// 用于触发 ghost text 装饰刷新的 effect
 const ghostTextRefresh = StateEffect.define<void>()
+const ghostTextTrigger = StateEffect.define<void>()
 
 // 模块级状态
 let currentGhostText = ''
@@ -30,6 +30,31 @@ function getConfig(): GhostTextConfig {
     maxCompletionChars: 200,
     triggerMode: 'pause'
   }
+}
+
+function triggerCompletion(view: EditorView) {
+  const config = getConfig()
+  if (!config.enabled) return
+
+  cancelCompletion()
+  currentGhostText = ''
+  currentGhostPos = -1
+
+  const pos = view.state.selection.main.head
+  const prefix = view.state.doc.sliceString(0, pos)
+  requestCompletion(
+    prefix,
+    config,
+    (result: CompletionResult) => {
+      if (result.requestId >= currentRequestId) {
+        currentGhostText = result.text
+        currentGhostPos = view.state.selection.main.head
+        currentRequestId = result.requestId
+        view.dispatch({ effects: ghostTextRefresh.of(undefined) })
+      }
+    },
+    () => {}
+  )
 }
 
 /** Ghost Text 使用 Widget 装饰器在光标位置渲染半透明文本 */
@@ -60,6 +85,11 @@ export const ghostTextPlugin = ViewPlugin.fromClass(class {
       if (this.decorations !== Decoration.none) {
         this.decorations = Decoration.none
       }
+      return
+    }
+
+    if (update.transactions.some(tr => tr.effects.some(e => e.is(ghostTextTrigger)))) {
+      triggerCompletion(update.view)
       return
     }
 
@@ -157,6 +187,16 @@ export const ghostTextPlugin = ViewPlugin.fromClass(class {
     }
   }
 })
+
+export const ghostTextKeymap = keymap.of([{
+  key: 'Alt-\\',
+  run(view) {
+    const config = getConfig()
+    if (!config.enabled) return false
+    view.dispatch({ effects: ghostTextTrigger.of(undefined) })
+    return true
+  }
+}])
 
 export function clearGhostText() {
   currentGhostText = ''

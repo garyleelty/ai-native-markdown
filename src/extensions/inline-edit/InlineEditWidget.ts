@@ -1,5 +1,5 @@
 import { EditorView, WidgetType } from '@codemirror/view'
-import { createApp, h } from 'vue'
+import { createApp, h, type App } from 'vue'
 import DiffView from './DiffView.vue'
 
 const INLINE_EDIT_ACTIONS = [
@@ -15,6 +15,9 @@ export class InlineEditWidget extends WidgetType {
   private to: number
   private view: EditorView
   private onClose: () => void
+  private container: HTMLElement | null = null
+  private vueApp: App | null = null
+  private destroyed = false
 
   constructor(selectedText: string, from: number, to: number, view: EditorView, onClose: () => void) {
     super()
@@ -26,9 +29,9 @@ export class InlineEditWidget extends WidgetType {
   }
 
   toDOM() {
-    const container = document.createElement('div')
-    container.className = 'cm-inline-edit-widget'
-    container.style.cssText = `
+    this.container = document.createElement('div')
+    this.container.className = 'cm-inline-edit-widget'
+    this.container.style.cssText = `
       position: relative;
       padding: 8px 12px;
       background: var(--bg-secondary);
@@ -68,12 +71,12 @@ export class InlineEditWidget extends WidgetType {
       actionsRow.appendChild(btn)
     }
 
-    container.appendChild(actionsRow)
+    this.container.appendChild(actionsRow)
 
     const diffContainer = document.createElement('div')
     diffContainer.className = 'inline-edit-diff-container'
     diffContainer.style.display = 'none'
-    container.appendChild(diffContainer)
+    this.container.appendChild(diffContainer)
 
     const closeBtn = document.createElement('button')
     closeBtn.innerHTML = '✕'
@@ -83,27 +86,46 @@ export class InlineEditWidget extends WidgetType {
       cursor: pointer; font-size: 14px; padding: 2px 4px;
     `
     closeBtn.addEventListener('click', () => {
-      this.onClose()
-      // 触发选区清空以移除 decoration
+      this.cleanup()
       const pos = this.view.state.selection.main.head
       this.view.dispatch({ selection: { anchor: pos, head: pos } })
     })
-    container.appendChild(closeBtn)
+    this.container.appendChild(closeBtn)
 
-    return container
+    return this.container
+  }
+
+  private cleanup() {
+    this.destroyed = true
+    this.unmountVueApp()
+    this.onClose()
+  }
+
+  private unmountVueApp() {
+    if (this.vueApp) {
+      this.vueApp.unmount()
+      this.vueApp = null
+    }
   }
 
   private async handleAction(action: typeof INLINE_EDIT_ACTIONS[number]) {
+    if (this.destroyed) return
+
     const { aiService } = await import('@/services/ai')
     const provider = aiService.getActiveProvider()
     if (!provider) return
 
-    const widget = this.view.dom.querySelector('.cm-inline-edit-widget')
-    const diffContainer = widget?.querySelector('.inline-edit-diff-container') as HTMLElement
-    if (!diffContainer) return
+    const diffContainer = this.container?.querySelector('.inline-edit-diff-container') as HTMLElement
+    if (!diffContainer || !diffContainer.isConnected) return
+
+    this.unmountVueApp()
 
     diffContainer.style.display = 'block'
-    diffContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; padding: 8px;">AI 处理中...</div>'
+    const loadingEl = document.createElement('div')
+    loadingEl.style.cssText = 'color: var(--text-muted); font-size: 12px; padding: 8px;'
+    loadingEl.textContent = 'AI 处理中...'
+    diffContainer.innerHTML = ''
+    diffContainer.appendChild(loadingEl)
 
     try {
       let result = ''
@@ -112,29 +134,38 @@ export class InlineEditWidget extends WidgetType {
         { role: 'user', content: action.prompt + this.selectedText }
       ], { temperature: 0.5 })) {
         result += chunk
+        if (this.destroyed) return
       }
 
+      if (this.destroyed || !diffContainer.isConnected) return
+
       diffContainer.innerHTML = ''
-      const app = createApp({
+      this.vueApp = createApp({
         render: () => h(DiffView, {
           oldText: this.selectedText,
           newText: result.trim(),
           onAccept: (text: string) => {
             this.view.dispatch({
-              changes: { from: this.from, to: this.to, insert: text }
+              changes: { from: this.from, to: this.to, insert: text },
+              selection: { anchor: this.from + text.length }
             })
-            this.onClose()
+            this.cleanup()
           },
           onReject: () => {
-            this.onClose()
+            this.cleanup()
             const pos = this.view.state.selection.main.head
             this.view.dispatch({ selection: { anchor: pos, head: pos } })
           }
         })
       })
-      app.mount(diffContainer)
+      this.vueApp.mount(diffContainer)
     } catch (e: any) {
-      diffContainer.innerHTML = `<div style="color: var(--accent-red); font-size: 12px; padding: 8px;">处理失败: ${e?.message || e}</div>`
+      if (this.destroyed || !diffContainer.isConnected) return
+      diffContainer.innerHTML = ''
+      const errorEl = document.createElement('div')
+      errorEl.style.cssText = 'color: var(--accent-red); font-size: 12px; padding: 8px;'
+      errorEl.textContent = `处理失败: ${e?.message || e}`
+      diffContainer.appendChild(errorEl)
     }
   }
 
