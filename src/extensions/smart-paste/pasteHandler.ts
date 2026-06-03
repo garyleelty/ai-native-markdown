@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view'
 
-function cleanPastedContent(text: string): string {
+export function cleanPastedContent(text: string): string {
   // 1. 将常见的智能引号转为普通引号
   text = text
     .replace(/[\u2018\u2019]/g, "'")
@@ -22,7 +22,7 @@ function cleanPastedContent(text: string): string {
   return text
 }
 
-function convertHTMLToMarkdown(html: string): string {
+export function convertHTMLToMarkdown(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
 
   function processNode(node: Node): string {

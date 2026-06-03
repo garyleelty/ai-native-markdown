@@ -33,6 +33,7 @@
         <KnowledgePanel
           v-else-if="activeTab === 'graph'"
           :root-path="rootPath"
+          :current-file="currentFile"
           @select="(path: string) => emit('select', path)"
         />
         <AIConfigPanel v-else-if="activeTab === 'ai'" />
@@ -66,10 +67,11 @@ import OutlinePanel from './editor/OutlinePanel.vue'
 interface Props {
   isDark?: boolean
   showAI?: boolean
+  currentFile?: string
   editorContent?: string
   cursorLine?: number
 }
-withDefaults(defineProps<Props>(), { isDark: true, showAI: false, editorContent: '', cursorLine: 0 })
+withDefaults(defineProps<Props>(), { isDark: true, showAI: false, currentFile: '', editorContent: '', cursorLine: 0 })
 
 const emit = defineEmits<{
   (e: 'select', path: string): void

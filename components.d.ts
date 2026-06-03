@@ -9,7 +9,6 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AIConfigPanel: typeof import('./src/components/sidebar/AIConfigPanel.vue')['default']
-    AIPanel: typeof import('./src/components/AIPanel.vue')['default']
     ChatPanel: typeof import('./src/components/ai-panel/ChatPanel.vue')['default']
     CommandPalette: typeof import('./src/components/CommandPalette.vue')['default']
     DocumentStats: typeof import('./src/components/editor/DocumentStats.vue')['default']
@@ -65,6 +64,7 @@ declare module 'vue' {
     OutlinePanel: typeof import('./src/components/editor/OutlinePanel.vue')['default']
     Preview: typeof import('./src/components/Preview.vue')['default']
     QuickActions: typeof import('./src/components/ai-panel/QuickActions.vue')['default']
+    ReferenceList: typeof import('./src/components/sidebar/ReferenceList.vue')['default']
     SettingsPanel: typeof import('./src/components/sidebar/SettingsPanel.vue')['default']
     Sidebar: typeof import('./src/components/Sidebar.vue')['default']
     StatusBar: typeof import('./src/components/editor/StatusBar.vue')['default']

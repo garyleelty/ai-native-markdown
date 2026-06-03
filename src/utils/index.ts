@@ -1,4 +1,6 @@
 export { extractWikiLinks, extractTags, buildLinkGraph, getAllTags, buildKnowledgeGraph } from './knowledge'
+export { parseFrontmatter, parseMarkdownMetadata, normalizeNoteName } from './metadata'
+export type { FrontmatterValue, ParsedMarkdownMetadata } from './metadata'
 export type { WikiLinkData, TagData } from './knowledge'
 export { mark, measure, getPerformanceEntries, createLazyLoader, requestIdleCallbackPromise, processInBatches, getMemoryInfo, observeLongTasks, observeLCP, observeCLS } from './performance'
 export { escapeHtml, sanitizeFilePath, isValidFileName, sanitizeMarkdown, safeStorage, safeCopyToClipboard } from './security'

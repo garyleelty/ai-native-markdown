@@ -14,7 +14,10 @@ export function startSession(currentWordCount: number): WritingSession {
     lastWordCount: currentWordCount,
     isActive: true
   }
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  } catch {
+  }
   return session
 }
 
@@ -42,12 +45,18 @@ export function updateSession(currentWordCount: number): WritingSession {
   if (diff > 0) session.totalWordsWritten += diff
   session.lastWordCount = currentWordCount
 
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  } catch {
+  }
   return session
 }
 
 export function endSession(): void {
-  localStorage.removeItem(SESSION_KEY)
+  try {
+    localStorage.removeItem(SESSION_KEY)
+  } catch {
+  }
 }
 
 export function getSessionDuration(session: WritingSession): string {

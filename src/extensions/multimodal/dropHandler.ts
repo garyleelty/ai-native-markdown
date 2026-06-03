@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view'
-import { extractTextFromImage } from './ocrService'
+import { extractTextFromImage, extractTextFromPDF } from './ocrService'
 
 const SUPPORTED_IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']
 const PDF_EXT = '.pdf'
@@ -61,7 +61,6 @@ async function handleDroppedFiles(files: FileList, pos: number, view: EditorView
         })
 
         try {
-          const { extractTextFromPDF } = await import('./ocrService')
           const text = await extractTextFromPDF(pdfPath)
           if (text) {
             view.dispatch({

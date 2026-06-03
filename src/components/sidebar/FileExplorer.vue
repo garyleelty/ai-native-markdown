@@ -128,7 +128,10 @@ const addRecentFile = (path: string) => {
     { name, path },
     ...recentFiles.value.filter(f => f.path !== path)
   ].slice(0, 10)
-  localStorage.setItem('recent_files', JSON.stringify(recentFiles.value))
+  try {
+    localStorage.setItem('recent_files', JSON.stringify(recentFiles.value))
+  } catch {
+  }
 }
 
 const loadRecentFiles = () => {
@@ -201,7 +204,9 @@ const handleTreeAction = async (command: string, data: TreeNode) => {
       await loadTreeFromFS()
       if (currentFilePath.value === data.path) currentFilePath.value = ''
       ElMessage.success('已删除')
-    } catch { /* cancelled */ }
+    } catch (e: any) {
+      if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '删除失败')
+    }
   } else if (command === 'rename') {
     try {
       const { value } = await ElMessageBox.prompt('输入新名称', '重命名', { inputValue: data.name, confirmButtonText: '确定', cancelButtonText: '取消' })
@@ -217,7 +222,9 @@ const handleTreeAction = async (command: string, data: TreeNode) => {
         if (currentFilePath.value === data.path) currentFilePath.value = newPath
         ElMessage.success('已重命名')
       }
-    } catch { /* cancelled */ }
+    } catch (e: any) {
+      if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '重命名失败')
+    }
   }
 }
 
@@ -259,7 +266,9 @@ const handleCreateFile = async () => {
       emit('select', path)
       ElMessage.success('文件已创建')
     }
-  } catch { /* cancelled */ }
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '创建文件失败')
+  }
 }
 
 const handleCreateFolder = async () => {
@@ -275,7 +284,9 @@ const handleCreateFolder = async () => {
       await loadTreeFromFS()
       ElMessage.success('文件夹已创建')
     }
-  } catch { /* cancelled */ }
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '创建文件夹失败')
+  }
 }
 
 const searchQuery = ref('')

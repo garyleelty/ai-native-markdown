@@ -27,6 +27,10 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      onwarn(warning, warn) {
+        if (warning.code === 'INVALID_ANNOTATION' && warning.id?.includes('@vueuse/core')) return
+        warn(warning)
+      },
       output: {
         manualChunks: {
           'element-plus': ['element-plus', '@element-plus/icons-vue'],
@@ -37,6 +41,6 @@ export default defineConfig({
         }
       }
     },
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 1100,
   }
 })

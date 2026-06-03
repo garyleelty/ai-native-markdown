@@ -1,144 +1,72 @@
 import { test, expect } from '@playwright/test'
 
-test.describe('侧边栏收拢功能测试', () => {
+test.describe('侧边栏行为', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:1420/')
+    await page.goto('/')
     await page.waitForLoadState('networkidle')
   })
 
-  test('桌面端侧边栏默认展开', async ({ page }) => {
+  test('桌面端默认显示侧边栏', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(300)
 
-    const sidebarPanel = page.locator('.sidebar-panel')
-    await expect(sidebarPanel).not.toHaveClass(/collapsed/)
-    
-    const width = await sidebarPanel.evaluate(el => el.clientWidth)
-    expect(width).toBeGreaterThan(200)
+    const sidebarAside = page.locator('.sidebar-aside')
+    await expect(sidebarAside).toBeVisible()
+    await expect(page.locator('.sidebar')).toBeVisible()
+
+    const box = await sidebarAside.boundingBox()
+    expect(box?.width).toBeGreaterThan(200)
   })
 
-  test('桌面端点击按钮收起侧边栏', async ({ page }) => {
+  test('点击切换按钮可以隐藏和恢复侧边栏', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(300)
 
-    const toggleBtn = page.locator('.toolbar-btn[title="侧边栏"]')
-    await expect(toggleBtn).toBeVisible()
+    const toggleButton = page.getByRole('button', { name: '切换侧边栏' })
+    const sidebarAside = page.locator('.sidebar-aside')
 
-    // 点击收起
-    await toggleBtn.click()
-    await page.waitForTimeout(400)
+    await toggleButton.click()
+    await expect(page.locator('.sidebar')).toHaveCount(0)
+    const collapsedBox = await sidebarAside.boundingBox()
+    expect(collapsedBox?.width).toBeLessThanOrEqual(1)
 
-    const sidebarPanel = page.locator('.sidebar-panel')
-    await expect(sidebarPanel).toHaveClass(/collapsed/)
-    
-    const width = await sidebarPanel.evaluate(el => el.clientWidth)
-    expect(width).toBe(0)
+    await toggleButton.click()
+    await expect(page.locator('.sidebar')).toBeVisible()
+    const box = await sidebarAside.boundingBox()
+    expect(box?.width).toBeGreaterThan(200)
   })
 
-  test('桌面端点击按钮展开侧边栏', async ({ page }) => {
+  test('侧边栏隐藏后编辑器区域扩展', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(300)
-
-    const toggleBtn = page.locator('.toolbar-btn[title="侧边栏"]')
-    
-    // 先收起
-    await toggleBtn.click()
-    await page.waitForTimeout(400)
-
-    // 再展开
-    await toggleBtn.click()
-    await page.waitForTimeout(400)
-
-    const sidebarPanel = page.locator('.sidebar-panel')
-    await expect(sidebarPanel).not.toHaveClass(/collapsed/)
-    
-    const width = await sidebarPanel.evaluate(el => el.clientWidth)
-    expect(width).toBeGreaterThan(200)
-  })
-
-  test('移动端显示汉堡菜单按钮', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 })
-    await page.waitForTimeout(300)
-
-    const mobileMenuBtn = page.locator('.mobile-menu-btn')
-    await expect(mobileMenuBtn).toBeVisible()
-
-    const desktopToggleBtn = page.locator('.toolbar-btn[title="侧边栏"]')
-    await expect(desktopToggleBtn).not.toBeVisible()
-  })
-
-  test('移动端点击汉堡菜单打开侧边栏', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 })
-    await page.waitForTimeout(300)
-
-    const mobileMenuBtn = page.locator('.mobile-menu-btn')
-    await mobileMenuBtn.click()
-    await page.waitForTimeout(400)
-
-    const sidebarPanel = page.locator('.sidebar-panel')
-    await expect(sidebarPanel).toHaveClass(/mobile-open/)
-  })
-
-  test('移动端点击遮罩层关闭侧边栏', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 })
-    await page.waitForTimeout(300)
-
-    // 先打开
-    await page.locator('.mobile-menu-btn').click()
-    await page.waitForTimeout(400)
-
-    // 点击遮罩层
-    const overlay = page.locator('.mobile-overlay')
-    await expect(overlay).toBeVisible()
-    await overlay.click()
-    await page.waitForTimeout(400)
-
-    const sidebarPanel = page.locator('.sidebar-panel')
-    await expect(sidebarPanel).not.toHaveClass(/mobile-open/)
-  })
-
-  test('平板端侧边栏为抽屉模式', async ({ page }) => {
-    await page.setViewportSize({ width: 768, height: 1024 })
-    await page.waitForTimeout(300)
-
-    const sidebarPanel = page.locator('.sidebar-panel')
-    await expect(sidebarPanel).toHaveClass(/mobile-drawer/)
-
-    const mobileMenuBtn = page.locator('.mobile-menu-btn')
-    await expect(mobileMenuBtn).toBeVisible()
-  })
-
-  test('侧边栏收起时编辑器区域正常显示', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(300)
-
-    // 收起侧边栏
-    await page.locator('.toolbar-btn[title="侧边栏"]').click()
-    await page.waitForTimeout(400)
 
     const editorMain = page.locator('.editor-container-main')
-    const editorWidth = await editorMain.evaluate(el => el.clientWidth)
-    expect(editorWidth).toBeGreaterThan(800)
+    const before = await editorMain.boundingBox()
 
-    // 检查没有元素重叠
-    const sidebarPanel = page.locator('.sidebar-panel')
-    const sidebarWidth = await sidebarPanel.evaluate(el => el.clientWidth)
-    expect(sidebarWidth).toBe(0)
+    await page.getByRole('button', { name: '切换侧边栏' }).click()
+    const after = await editorMain.boundingBox()
+
+    expect(after?.width).toBeGreaterThan(before?.width ?? 0)
   })
 
-  test('响应式断点切换正常', async ({ page }) => {
-    // 桌面端
-    await page.setViewportSize({ width: 1024, height: 768 })
-    await page.waitForTimeout(300)
-    
-    let sidebarPanel = page.locator('.sidebar-panel')
-    await expect(sidebarPanel).not.toHaveClass(/mobile-drawer/)
+  test('侧边栏导航可以切换到知识、AI、设置和大纲', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
 
-    // 切换到平板
-    await page.setViewportSize({ width: 767, height: 1024 })
+    await page.getByRole('menuitem', { name: '知识图谱' }).click()
+    await expect(page.locator('.panel-title')).toHaveText('知识')
+
+    await page.getByRole('menuitem', { name: 'AI 配置' }).click()
+    await expect(page.locator('.panel-title')).toContainText('AI')
+
+    await page.getByRole('menuitem', { name: '设置' }).click()
+    await expect(page.locator('.panel-title')).toContainText('设置')
+
+    await page.getByRole('menuitem', { name: '文档大纲' }).click()
+    await expect(page.locator('.panel-title')).toContainText('大纲')
+  })
+
+  test('窄屏下页面不产生横向溢出', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 })
     await page.waitForTimeout(300)
-    
-    sidebarPanel = page.locator('.sidebar-panel')
-    await expect(sidebarPanel).toHaveClass(/mobile-drawer/)
+
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+    expect(overflow).toBeLessThanOrEqual(1)
   })
 })

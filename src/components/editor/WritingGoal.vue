@@ -29,7 +29,15 @@ import { ref, computed, watch } from 'vue'
 
 const props = defineProps<{ current: number }>()
 
-const target = ref(parseInt(localStorage.getItem('writing_goal') || '0'))
+function loadWritingGoal(): number {
+  try {
+    return parseInt(localStorage.getItem('writing_goal') || '0')
+  } catch {
+    return 0
+  }
+}
+
+const target = ref(loadWritingGoal())
 const tempTarget = ref(target.value)
 const showGoalSetting = ref(target.value === 0)
 
@@ -43,7 +51,10 @@ const progressColor = computed(() => {
 
 const saveGoal = () => {
   target.value = tempTarget.value
-  localStorage.setItem('writing_goal', String(target.value))
+  try {
+    localStorage.setItem('writing_goal', String(target.value))
+  } catch {
+  }
   showGoalSetting.value = false
 }
 

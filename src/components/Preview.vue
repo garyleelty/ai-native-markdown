@@ -60,10 +60,25 @@ md.use(anchor, {
   permalink: anchor.permalink.linkInsideHeader({
     symbol: '#',
     placement: 'before',
-    renderAttrs: () => ({ class: 'header-anchor', href: 'javascript:void(0)' })
+    renderAttrs: () => ({ class: 'header-anchor', href: '#' })
   })
 })
 md.use(katex, { throwOnError: false, errorColor: 'var(--accent-red)' })
+
+const defaultFenceRenderer = md.renderer.rules.fence?.bind(md.renderer.rules)
+md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+  const token = tokens[idx]
+  const lang = token.info.trim().split(/\s+/)[0]
+  if (lang === 'mermaid') {
+    const diagram = token.content.trim()
+    const id = 'mermaid-' + Math.random().toString(36).slice(2)
+    return `<div class="mermaid" id="${id}">${md.utils.escapeHtml(diagram)}</div>`
+  }
+  if (defaultFenceRenderer) {
+    return defaultFenceRenderer(tokens, idx, options, env, self)
+  }
+  return self.renderToken(tokens, idx, options)
+}
 
 const lineMap = ref<Map<number, HTMLElement>>(new Map())
 
@@ -79,35 +94,27 @@ function buildLineMap() {
   return map
 }
 
-function processMermaid(content: string): string {
-  const fenceRe = /^```mermaid\n([\s\S]*?)^```$/gm
-  let result = content
-  let match
-  const replacements: { start: number; end: number; html: string }[] = []
-  while ((match = fenceRe.exec(content)) !== null) {
-    const diagram = match[1].trim()
-    const id = 'mermaid-' + Math.random().toString(36).slice(2)
-    const html = `<div class="mermaid" id="${id}">${md.utils.escapeHtml(diagram)}</div>`
-    replacements.push({ start: match.index, end: match.index + match[0].length, html })
-  }
-  for (let i = replacements.length - 1; i >= 0; i--) {
-    const r = replacements[i]
-    result = result.slice(0, r.start) + r.html + result.slice(r.end)
-  }
-  return result
+function extractWikiLinks(content: string): { content: string; links: Array<{ token: string; target: string; text: string }> } {
+  const links: Array<{ token: string; target: string; text: string }> = []
+  const replaced = content.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target, display) => {
+    const text = display || target
+    const token = `WIKI_LINK_TOKEN_${links.length}`
+    links.push({ token, target, text })
+    return token
+  })
+  return { content: replaced, links }
 }
 
-function processWikiLinks(content: string): string {
-  return content.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target, display) => {
-    const text = display || target
-    return `<a class="wiki-link" data-filename="${target}">${text}</a>`
-  })
+function restoreWikiLinks(html: string, links: Array<{ token: string; target: string; text: string }>): string {
+  return links.reduce((result, link) => {
+    const anchor = `<a class="wiki-link" data-filename="${md.utils.escapeHtml(link.target)}">${md.utils.escapeHtml(link.text)}</a>`
+    return result.replaceAll(link.token, anchor)
+  }, html)
 }
 
 const renderedContent = computed(() => {
-  let processed = processWikiLinks(debouncedContent.value)
-  processed = processMermaid(processed)
-  return sanitizeMarkdown(md.render(processed))
+  const { content, links } = extractWikiLinks(debouncedContent.value)
+  return sanitizeMarkdown(restoreWikiLinks(md.render(content), links))
 })
 
 let mermaidInstance: any = null

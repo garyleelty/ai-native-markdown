@@ -2,6 +2,8 @@
   "name": "ai-native-markdown",
   "private": true,
   "version": "0.2.0",
+  "description": "Local-first AI Markdown editor with knowledge graph and multimodal writing tools.",
+  "author": "AI Native Markdown Contributors",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -71,8 +73,7 @@
             "x64"
           ]
         }
-      ],
-      "icon": "public/icon.ico"
+      ]
     },
     "mac": {
       "target": [
@@ -83,8 +84,7 @@
             "arm64"
           ]
         }
-      ],
-      "icon": "public/icon.icns"
+      ]
     },
     "linux": {
       "target": [
@@ -100,8 +100,7 @@
             "x64"
           ]
         }
-      ],
-      "icon": "public"
+      ]
     },
     "nsis": {
       "oneClick": false,

@@ -28,7 +28,13 @@ export class AIActionMenuWidget extends WidgetType {
       const btn = document.createElement('button')
       btn.className = 'cm-ai-action-btn'
       btn.title = action.label
-      btn.innerHTML = `<span class="cm-ai-action-icon">${action.icon}</span><span class="cm-ai-action-label">${action.label}</span>`
+      const icon = document.createElement('span')
+      icon.className = 'cm-ai-action-icon'
+      icon.textContent = action.icon
+      const label = document.createElement('span')
+      label.className = 'cm-ai-action-label'
+      label.textContent = action.label
+      btn.append(icon, label)
       btn.addEventListener('click', (e) => {
         e.stopPropagation()
         this.executeAction(action)
@@ -75,18 +81,29 @@ export class AIActionMenuWidget extends WidgetType {
     if (!resultEl) return
     resultEl.style.display = 'block'
     resultEl.className = 'cm-ai-action-result loading'
-    resultEl.innerHTML = `
-      <div class="cm-ai-result-header">
-        <span class="cm-ai-result-status">AI 处理中...</span>
-        <button class="cm-ai-result-close" title="关闭">&times;</button>
-      </div>
-      <div class="cm-ai-result-body">
-        <div class="cm-ai-typing-indicator"><span></span><span></span><span></span></div>
-      </div>
-    `
-    resultEl.querySelector('.cm-ai-result-close')?.addEventListener('click', () => {
+    resultEl.replaceChildren()
+
+    const header = document.createElement('div')
+    header.className = 'cm-ai-result-header'
+    const status = document.createElement('span')
+    status.className = 'cm-ai-result-status'
+    status.textContent = 'AI 处理中...'
+    const close = document.createElement('button')
+    close.className = 'cm-ai-result-close'
+    close.title = '关闭'
+    close.textContent = 'x'
+    close.addEventListener('click', () => {
       this.destroyResult()
     })
+    header.append(status, close)
+
+    const body = document.createElement('div')
+    body.className = 'cm-ai-result-body'
+    const indicator = document.createElement('div')
+    indicator.className = 'cm-ai-typing-indicator'
+    indicator.append(document.createElement('span'), document.createElement('span'), document.createElement('span'))
+    body.appendChild(indicator)
+    resultEl.append(header, body)
   }
 
   private showStreamingResult(text: string) {
@@ -100,28 +117,46 @@ export class AIActionMenuWidget extends WidgetType {
     if (!resultEl) return
     resultEl.style.display = 'block'
     resultEl.className = `cm-ai-action-result ${type}`
+    resultEl.replaceChildren()
 
-    resultEl.innerHTML = `
-      <div class="cm-ai-result-header">
-        <span class="cm-ai-result-status">${type === 'success' ? '处理完成' : '处理失败'}</span>
-        <div class="cm-ai-result-actions">
-          <button class="cm-ai-result-btn accept" title="替换原文">替换</button>
-          <button class="cm-ai-result-btn insert" title="插入到原文之后">插入</button>
-          <button class="cm-ai-result-close" title="关闭">&times;</button>
-        </div>
-      </div>
-      <div class="cm-ai-result-body">${sanitizeMarkdown(text)}</div>
-    `
+    const header = document.createElement('div')
+    header.className = 'cm-ai-result-header'
+    const status = document.createElement('span')
+    status.className = 'cm-ai-result-status'
+    status.textContent = type === 'success' ? '处理完成' : '处理失败'
+    const actions = document.createElement('div')
+    actions.className = 'cm-ai-result-actions'
+
+    const acceptBtn = document.createElement('button')
+    acceptBtn.className = 'cm-ai-result-btn accept'
+    acceptBtn.title = '替换原文'
+    acceptBtn.textContent = '替换'
+    const insertBtn = document.createElement('button')
+    insertBtn.className = 'cm-ai-result-btn insert'
+    insertBtn.title = '插入到原文之后'
+    insertBtn.textContent = '插入'
+    const closeBtn = document.createElement('button')
+    closeBtn.className = 'cm-ai-result-close'
+    closeBtn.title = '关闭'
+    closeBtn.textContent = 'x'
+
+    actions.append(acceptBtn, insertBtn, closeBtn)
+    header.append(status, actions)
+
+    const body = document.createElement('div')
+    body.className = 'cm-ai-result-body'
+    body.innerHTML = sanitizeMarkdown(text)
+    resultEl.append(header, body)
 
     if (type === 'success') {
-      resultEl.querySelector('.cm-ai-result-btn.accept')?.addEventListener('click', () => {
+      acceptBtn.addEventListener('click', () => {
         this.view.dispatch({
           changes: { from: this.from, to: this.to, insert: text },
           selection: { anchor: this.from + text.length }
         })
         this.view.focus()
       })
-      resultEl.querySelector('.cm-ai-result-btn.insert')?.addEventListener('click', () => {
+      insertBtn.addEventListener('click', () => {
         const inserted = '\n\n' + text
         this.view.dispatch({
           changes: { from: this.to, insert: inserted },
@@ -130,7 +165,7 @@ export class AIActionMenuWidget extends WidgetType {
         this.view.focus()
       })
     }
-    resultEl.querySelector('.cm-ai-result-close')?.addEventListener('click', () => {
+    closeBtn.addEventListener('click', () => {
       this.destroyResult()
     })
   }
@@ -154,13 +189,6 @@ export class AIActionMenuWidget extends WidgetType {
     this.view.dispatch({ selection: { anchor: this.to } })
     this.view.focus()
   }
-
-  private escapeHtml(text: string): string {
-    const div = document.createElement('div')
-    div.textContent = text
-    return div.innerHTML
-  }
-
   ignoreEvent(): boolean { return false }
 
   eq(other: AIActionMenuWidget): boolean {

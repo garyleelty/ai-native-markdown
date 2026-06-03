@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { AIConfig, ThemeMode, SidebarTab, GhostTextConfig } from '@/types'
-import { encryptValue, decryptValue } from '@/utils/security'
+import { obfuscateValue, deobfuscateValue } from '@/utils/security'
 
 const defaultAIConfig: AIConfig = {
   provider: 'ollama',
@@ -14,22 +14,22 @@ const defaultAIConfig: AIConfig = {
 }
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
-  const raw = localStorage.getItem(key)
-  if (raw === null) return defaultValue
   try {
+    const raw = localStorage.getItem(key)
+    if (raw === null) return defaultValue
     return JSON.parse(raw) as T
   } catch {
-    return raw as unknown as T
+    return defaultValue
   }
 }
 
 function loadEncryptedConfig(key: string, defaultValue: AIConfig): AIConfig {
-  const raw = localStorage.getItem(key)
-  if (raw === null) return defaultValue
   try {
+    const raw = localStorage.getItem(key)
+    if (raw === null) return defaultValue
     const parsed = JSON.parse(raw) as AIConfig
     if (parsed.apiKey) {
-      parsed.apiKey = decryptValue(parsed.apiKey)
+      parsed.apiKey = deobfuscateValue(parsed.apiKey)
     }
     return parsed
   } catch {
@@ -38,15 +38,21 @@ function loadEncryptedConfig(key: string, defaultValue: AIConfig): AIConfig {
 }
 
 function saveEncryptedConfig(key: string, value: AIConfig): void {
-  const toStore = { ...value }
-  if (toStore.apiKey) {
-    toStore.apiKey = encryptValue(toStore.apiKey)
+  try {
+    const toStore = { ...value }
+    if (toStore.apiKey) {
+      toStore.apiKey = obfuscateValue(toStore.apiKey)
+    }
+    localStorage.setItem(key, JSON.stringify(toStore))
+  } catch {
   }
-  localStorage.setItem(key, JSON.stringify(toStore))
 }
 
 function saveToStorage(key: string, value: unknown): void {
-  localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value))
+  try {
+    localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value))
+  } catch {
+  }
 }
 
 export const useSettingsStore = defineStore('settings', () => {

@@ -56,6 +56,7 @@
           ref="sidebarRef"
           :is-dark="isDark"
           :show-a-i="settingsStore.showAIPanel"
+          :current-file="editorStore.currentFile"
           :editor-content="editorContent"
           :cursor-line="editorStore.cursorLine"
           @select="handleFileSelect"
@@ -193,8 +194,6 @@ const TemplateGallery = defineAsyncComponent(() => import('./components/Template
 const VersionHistoryPanel = defineAsyncComponent(() => import('./components/editor/VersionHistoryPanel.vue'))
 const ExportDialog = defineAsyncComponent(() => import('./components/ExportDialog.vue'))
 const MarkdownCheatsheet = defineAsyncComponent(() => import('./components/MarkdownCheatsheet.vue'))
-const KnowledgeGraph = defineAsyncComponent(() => import('./components/knowledge/KnowledgeGraph.vue'))
-
 const settingsStore = useSettingsStore()
 const editorStore = useEditorStore()
 
@@ -478,4 +477,3 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeyDown)
 })
 </script>
-

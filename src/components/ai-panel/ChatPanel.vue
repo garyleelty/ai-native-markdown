@@ -143,7 +143,9 @@ const emit = defineEmits<{
 }>()
 
 const CHAT_HISTORY_KEY = 'ai_chat_history'
-const MAX_HISTORY_MESSAGES = 100
+const MAX_HISTORY_MESSAGES = 50
+const MAX_HISTORY_BYTES = 200_000
+const BASE_SYSTEM_PROMPT = '你是一个专业的 Markdown 写作助手。'
 
 function loadChatHistory(): AIMessage[] {
   try {
@@ -158,10 +160,26 @@ function loadChatHistory(): AIMessage[] {
 
 function saveChatHistory(msgs: AIMessage[]) {
   try {
-    const toSave = msgs.slice(-MAX_HISTORY_MESSAGES)
-    localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(toSave))
+    let toSave = msgs.slice(-MAX_HISTORY_MESSAGES)
+    let serialized = JSON.stringify(toSave)
+    while (serialized.length > MAX_HISTORY_BYTES && toSave.length > 0) {
+      toSave = toSave.slice(1)
+      serialized = JSON.stringify(toSave)
+    }
+    localStorage.setItem(CHAT_HISTORY_KEY, serialized)
   } catch {
   }
+}
+
+function buildSystemContent(documentContext: string | undefined, ragContext: string): string {
+  const contextParts = [BASE_SYSTEM_PROMPT]
+  if (ragContext) {
+    contextParts.push(`以下是相关的文档上下文：\n\n${ragContext}\n\n请优先基于上下文回答用户问题。`)
+  }
+  if (documentContext) {
+    contextParts.push(`当前文档内容：\n${documentContext}`)
+  }
+  return contextParts.join('\n\n')
 }
 
 const messages = ref<AIMessage[]>(loadChatHistory())
@@ -278,16 +296,7 @@ const sendMessage = async () => {
       }
     }
 
-    const systemContent = ragContext
-      ? `你是一个专业的 Markdown 写作助手。以下是相关的文档上下文：\n\n${ragContext}\n\n请基于上下文回答用户问题。`
-      : '你是一个专业的 Markdown 写作助手。'
-
-    if (props.context || ragContext) {
-      const contextParts: string[] = []
-      if (ragContext) contextParts.push(systemContent)
-      if (props.context) contextParts.push(`当前文档内容：\n${props.context}`)
-      chatMessages.unshift({ role: 'system', content: contextParts.join('\n\n') })
-    }
+    chatMessages.unshift({ role: 'system', content: buildSystemContent(props.context, ragContext) })
 
     currentAbortController = new AbortController()
     for await (const chunk of provider.streamChat(chatMessages, { signal: currentAbortController.signal })) {

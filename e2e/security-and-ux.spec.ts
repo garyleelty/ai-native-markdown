@@ -170,6 +170,37 @@ test.describe('功能完整性验证', () => {
     await expect(tree).toBeVisible()
   })
 
+  test('重命名到已存在路径会失败且不会产生重复文件记录', async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const { fileSystem } = await import('/src/services/fileSystem.ts')
+      await fileSystem.init()
+      const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const sourcePath = `/workspace/collision-${suffix}-a.md`
+      const targetPath = `/workspace/collision-${suffix}-b.md`
+      await fileSystem.createFile(sourcePath)
+      await fileSystem.createFile(targetPath)
+      let error = ''
+      try {
+        await fileSystem.renameFile(sourcePath, targetPath)
+      } catch (e) {
+        error = e instanceof Error ? e.message : String(e)
+      }
+      const files = await fileSystem.readDirectory('/workspace')
+      return {
+        error,
+        paths: files.map(file => file.path).sort(),
+        sourcePath,
+        targetPath,
+        targetCount: files.filter(file => file.path === targetPath).length,
+      }
+    })
+
+    expect(result.error).toContain('路径已存在')
+    expect(result.paths).toContain(result.sourcePath)
+    expect(result.paths).toContain(result.targetPath)
+    expect(result.targetCount).toBe(1)
+  })
+
   test('编辑器加载和输入正常', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.waitForTimeout(500)

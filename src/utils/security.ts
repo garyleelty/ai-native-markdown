@@ -85,7 +85,7 @@ export function sanitizeSvg(svgContent: string): string {
 const ENC_PREFIX = 'enc:v1:'
 const CRYPTO_KEY = 'ai-native-md-obf-2024'
 
-export function encryptValue(plaintext: string): string {
+export function obfuscateValue(plaintext: string): string {
   if (!plaintext) return ''
   const encoded = btoa(unescape(encodeURIComponent(plaintext)))
   let result = ''
@@ -95,7 +95,7 @@ export function encryptValue(plaintext: string): string {
   return ENC_PREFIX + btoa(result)
 }
 
-export function decryptValue(ciphertext: string): string {
+export function deobfuscateValue(ciphertext: string): string {
   if (!ciphertext || !ciphertext.startsWith(ENC_PREFIX)) return ciphertext
   try {
     const decoded = atob(ciphertext.slice(ENC_PREFIX.length))
@@ -108,6 +108,9 @@ export function decryptValue(ciphertext: string): string {
     return ''
   }
 }
+
+export const encryptValue = obfuscateValue
+export const decryptValue = deobfuscateValue
 
 export const safeStorage = {
   get<T>(key: string, defaultValue: T): T {

@@ -20,6 +20,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
+import { sanitizeSvg } from '@/utils/security'
 
 const props = defineProps<{
   mermaidSource: string
@@ -56,13 +57,19 @@ function detectChartType() {
 
 async function renderChart() {
   if (!previewContainer.value) return
+  previewContainer.value.textContent = ''
   try {
     const mermaid = (await import('mermaid')).default
     mermaid.initialize({ startOnLoad: false, theme: 'dark' })
     const { svg } = await mermaid.render(`chart-${Date.now()}`, props.mermaidSource)
-    previewContainer.value.innerHTML = svg
+    previewContainer.value.innerHTML = sanitizeSvg(svg)
   } catch (e) {
-    previewContainer.value.innerHTML = `<div style="color: var(--accent-red); font-size: 12px; padding: 8px;">图表渲染失败: ${e}</div>`
+    const errorEl = document.createElement('div')
+    errorEl.style.color = 'var(--accent-red)'
+    errorEl.style.fontSize = '12px'
+    errorEl.style.padding = '8px'
+    errorEl.textContent = `图表渲染失败: ${e instanceof Error ? e.message : String(e)}`
+    previewContainer.value.appendChild(errorEl)
   }
 }
 

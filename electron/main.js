@@ -16,8 +16,13 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
     },
   })
+
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
   if (isDev) {
     win.loadURL('http://localhost:1420')

@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie'
+import { knowledgeIndex } from './knowledgeIndex'
 
 export interface FileRecord {
   id?: number
@@ -24,6 +25,22 @@ class FileSystemDB extends Dexie {
 }
 
 const db = new FileSystemDB()
+
+async function assertPathAvailable(path: string, oldPath?: string): Promise<void> {
+  const existing = await db.files.where('path').equals(path).first()
+  if (existing && existing.path !== oldPath) {
+    throw new Error(`路径已存在: ${path}`)
+  }
+}
+
+async function syncKnowledgeIndex(operation: () => Promise<void>): Promise<void> {
+  try {
+    await operation()
+  } catch (error) {
+    console.warn('Knowledge index sync failed; it will be rebuilt later.', error)
+    knowledgeIndex.markStale()
+  }
+}
 
 export const fileSystem = {
   async init() {
@@ -53,27 +70,28 @@ export const fileSystem = {
     } else {
       await db.files.add({ path, name, content, isDirectory: false, parentPath, createdAt: now, updatedAt: now, size: content.length })
     }
+    await syncKnowledgeIndex(() => knowledgeIndex.indexFile(path, content))
   },
 
   async createFile(path: string): Promise<void> {
     const name = path.split('/').pop() || ''
     const parentPath = path.substring(0, path.lastIndexOf('/')) || '/'
     const now = Date.now()
-    const existing = await db.files.where('path').equals(path).first()
-    if (existing) throw new Error(`File already exists: ${path}`)
+    await assertPathAvailable(path)
     await db.files.add({ path, name, content: '', isDirectory: false, parentPath, createdAt: now, updatedAt: now, size: 0 })
+    await syncKnowledgeIndex(() => knowledgeIndex.indexFile(path, ''))
   },
 
   async createDirectory(path: string): Promise<void> {
     const name = path.split('/').pop() || ''
     const parentPath = path.substring(0, path.lastIndexOf('/')) || '/'
     const now = Date.now()
-    const existing = await db.files.where('path').equals(path).first()
-    if (existing) throw new Error(`Directory already exists: ${path}`)
+    await assertPathAvailable(path)
     await db.files.add({ path, name, content: '', isDirectory: true, parentPath, createdAt: now, updatedAt: now, size: 0 })
   },
 
   async deleteFile(path: string): Promise<void> {
+    const removedPaths: string[] = []
     await db.transaction('rw', db.files, async () => {
       const record = await db.files.where('path').equals(path).first()
       if (!record) return
@@ -91,17 +109,40 @@ export const fileSystem = {
       }
       for (const p of pathsToDelete) {
         await db.files.where('path').equals(p).delete()
+        removedPaths.push(p)
       }
+    })
+    await syncKnowledgeIndex(async () => {
+      await Promise.all(removedPaths.map(p => knowledgeIndex.removeFile(p, { silent: true })))
+      if (removedPaths.length > 0) knowledgeIndex.notifyChanged()
     })
   },
 
   async renameFile(oldPath: string, newPath: string): Promise<void> {
+    const renamedPaths: Array<{ oldPath: string; newPath: string; content: string; isDirectory: boolean }> = []
     await db.transaction('rw', db.files, async () => {
       const record = await db.files.where('path').equals(oldPath).first()
       if (!record) throw new Error(`File not found: ${oldPath}`)
+      if (oldPath === newPath) return
+      if (record.isDirectory && newPath.startsWith(`${oldPath}/`)) {
+        throw new Error('不能将文件夹移动到自身内部')
+      }
       const newName = newPath.split('/').pop() || ''
       const newParentPath = newPath.substring(0, newPath.lastIndexOf('/')) || '/'
+      await assertPathAvailable(newPath, oldPath)
+
+      if (record.isDirectory) {
+        const descendants = await db.files
+          .filter(file => file.path.startsWith(`${oldPath}/`))
+          .toArray()
+        for (const child of descendants) {
+          const childNewPath = newPath + child.path.substring(oldPath.length)
+          await assertPathAvailable(childNewPath, child.path)
+        }
+      }
+
       await db.files.update(record.id!, { path: newPath, name: newName, parentPath: newParentPath, updatedAt: Date.now() })
+      renamedPaths.push({ oldPath, newPath, content: record.content, isDirectory: record.isDirectory })
       if (record.isDirectory) {
         const queue = [oldPath]
         while (queue.length > 0) {
@@ -112,10 +153,17 @@ export const fileSystem = {
             const childNewName = childNewPath.split('/').pop() || ''
             const childNewParentPath = childNewPath.substring(0, childNewPath.lastIndexOf('/')) || '/'
             await db.files.update(child.id!, { path: childNewPath, name: childNewName, parentPath: childNewParentPath, updatedAt: Date.now() })
+            renamedPaths.push({ oldPath: child.path, newPath: childNewPath, content: child.content, isDirectory: child.isDirectory })
             if (child.isDirectory) queue.push(child.path)
           }
         }
       }
+    })
+    await syncKnowledgeIndex(async () => {
+      await Promise.all(renamedPaths
+        .filter(item => !item.isDirectory)
+        .map(item => knowledgeIndex.renameFile(item.oldPath, item.newPath, item.content, { silent: true })))
+      if (renamedPaths.some(item => !item.isDirectory)) knowledgeIndex.notifyChanged()
     })
   },
 

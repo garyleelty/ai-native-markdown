@@ -1,5 +1,6 @@
 import { EditorView, WidgetType } from '@codemirror/view'
 import { createApp, h, type App } from 'vue'
+import { aiService } from '@/services/ai'
 import DiffView from './DiffView.vue'
 
 const INLINE_EDIT_ACTIONS = [
@@ -111,7 +112,6 @@ export class InlineEditWidget extends WidgetType {
   private async handleAction(action: typeof INLINE_EDIT_ACTIONS[number]) {
     if (this.destroyed) return
 
-    const { aiService } = await import('@/services/ai')
     const provider = aiService.getActiveProvider()
     if (!provider) return
 
