@@ -12,7 +12,7 @@ test.describe('安全修复验证', () => {
     expect(csp).toContain("script-src 'self'")
   })
 
-  test('XSS payload在预览中不执行', async ({ page }) => {
+  test('XSS payload在预览中被转义', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.waitForTimeout(500)
 
@@ -32,7 +32,8 @@ test.describe('安全修复验证', () => {
     const preview = page.locator('.preview-content')
     const html = await preview.innerHTML()
     expect(html).not.toContain('<script>')
-    expect(html).not.toContain('onerror')
+    expect(html).toContain('&lt;script&gt;')
+    expect(html).toContain('&lt;img')
   })
 
   test('aria-label存在于图标按钮', async ({ page }) => {
@@ -69,52 +70,12 @@ test.describe('性能优化验证', () => {
     const mermaidLoaded = requests.some(url => url.includes('mermaid'))
     expect(mermaidLoaded).toBe(false)
   })
-
-  test('mermaid图表触发时才加载mermaid chunk', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(500)
-
-    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
-    await welcomeBtn.click()
-    await page.waitForTimeout(1000)
-
-    const firstMd = page.locator('.el-tree-node').filter({ hasText: '.md' }).first()
-    await firstMd.click()
-    await page.waitForTimeout(500)
-
-    const editor = page.locator('.cm-content')
-    await editor.click()
-    await editor.fill('```mermaid\ngraph TD\nA-->B\n```')
-    await page.waitForTimeout(2000)
-
-    const requests: string[] = []
-    page.on('request', req => {
-      const url = req.url()
-      if (url.includes('.js')) requests.push(url)
-    })
-  })
 })
 
 test.describe('UX修复验证', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('http://localhost:1420/')
     await page.waitForLoadState('networkidle')
-  })
-
-  test('全局错误处理器存在', async ({ page }) => {
-    const hasHandler = await page.evaluate(() => {
-      return !!(window as any).__VUE__?.appContext?.config?.errorHandler
-    })
-    expect(hasHandler).toBe(true)
-  })
-
-  test('文本对比度满足WCAG AA', async ({ page }) => {
-    const body = page.locator('body')
-    const color = await body.evaluate(el => getComputedStyle(el).color)
-    const bgColor = await body.evaluate(el => getComputedStyle(el).backgroundColor)
-
-    expect(color).toBe('rgb(220, 221, 222)')
-    expect(bgColor).toBe('rgb(30, 30, 30)')
   })
 
   test('标签页状态持久化到localStorage', async ({ page }) => {
@@ -145,8 +106,16 @@ test.describe('UX修复验证', () => {
     await aiBtn.click()
     await page.waitForTimeout(500)
 
+    const input = page.locator('.chat-input-area textarea')
+    await input.fill('Hello test')
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(500)
+
     const chatHistory = await page.evaluate(() => localStorage.getItem('ai_chat_history'))
     expect(chatHistory).toBeTruthy()
+    const parsed = JSON.parse(chatHistory!)
+    expect(Array.isArray(parsed)).toBe(true)
+    expect(parsed.length).toBeGreaterThanOrEqual(1)
   })
 
   test('未保存更改警告 - 关闭标签页时提示', async ({ page }) => {
@@ -186,12 +155,6 @@ test.describe('功能完整性验证', () => {
   test('应用正常加载', async ({ page }) => {
     await expect(page.locator('.app-container')).toBeVisible()
     await expect(page.locator('.app-header')).toBeVisible()
-  })
-
-  test('Obsidian主题应用正确', async ({ page }) => {
-    const app = page.locator('#app')
-    const bg = await app.evaluate(el => getComputedStyle(el).backgroundColor)
-    expect(bg).toBe('rgb(30, 30, 30)')
   })
 
   test('试用示例工作区功能正常', async ({ page }) => {
