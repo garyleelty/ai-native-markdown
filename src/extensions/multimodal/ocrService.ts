@@ -1,7 +1,7 @@
 import { extractTextFromImage as tesseractExtract } from '@/services/ocr'
 import { aiService } from '@/services/ai'
 
-export async function extractTextFromImage(imageSource: string): Promise<string> {
+export async function extractTextFromImage(imageSource: string | File): Promise<string> {
   const ocrText = await tesseractExtract(imageSource)
 
   const provider = aiService.getActiveProvider()
@@ -20,19 +20,7 @@ export async function extractTextFromImage(imageSource: string): Promise<string>
   return refined.trim() || ocrText
 }
 
-export async function extractTextFromPDF(pdfPath: string): Promise<string> {
-  const provider = aiService.getActiveProvider()
-  if (!provider) throw new Error('未配置 AI 服务')
-
-  let result = ''
-  for await (const chunk of provider.streamChat([
-    {
-      role: 'user',
-      content: `请从以下 PDF 文件路径中提取关键文字内容：\n\n${pdfPath}`
-    }
-  ], { temperature: 0.1, maxTokens: 4000 })) {
-    result += chunk
-  }
-
-  return result.trim()
+export async function extractTextFromPDF(pdfSource: string | File | ArrayBuffer): Promise<string> {
+  const { extractTextFromPDF: extractPDFText } = await import('@/services/pdf')
+  return extractPDFText(pdfSource)
 }

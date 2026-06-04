@@ -120,7 +120,7 @@ import type { AIMessage } from '@/types'
 import { useSettingsStore } from '@/stores'
 import { throttle } from '@/composables/useDebounce'
 import { ElMessage } from 'element-plus'
-import { sanitizeMarkdown } from '@/utils/security'
+import { sanitizeMarkdown, safeCopyToClipboard, safeStorage } from '@/utils/security'
 import {
   User,
   ChatDotRound,
@@ -148,31 +148,23 @@ const MAX_HISTORY_BYTES = 200_000
 const BASE_SYSTEM_PROMPT = '你是一个专业的 Markdown 写作助手。'
 
 function loadChatHistory(): AIMessage[] {
-  try {
-    const raw = localStorage.getItem(CHAT_HISTORY_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as AIMessage[]
-    return parsed.slice(-MAX_HISTORY_MESSAGES)
-  } catch {
-    return []
-  }
+  const parsed = safeStorage.get<AIMessage[]>(CHAT_HISTORY_KEY, [])
+  if (!Array.isArray(parsed)) return []
+  return parsed.slice(-MAX_HISTORY_MESSAGES)
 }
 
 function saveChatHistory(msgs: AIMessage[]) {
-  try {
-    let toSave = msgs.slice(-MAX_HISTORY_MESSAGES)
-    let serialized = JSON.stringify(toSave)
-    while (serialized.length > MAX_HISTORY_BYTES && toSave.length > 0) {
-      toSave = toSave.slice(1)
-      serialized = JSON.stringify(toSave)
-    }
-    localStorage.setItem(CHAT_HISTORY_KEY, serialized)
-  } catch {
+  let toSave = msgs.slice(-MAX_HISTORY_MESSAGES)
+  let serialized = JSON.stringify(toSave)
+  while (serialized.length > MAX_HISTORY_BYTES && toSave.length > 0) {
+    toSave = toSave.slice(1)
+    serialized = JSON.stringify(toSave)
   }
+  safeStorage.set(CHAT_HISTORY_KEY, toSave)
 }
 
-function buildSystemContent(documentContext: string | undefined, ragContext: string): string {
-  const contextParts = [BASE_SYSTEM_PROMPT]
+function buildSystemContent(basePrompt: string, documentContext: string | undefined, ragContext: string): string {
+  const contextParts = [basePrompt.trim() || BASE_SYSTEM_PROMPT]
   if (ragContext) {
     contextParts.push(`以下是相关的文档上下文：\n\n${ragContext}\n\n请优先基于上下文回答用户问题。`)
   }
@@ -238,9 +230,9 @@ const addCopyButtons = () => {
         const btn = document.createElement('button')
         btn.className = 'copy-btn'
         btn.textContent = '复制'
-        btn.onclick = () => {
-          navigator.clipboard.writeText(block.textContent || '')
-          btn.textContent = '已复制'
+        btn.onclick = async () => {
+          const copied = await safeCopyToClipboard(block.textContent || '')
+          btn.textContent = copied ? '已复制' : '复制失败'
           setTimeout(() => { btn.textContent = '复制' }, 2000)
         }
         pre.style.position = 'relative'
@@ -296,7 +288,10 @@ const sendMessage = async () => {
       }
     }
 
-    chatMessages.unshift({ role: 'system', content: buildSystemContent(props.context, ragContext) })
+    chatMessages.unshift({
+      role: 'system',
+      content: buildSystemContent(settingsStore.aiConfig.systemPrompt, props.context, ragContext),
+    })
 
     currentAbortController = new AbortController()
     for await (const chunk of provider.streamChat(chatMessages, { signal: currentAbortController.signal })) {
@@ -321,17 +316,11 @@ const regenerate = async (msg: AIMessage) => {
 }
 
 const copyMessage = async (content: string) => {
-  try {
-    await navigator.clipboard.writeText(content)
+  const copied = await safeCopyToClipboard(content)
+  if (copied) {
     ElMessage.success('已复制到剪贴板')
-  } catch {
-    const textarea = document.createElement('textarea')
-    textarea.value = content
-    document.body.appendChild(textarea)
-    textarea.select()
-    document.execCommand('copy')
-    document.body.removeChild(textarea)
-    ElMessage.success('已复制到剪贴板')
+  } else {
+    ElMessage.error('复制失败')
   }
 }
 

@@ -1,8 +1,8 @@
 import { expect, type Page } from '@playwright/test'
 
 export async function openApp(page: Page) {
-  await page.goto('/')
-  await page.waitForLoadState('networkidle')
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('.app-container')).toBeVisible()
 }
 
 export async function resetBrowserState(page: Page) {
@@ -11,8 +11,8 @@ export async function resetBrowserState(page: Page) {
     localStorage.clear()
     sessionStorage.clear()
   })
-  await page.reload()
-  await page.waitForLoadState('networkidle')
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('.app-container')).toBeVisible()
 }
 
 export async function loadDemoWorkspace(page: Page) {
@@ -30,30 +30,74 @@ export async function openFirstMarkdownFile(page: Page) {
   await expect(page.locator('.cm-content')).toBeVisible()
 }
 
+function visibleContentProbe(content: string): string {
+  const token = content
+    .split('\n')
+    .map(part => part
+      .replace(/^#{1,6}\s+/, '')
+      .replace(/^```\w*$/, '')
+      .trim()
+      .match(/[A-Za-z0-9\u4e00-\u9fff][A-Za-z0-9\u4e00-\u9fff ]{1,}/)?.[0]
+      ?.trim())
+    .find(Boolean)
+
+  return token || content.trim()
+}
+
 export async function setEditorContent(page: Page, content: string) {
   const editor = page.locator('.cm-content')
   await editor.click()
-  const updatedViaCodeMirror = await editor.evaluate((el, nextContent) => {
-    let node: any = el
-    while (node) {
-      const view = node.cmView?.view
-      if (view) {
-        view.dispatch({
-          changes: { from: 0, to: view.state.doc.length, insert: nextContent },
-          selection: { anchor: nextContent.length },
-        })
-        view.focus()
-        return true
+  const updatedViaCodeMirror = await page.locator('.cm-editor').evaluate((el, nextContent) => {
+    const findView = (node: Element | null): any => {
+      let current: any = node
+      while (current) {
+        const view = current.cmView?.view
+        if (view) return view
+        current = current.parentElement
       }
-      node = node.parentElement
+
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_ELEMENT)
+      while (walker.nextNode()) {
+        const view = (walker.currentNode as any).cmView?.view
+        if (view) return view
+      }
+
+      return null
     }
-    return false
+
+    const view = findView(el)
+    if (!view) return false
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: nextContent },
+      selection: { anchor: nextContent.length },
+      scrollIntoView: true,
+    })
+    view.focus()
+    return view.state.doc.toString() === nextContent
   }, content).catch(() => false)
 
   if (!updatedViaCodeMirror) {
-    await editor.fill(content)
+    await page.keyboard.press('ControlOrMeta+A')
+    await page.keyboard.insertText(content)
   }
+
   await expect(editor).toBeVisible()
+  const probe = visibleContentProbe(content)
+  if (probe) {
+    await expect(editor).toContainText(probe)
+  }
+}
+
+export async function moveEditorCursorToLine(page: Page, lineNumber: number) {
+  await page.locator('.cm-line').nth(lineNumber - 1).click()
+  await expect(page.locator('.status-bar')).toContainText(`行 ${lineNumber}`)
+}
+
+export async function selectTemplate(page: Page, name: string) {
+  const option = page.getByRole('button', { name: `使用${name}模板` })
+  await expect(option).toBeVisible()
+  await option.click()
+  await expect(page.getByRole('dialog', { name: '从模板创建' })).toHaveCount(0)
 }
 
 export async function createWorkspaceFile(page: Page, path: string, content: string) {
@@ -76,8 +120,11 @@ export async function readWorkspaceFile(page: Page, path: string): Promise<strin
 }
 
 export async function runCommand(page: Page, commandLabel: string) {
-  await page.keyboard.press('Control+Shift+P')
+  await page.locator('.app-container').click({ position: { x: 20, y: 20 } })
+  await page.keyboard.press('Control+P')
   await expect(page.locator('.command-palette')).toBeVisible()
   await page.getByPlaceholder('输入命令...').fill(commandLabel)
-  await page.locator('.command-item').filter({ hasText: commandLabel }).first().click()
+  await expect(page.locator('.command-item').filter({ hasText: commandLabel }).first()).toBeVisible()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.command-palette')).toHaveCount(0)
 }

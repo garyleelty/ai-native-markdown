@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 import {
   createWorkspaceFile,
   loadDemoWorkspace,
@@ -6,6 +7,7 @@ import {
   readWorkspaceFile,
   resetBrowserState,
   runCommand,
+  selectTemplate,
   setEditorContent,
 } from './helpers'
 
@@ -18,7 +20,9 @@ test.describe('知识整理、导出、模板、版本历史', () => {
     await loadDemoWorkspace(page)
     await runCommand(page, '从模板新建')
     await expect(page.getByRole('dialog', { name: '从模板创建' })).toBeVisible()
-    await page.locator('.template-card').filter({ hasText: 'README' }).click()
+    await page.getByRole('button', { name: '使用README模板' }).focus()
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('dialog', { name: '从模板创建' })).toHaveCount(0)
 
     await expect(page.locator('.tabs-bar')).toContainText('README.md')
     const content = await readWorkspaceFile(page, '/workspace/README.md')
@@ -45,6 +49,35 @@ test.describe('知识整理、导出、模板、版本历史', () => {
     }
   })
 
+  test('HTML 导出会规范文件名并净化危险内容', async ({ page }) => {
+    await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
+    await setEditorContent(page, [
+      '# Export Safety',
+      '',
+      '<script>alert(1)</script>',
+      '',
+      '<img src=x onerror=alert(1)>',
+    ].join('\n'))
+
+    await page.getByLabel('导出', { exact: true }).click()
+    await page.getByRole('menuitem', { name: '导出...' }).click()
+    await expect(page.getByRole('dialog', { name: '导出文档' })).toBeVisible()
+    await expect(page.locator('.el-dialog').filter({ hasText: '导出文档' }).locator('input').last()).toHaveValue('README')
+    await page.locator('.el-radio-button').filter({ hasText: 'HTML' }).click()
+
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByRole('dialog', { name: '导出文档' }).getByRole('button', { name: '导出' }).click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toBe('README.html')
+    const downloadedPath = await download.path()
+    expect(downloadedPath).toBeTruthy()
+    const html = await readFile(downloadedPath!, 'utf8')
+    expect(html).not.toContain('<script')
+    expect(html).not.toMatch(/<[^>]+\sonerror=/i)
+    expect(html).toContain('Export Safety')
+  })
+
   test('版本历史可以恢复已保存快照', async ({ page }) => {
     await loadDemoWorkspace(page)
     await openFirstMarkdownFile(page)
@@ -59,6 +92,137 @@ test.describe('知识整理、导出、模板、版本历史', () => {
     await page.locator('.history-card').filter({ hasText: 'Playwright 快照' }).click()
     await page.getByRole('button', { name: '恢复此版本' }).click()
     await expect(page.locator('.cm-content')).toContainText('Snapshot Content')
+  })
+
+  test('文件重命名会同步迁移版本历史和 RAG 文档索引', async ({ page }) => {
+    await loadDemoWorkspace(page)
+    const suffix = Date.now()
+    const oldPath = `/workspace/Lifecycle-${suffix}.md`
+    const newPath = `/workspace/Lifecycle-Renamed-${suffix}.md`
+    const token = `rename-token-${suffix}`
+
+    const result = await page.evaluate(async ({ oldPath, newPath, token }) => {
+      const { fileSystem } = await import('/src/services/fileSystem.ts')
+      const { versionHistory } = await import('/src/services/versionHistory.ts')
+      const { ragService } = await import('/src/services/rag.ts')
+      await fileSystem.init()
+      await fileSystem.writeFile(oldPath, `# Lifecycle\n\n${token}`)
+      await versionHistory.saveSnapshot(oldPath, `# Snapshot\n\n${token}`, 'rename snapshot')
+      await ragService.indexDocument(oldPath, `RAG content ${token}`)
+
+      await fileSystem.renameFile(oldPath, newPath)
+
+      return {
+        oldSnapshots: await versionHistory.getSnapshots(oldPath),
+        newSnapshots: await versionHistory.getSnapshots(newPath),
+        documents: await ragService.listDocuments(),
+        searchResults: await ragService.search(token, 10),
+      }
+    }, { oldPath, newPath, token })
+
+    expect(result.oldSnapshots).toHaveLength(0)
+    expect(result.newSnapshots).toHaveLength(1)
+    expect(result.documents.some(doc => doc.filePath === oldPath)).toBe(false)
+    expect(result.documents.some(doc => doc.filePath === newPath)).toBe(true)
+    expect(result.searchResults.map(item => item.filePath)).toContain(newPath)
+    expect(result.searchResults.map(item => item.filePath)).not.toContain(oldPath)
+  })
+
+  test('文件删除会清理版本历史和 RAG 文档索引', async ({ page }) => {
+    await loadDemoWorkspace(page)
+    const suffix = Date.now()
+    const path = `/workspace/RemoveMe-${suffix}.md`
+    const token = `delete-token-${suffix}`
+
+    const result = await page.evaluate(async ({ path, token }) => {
+      const { fileSystem } = await import('/src/services/fileSystem.ts')
+      const { versionHistory } = await import('/src/services/versionHistory.ts')
+      const { ragService } = await import('/src/services/rag.ts')
+      await fileSystem.init()
+      await fileSystem.writeFile(path, `# Remove Me\n\n${token}`)
+      await versionHistory.saveSnapshot(path, `# Snapshot\n\n${token}`, 'delete snapshot')
+      await ragService.indexDocument(path, `RAG content ${token}`)
+
+      await fileSystem.deleteFile(path)
+
+      return {
+        snapshots: await versionHistory.getSnapshots(path),
+        documents: await ragService.listDocuments(),
+        searchResults: await ragService.search(token, 10),
+      }
+    }, { path, token })
+
+    expect(result.snapshots).toHaveLength(0)
+    expect(result.documents.some(doc => doc.filePath === path)).toBe(false)
+    expect(result.searchResults.map(item => item.filePath)).not.toContain(path)
+  })
+
+  test('文件夹重命名会同步迁移子文件的版本历史和 RAG 文档索引', async ({ page }) => {
+    await loadDemoWorkspace(page)
+    const suffix = Date.now()
+    const oldFolder = `/workspace/FolderA-${suffix}`
+    const newFolder = `/workspace/FolderB-${suffix}`
+    const oldPath = `${oldFolder}/Nested.md`
+    const newPath = `${newFolder}/Nested.md`
+    const token = `folder-rename-token-${suffix}`
+
+    const result = await page.evaluate(async ({ oldFolder, newFolder, oldPath, newPath, token }) => {
+      const { fileSystem } = await import('/src/services/fileSystem.ts')
+      const { versionHistory } = await import('/src/services/versionHistory.ts')
+      const { ragService } = await import('/src/services/rag.ts')
+      await fileSystem.init()
+      await fileSystem.createDirectory(oldFolder)
+      await fileSystem.writeFile(oldPath, `# Nested\n\n${token}`)
+      await versionHistory.saveSnapshot(oldPath, `# Snapshot\n\n${token}`, 'folder rename snapshot')
+      await ragService.indexDocument(oldPath, `RAG content ${token}`)
+
+      await fileSystem.renameFile(oldFolder, newFolder)
+
+      return {
+        oldSnapshots: await versionHistory.getSnapshots(oldPath),
+        newSnapshots: await versionHistory.getSnapshots(newPath),
+        documents: await ragService.listDocuments(),
+        searchResults: await ragService.search(token, 10),
+      }
+    }, { oldFolder, newFolder, oldPath, newPath, token })
+
+    expect(result.oldSnapshots).toHaveLength(0)
+    expect(result.newSnapshots).toHaveLength(1)
+    expect(result.documents.some(doc => doc.filePath === oldPath)).toBe(false)
+    expect(result.documents.some(doc => doc.filePath === newPath)).toBe(true)
+    expect(result.searchResults.map(item => item.filePath)).toContain(newPath)
+    expect(result.searchResults.map(item => item.filePath)).not.toContain(oldPath)
+  })
+
+  test('文件夹删除会清理子文件的版本历史和 RAG 文档索引', async ({ page }) => {
+    await loadDemoWorkspace(page)
+    const suffix = Date.now()
+    const folder = `/workspace/DeleteFolder-${suffix}`
+    const path = `${folder}/Nested.md`
+    const token = `folder-delete-token-${suffix}`
+
+    const result = await page.evaluate(async ({ folder, path, token }) => {
+      const { fileSystem } = await import('/src/services/fileSystem.ts')
+      const { versionHistory } = await import('/src/services/versionHistory.ts')
+      const { ragService } = await import('/src/services/rag.ts')
+      await fileSystem.init()
+      await fileSystem.createDirectory(folder)
+      await fileSystem.writeFile(path, `# Nested\n\n${token}`)
+      await versionHistory.saveSnapshot(path, `# Snapshot\n\n${token}`, 'folder delete snapshot')
+      await ragService.indexDocument(path, `RAG content ${token}`)
+
+      await fileSystem.deleteFile(folder)
+
+      return {
+        snapshots: await versionHistory.getSnapshots(path),
+        documents: await ragService.listDocuments(),
+        searchResults: await ragService.search(token, 10),
+      }
+    }, { folder, path, token })
+
+    expect(result.snapshots).toHaveLength(0)
+    expect(result.documents.some(doc => doc.filePath === path)).toBe(false)
+    expect(result.searchResults.map(item => item.filePath)).not.toContain(path)
   })
 
   test('知识面板展示 Frontmatter、标签、反链、未链接提及和图谱统计', async ({ page }) => {
@@ -132,7 +296,7 @@ test.describe('知识整理、导出、模板、版本历史', () => {
   test('模板创建后的内容可以保存到工作区', async ({ page }) => {
     await loadDemoWorkspace(page)
     await runCommand(page, '从模板新建')
-    await page.locator('.template-card').filter({ hasText: '博客文章' }).click()
+    await selectTemplate(page, '博客文章')
     await page.keyboard.press('Control+S')
     await expect(page.locator('.save-status')).toContainText('保存成功')
 

@@ -80,7 +80,10 @@ export class InlineEditWidget extends WidgetType {
     this.container.appendChild(diffContainer)
 
     const closeBtn = document.createElement('button')
-    closeBtn.innerHTML = '✕'
+    closeBtn.type = 'button'
+    closeBtn.textContent = '×'
+    closeBtn.setAttribute('aria-label', '关闭内联编辑')
+    closeBtn.title = '关闭'
     closeBtn.style.cssText = `
       position: absolute; top: 6px; right: 8px;
       background: none; border: none; color: var(--text-muted);
@@ -124,7 +127,7 @@ export class InlineEditWidget extends WidgetType {
     const loadingEl = document.createElement('div')
     loadingEl.style.cssText = 'color: var(--text-muted); font-size: 12px; padding: 8px;'
     loadingEl.textContent = 'AI 处理中...'
-    diffContainer.innerHTML = ''
+    diffContainer.replaceChildren()
     diffContainer.appendChild(loadingEl)
 
     try {
@@ -139,7 +142,7 @@ export class InlineEditWidget extends WidgetType {
 
       if (this.destroyed || !diffContainer.isConnected) return
 
-      diffContainer.innerHTML = ''
+      diffContainer.replaceChildren()
       this.vueApp = createApp({
         render: () => h(DiffView, {
           oldText: this.selectedText,
@@ -161,7 +164,7 @@ export class InlineEditWidget extends WidgetType {
       this.vueApp.mount(diffContainer)
     } catch (e: any) {
       if (this.destroyed || !diffContainer.isConnected) return
-      diffContainer.innerHTML = ''
+      diffContainer.replaceChildren()
       const errorEl = document.createElement('div')
       errorEl.style.cssText = 'color: var(--accent-red); font-size: 12px; padding: 8px;'
       errorEl.textContent = `处理失败: ${e?.message || e}`

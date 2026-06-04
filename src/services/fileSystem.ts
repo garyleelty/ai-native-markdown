@@ -33,6 +33,21 @@ async function assertPathAvailable(path: string, oldPath?: string): Promise<void
   }
 }
 
+function getParentPath(path: string): string {
+  return path.substring(0, path.lastIndexOf('/')) || '/'
+}
+
+async function assertParentDirectoryExists(parentPath: string): Promise<void> {
+  if (parentPath === '/') return
+  const parent = await db.files.where('path').equals(parentPath).first()
+  if (!parent) {
+    throw new Error(`父文件夹不存在: ${parentPath}`)
+  }
+  if (!parent.isDirectory) {
+    throw new Error(`父路径不是文件夹: ${parentPath}`)
+  }
+}
+
 async function syncKnowledgeIndex(operation: () => Promise<void>): Promise<void> {
   try {
     await operation()
@@ -44,28 +59,53 @@ async function syncKnowledgeIndex(operation: () => Promise<void>): Promise<void>
 
 export const fileSystem = {
   async init() {
-    const count = await db.files.count()
-    if (count === 0) {
+    await db.transaction('rw', db.files, async () => {
+      const count = await db.files.count()
       const now = Date.now()
-      await db.files.bulkAdd([
-        { path: '/workspace', name: 'workspace', content: '', isDirectory: true, parentPath: '/', createdAt: now, updatedAt: now, size: 0 },
-        { path: '/workspace/README.md', name: 'README.md', content: '# Welcome to AI Markdown\n\nStart writing here!', isDirectory: false, parentPath: '/workspace', createdAt: now, updatedAt: now, size: 0 },
-        { path: '/workspace/notes', name: 'notes', content: '', isDirectory: true, parentPath: '/workspace', createdAt: now, updatedAt: now, size: 0 },
-      ])
-    }
+      const workspace = await db.files.where('path').equals('/workspace').first()
+      if (!workspace) {
+        await db.files.add({ path: '/workspace', name: 'workspace', content: '', isDirectory: true, parentPath: '/', createdAt: now, updatedAt: now, size: 0 })
+      } else if (!workspace.isDirectory) {
+        await db.files.update(workspace.id!, { content: '', isDirectory: true, parentPath: '/', updatedAt: now, size: 0 })
+      }
+      if (count === 0) {
+        await db.files.bulkAdd([
+          { path: '/workspace/README.md', name: 'README.md', content: '# Welcome to AI Markdown\n\nStart writing here!', isDirectory: false, parentPath: '/workspace', createdAt: now, updatedAt: now, size: 0 },
+          { path: '/workspace/notes', name: 'notes', content: '', isDirectory: true, parentPath: '/workspace', createdAt: now, updatedAt: now, size: 0 },
+        ])
+      }
+    })
   },
 
   async readFile(path: string): Promise<string> {
     const record = await db.files.where('path').equals(path).first()
-    return record?.content ?? ''
+    if (!record) {
+      throw new Error(`文件不存在: ${path}`)
+    }
+    if (record.isDirectory) {
+      throw new Error(`路径是文件夹，不能作为文件读取: ${path}`)
+    }
+    return record.content
+  },
+
+  async readFileOrEmpty(path: string): Promise<string> {
+    try {
+      return await this.readFile(path)
+    } catch {
+      return ''
+    }
   },
 
   async writeFile(path: string, content: string): Promise<void> {
     const name = path.split('/').pop() || ''
-    const parentPath = path.substring(0, path.lastIndexOf('/')) || '/'
+    const parentPath = getParentPath(path)
     const now = Date.now()
     const existing = await db.files.where('path').equals(path).first()
+    await assertParentDirectoryExists(parentPath)
     if (existing) {
+      if (existing.isDirectory) {
+        throw new Error(`路径是文件夹，不能作为文件写入: ${path}`)
+      }
       await db.files.update(existing.id!, { content, updatedAt: now, size: content.length })
     } else {
       await db.files.add({ path, name, content, isDirectory: false, parentPath, createdAt: now, updatedAt: now, size: content.length })
@@ -75,8 +115,9 @@ export const fileSystem = {
 
   async createFile(path: string): Promise<void> {
     const name = path.split('/').pop() || ''
-    const parentPath = path.substring(0, path.lastIndexOf('/')) || '/'
+    const parentPath = getParentPath(path)
     const now = Date.now()
+    await assertParentDirectoryExists(parentPath)
     await assertPathAvailable(path)
     await db.files.add({ path, name, content: '', isDirectory: false, parentPath, createdAt: now, updatedAt: now, size: 0 })
     await syncKnowledgeIndex(() => knowledgeIndex.indexFile(path, ''))
@@ -84,8 +125,9 @@ export const fileSystem = {
 
   async createDirectory(path: string): Promise<void> {
     const name = path.split('/').pop() || ''
-    const parentPath = path.substring(0, path.lastIndexOf('/')) || '/'
+    const parentPath = getParentPath(path)
     const now = Date.now()
+    await assertParentDirectoryExists(parentPath)
     await assertPathAvailable(path)
     await db.files.add({ path, name, content: '', isDirectory: true, parentPath, createdAt: now, updatedAt: now, size: 0 })
   },
@@ -128,7 +170,8 @@ export const fileSystem = {
         throw new Error('不能将文件夹移动到自身内部')
       }
       const newName = newPath.split('/').pop() || ''
-      const newParentPath = newPath.substring(0, newPath.lastIndexOf('/')) || '/'
+      const newParentPath = getParentPath(newPath)
+      await assertParentDirectoryExists(newParentPath)
       await assertPathAvailable(newPath, oldPath)
 
       if (record.isDirectory) {
@@ -168,6 +211,15 @@ export const fileSystem = {
   },
 
   async readDirectory(path: string): Promise<FileRecord[]> {
+    if (path !== '/') {
+      const record = await db.files.where('path').equals(path).first()
+      if (!record) {
+        throw new Error(`文件夹不存在: ${path}`)
+      }
+      if (!record.isDirectory) {
+        throw new Error(`路径不是文件夹: ${path}`)
+      }
+    }
     return db.files.where('parentPath').equals(path).toArray()
   },
 

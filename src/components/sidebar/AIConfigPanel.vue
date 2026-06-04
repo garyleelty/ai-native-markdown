@@ -68,10 +68,11 @@ import { ref, computed, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { aiService, FetchAIProvider } from '../../services/ai'
 import { useSettingsStore } from '@/stores/settings'
+import type { AIConfig } from '@/types'
 
 const settingsStore = useSettingsStore()
 
-const selectedProvider = ref('ollama')
+const selectedProvider = ref<AIConfig['provider']>('ollama')
 const apiKey = ref('')
 const model = ref('qwen2.5:7b')
 const temperature = ref(0.7)
@@ -117,18 +118,21 @@ const fetchOllamaModels = async () => {
   }
 }
 
-const applyAIConfig = () => {
-  const config: any = {
+const buildAIConfig = (): AIConfig => {
+  const config: AIConfig = {
     provider: selectedProvider.value,
+    baseURL: selectedProvider.value === 'ollama' ? (ollamaBaseURL.value || 'http://localhost:11434') : (openaiBaseURL.value || 'https://api.openai.com/v1'),
+    apiKey: selectedProvider.value === 'ollama' ? '' : apiKey.value,
     model: model.value,
     temperature: temperature.value,
+    maxTokens: settingsStore.aiConfig.maxTokens ?? 4096,
+    systemPrompt: settingsStore.aiConfig.systemPrompt || '你是一个专业的 Markdown 写作助手。',
   }
-  if (selectedProvider.value === 'ollama') {
-    config.baseURL = ollamaBaseURL.value || 'http://localhost:11434'
-  } else {
-    config.baseURL = openaiBaseURL.value
-    config.apiKey = apiKey.value
-  }
+  return config
+}
+
+const applyAIConfig = () => {
+  const config = buildAIConfig()
   aiService.registerProvider(new FetchAIProvider(config))
   aiService.setActiveProvider(selectedProvider.value)
 }
@@ -161,13 +165,7 @@ const testConnection = async () => {
 
 const saveAIConfig = () => {
   applyAIConfig()
-  settingsStore.updateAIConfig({
-    provider: selectedProvider.value as any,
-    apiKey: apiKey.value,
-    baseURL: selectedProvider.value === 'ollama' ? (ollamaBaseURL.value || 'http://localhost:11434') : (openaiBaseURL.value || 'https://api.openai.com/v1'),
-    model: model.value,
-    temperature: temperature.value,
-  })
+  settingsStore.updateAIConfig(buildAIConfig())
   configSaved.value = true
   setTimeout(() => { configSaved.value = false }, 2500)
 }

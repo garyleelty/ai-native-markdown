@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { loadDemoWorkspace, openFirstMarkdownFile, resetBrowserState, runCommand, setEditorContent } from './helpers'
+import { loadDemoWorkspace, moveEditorCursorToLine, openFirstMarkdownFile, resetBrowserState, runCommand, setEditorContent } from './helpers'
 
 test.describe('预览渲染与安全补充', () => {
   test.beforeEach(async ({ page }) => {
@@ -57,5 +57,61 @@ test.describe('预览渲染与安全补充', () => {
     expect(unsafeDom.javascriptLinks).toBe(0)
     expect(unsafeDom.eventHandlers).toBe(0)
     expect(unsafeDom.scripts).toBe(0)
+  })
+
+  test('预览块会保留真实源码行号', async ({ page }) => {
+    await setEditorContent(page, [
+      '# First',
+      '',
+      'paragraph line',
+      '',
+      '## Second',
+      '',
+      '```js',
+      'console.log("line map")',
+      '```',
+    ].join('\n'))
+    await runCommand(page, '预览模式')
+
+    const preview = page.locator('.preview-content')
+    await expect(preview.locator('h1[data-line="1"]')).toContainText('First')
+    await expect(preview.locator('p[data-line="3"]')).toContainText('paragraph line')
+    await expect(preview.locator('h2[data-line="5"]')).toContainText('Second')
+    await expect(preview.locator('[data-line="7"][data-line-end="9"]')).toBeVisible()
+  })
+
+  test('分屏模式下编辑器光标会高亮对应预览标题', async ({ page }) => {
+    await setEditorContent(page, [
+      '# First',
+      '',
+      'body',
+      '',
+      '## Second',
+      '',
+      'target',
+    ].join('\n'))
+    await runCommand(page, '分屏模式')
+    await moveEditorCursorToLine(page, 5)
+
+    const highlighted = page.locator('.preview-content .current-line')
+    await expect(highlighted).toContainText('Second')
+    await expect(highlighted).toHaveAttribute('data-line', '5')
+  })
+
+  test('点击预览标题锚点会跳转到编辑器源码行', async ({ page }) => {
+    await setEditorContent(page, [
+      '# First',
+      '',
+      'body',
+      '',
+      '## Second',
+      '',
+      'target',
+    ].join('\n'))
+    await runCommand(page, '分屏模式')
+    await page.locator('.preview-content h2 .header-anchor').click()
+
+    await expect(page.locator('.status-bar')).toContainText('行 5')
+    await expect(page.locator('.cm-activeLine')).toContainText('Second')
   })
 })

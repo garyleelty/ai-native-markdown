@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { ViewMode } from '@/types'
+import { safeStorage } from '@/utils/security'
+import { fileSystem } from '@/services/fileSystem'
 
 interface Tab {
   id: string
@@ -11,27 +13,27 @@ interface Tab {
 }
 
 const TAB_STATE_KEY = 'editor_tab_state'
+const DEFAULT_TAB_STATE: { tabs: Tab[]; activeTabId: string | null; viewMode: ViewMode } = {
+  tabs: [],
+  activeTabId: null,
+  viewMode: 'split',
+}
 
 function loadTabState(): { tabs: Tab[]; activeTabId: string | null; viewMode: ViewMode } {
-  try {
-    const raw = localStorage.getItem(TAB_STATE_KEY)
-    if (!raw) return { tabs: [], activeTabId: null, viewMode: 'split' }
-    return JSON.parse(raw)
-  } catch {
-    return { tabs: [], activeTabId: null, viewMode: 'split' }
-  }
+  const state = safeStorage.get(TAB_STATE_KEY, DEFAULT_TAB_STATE)
+  const tabs = Array.isArray(state.tabs) ? state.tabs : []
+  const activeTabId = tabs.some(tab => tab.id === state.activeTabId) ? state.activeTabId : null
+  const viewMode: ViewMode = ['source', 'split', 'preview'].includes(state.viewMode) ? state.viewMode : 'split'
+  return { tabs, activeTabId, viewMode }
 }
 
 function saveTabState(tabs: Tab[], activeTabId: string | null, viewMode: ViewMode) {
-  try {
-    const state = {
-      tabs: tabs.map(t => ({ ...t, content: t.isModified ? t.content : '' })),
-      activeTabId,
-      viewMode,
-    }
-    localStorage.setItem(TAB_STATE_KEY, JSON.stringify(state))
-  } catch {
+  const state = {
+    tabs: tabs.map(t => ({ ...t, content: t.isModified ? t.content : '' })),
+    activeTabId,
+    viewMode,
   }
+  safeStorage.set(TAB_STATE_KEY, state)
 }
 
 const savedState = loadTabState()
@@ -127,11 +129,91 @@ export const useEditorStore = defineStore('editor', () => {
     isModified.value = tab.isModified
   }
 
+  const hydrateRestoredSession = async () => {
+    if (openTabs.value.length === 0) {
+      activeTabId.value = null
+      content.value = ''
+      currentFile.value = ''
+      isModified.value = false
+      return ''
+    }
+
+    if (!activeTabId.value || !openTabs.value.some(t => t.id === activeTabId.value)) {
+      activeTabId.value = openTabs.value[0].id
+    }
+
+    const tab = getActiveTab()
+    if (!tab) return ''
+
+    activeTabId.value = tab.id
+    currentFile.value = tab.filePath
+
+    if (tab.isModified && tab.content) {
+      content.value = tab.content
+      isModified.value = true
+      return tab.content
+    }
+
+    try {
+      const fileContent = await fileSystem.readFile(tab.filePath)
+      tab.content = fileContent
+      tab.isModified = false
+      content.value = fileContent
+      isModified.value = false
+      return fileContent
+    } catch {
+      tab.content = ''
+      tab.isModified = false
+      content.value = ''
+      isModified.value = false
+      return ''
+    }
+  }
+
   const markTabSaved = (tabId: string) => {
     const tab = openTabs.value.find(t => t.id === tabId)
     if (!tab) return
     tab.isModified = false
     if (activeTabId.value === tabId) isModified.value = false
+  }
+
+  const renameOpenPath = (oldPath: string, newPath: string, isDirectory = false) => {
+    let changed = false
+    for (const tab of openTabs.value) {
+      const matches = tab.filePath === oldPath || (isDirectory && tab.filePath.startsWith(`${oldPath}/`))
+      if (!matches) continue
+      tab.filePath = tab.filePath === oldPath ? newPath : `${newPath}${tab.filePath.slice(oldPath.length)}`
+      tab.fileName = tab.filePath.split('/').pop() || 'untitled.md'
+      changed = true
+    }
+
+    if (currentFile.value === oldPath || (isDirectory && currentFile.value.startsWith(`${oldPath}/`))) {
+      currentFile.value = currentFile.value === oldPath ? newPath : `${newPath}${currentFile.value.slice(oldPath.length)}`
+    }
+
+    return changed
+  }
+
+  const removeOpenPath = (path: string, isDirectory = false) => {
+    const removedActive = activeTabId.value
+      ? openTabs.value.some(tab => tab.id === activeTabId.value && (tab.filePath === path || (isDirectory && tab.filePath.startsWith(`${path}/`))))
+      : false
+
+    openTabs.value = openTabs.value.filter(tab => tab.filePath !== path && !(isDirectory && tab.filePath.startsWith(`${path}/`)))
+
+    if (openTabs.value.length === 0) {
+      activeTabId.value = null
+      content.value = ''
+      currentFile.value = ''
+      isModified.value = false
+      return removedActive
+    }
+
+    if (removedActive || !activeTabId.value || !openTabs.value.some(tab => tab.id === activeTabId.value)) {
+      switchTab(openTabs.value[0].id)
+    }
+
+    return removedActive
   }
 
   const getActiveTab = () => {
@@ -154,6 +236,7 @@ export const useEditorStore = defineStore('editor', () => {
     content, currentFile, viewMode, cursorLine, cursorColumn, isModified,
     openTabs, activeTabId,
     setContent, setContentSilent, setViewMode, setCursor, markSaved,
-    addTab, closeTab, switchTab, markTabSaved, getActiveTab, moveTab
+    addTab, closeTab, switchTab, markTabSaved, renameOpenPath, removeOpenPath,
+    getActiveTab, moveTab, hydrateRestoredSession
   }
 })

@@ -9,6 +9,29 @@ function createTimeoutSignal(ms: number): AbortSignal {
   return controller.signal
 }
 
+function combineAbortSignals(signals: AbortSignal[]): AbortSignal {
+  const availableSignals = signals.filter(Boolean)
+  if (availableSignals.length === 1) return availableSignals[0]
+  if (typeof AbortSignal.any === 'function') {
+    return AbortSignal.any(availableSignals)
+  }
+
+  const controller = new AbortController()
+  const abort = () => {
+    if (!controller.signal.aborted) controller.abort()
+  }
+
+  for (const signal of availableSignals) {
+    if (signal.aborted) {
+      abort()
+      break
+    }
+    signal.addEventListener('abort', abort, { once: true })
+  }
+
+  return controller.signal
+}
+
 export interface AIProvider {
   id: string
   name: string
@@ -68,7 +91,7 @@ export class FetchAIProvider implements AIProvider {
     try {
       this.status = 'connecting'
       const timeoutSignal = createTimeoutSignal(8000)
-      const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+      const combinedSignal = signal ? combineAbortSignals([signal, timeoutSignal]) : timeoutSignal
       if (this.providerType === 'ollama') {
         const resp = await fetch(`${this.baseURL}/api/tags`, { signal: combinedSignal })
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
@@ -100,7 +123,7 @@ export class FetchAIProvider implements AIProvider {
     try {
       this.status = 'connecting'
       const timeoutSignal = createTimeoutSignal(60000)
-      const signal = options?.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal
+      const signal = options?.signal ? combineAbortSignals([options.signal, timeoutSignal]) : timeoutSignal
       let result: string
       if (this.providerType === 'ollama') {
         const resp = await fetch(`${this.baseURL}/api/chat`, {
@@ -154,7 +177,7 @@ export class FetchAIProvider implements AIProvider {
     this.status = 'connecting'
     try {
       const timeoutSignal = createTimeoutSignal(60000)
-      const signal = options?.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal
+      const signal = options?.signal ? combineAbortSignals([options.signal, timeoutSignal]) : timeoutSignal
       if (this.providerType === 'ollama') {
         const resp = await fetch(`${this.baseURL}/api/chat`, {
           method: 'POST',
@@ -218,7 +241,11 @@ export class FetchAIProvider implements AIProvider {
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue
             const data = line.slice(6)
-            if (data === '[DONE]') return
+            if (data === '[DONE]') {
+              this.status = 'connected'
+              this.lastError = undefined
+              return
+            }
             try {
               const json = JSON.parse(data)
               const content = json.choices?.[0]?.delta?.content

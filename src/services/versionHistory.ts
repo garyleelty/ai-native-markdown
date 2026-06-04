@@ -69,5 +69,33 @@ export const versionHistory = {
 
   async clearHistory(filePath: string): Promise<void> {
     await db.snapshots.where('filePath').equals(filePath).delete()
+  },
+
+  async clearByPrefix(prefix: string): Promise<void> {
+    const snapshots = await db.snapshots
+      .filter(snapshot => snapshot.filePath === prefix || snapshot.filePath.startsWith(`${prefix}/`))
+      .toArray()
+    await db.snapshots.bulkDelete(snapshots.map(snapshot => snapshot.id!).filter(Boolean))
+  },
+
+  async renameFile(oldPath: string, newPath: string): Promise<void> {
+    const snapshots = await db.snapshots.where('filePath').equals(oldPath).toArray()
+    await Promise.all(snapshots.map(snapshot => {
+      if (!snapshot.id) return Promise.resolve()
+      return db.snapshots.update(snapshot.id, { filePath: newPath })
+    }))
+  },
+
+  async renameByPrefix(oldPrefix: string, newPrefix: string): Promise<void> {
+    const snapshots = await db.snapshots
+      .filter(snapshot => snapshot.filePath === oldPrefix || snapshot.filePath.startsWith(`${oldPrefix}/`))
+      .toArray()
+    await Promise.all(snapshots.map(snapshot => {
+      if (!snapshot.id) return Promise.resolve()
+      const nextPath = snapshot.filePath === oldPrefix
+        ? newPrefix
+        : `${newPrefix}${snapshot.filePath.slice(oldPrefix.length)}`
+      return db.snapshots.update(snapshot.id, { filePath: nextPath })
+    }))
   }
 }

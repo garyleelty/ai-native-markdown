@@ -1,3 +1,5 @@
+import { safeStorage } from './security'
+
 const SESSION_KEY = 'writing_session'
 
 export interface WritingSession {
@@ -14,27 +16,18 @@ export function startSession(currentWordCount: number): WritingSession {
     lastWordCount: currentWordCount,
     isActive: true
   }
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-  } catch {
-  }
+  safeStorage.set(SESSION_KEY, session)
   return session
 }
 
 export function getActiveSession(): WritingSession | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY)
-    if (!raw) return null
-    const session = JSON.parse(raw) as WritingSession
-    if (!session.isActive) return null
-    if (Date.now() - session.startTime > 24 * 60 * 60 * 1000) {
-      endSession()
-      return null
-    }
-    return session
-  } catch {
+  const session = safeStorage.get<WritingSession | null>(SESSION_KEY, null)
+  if (!session?.isActive) return null
+  if (Date.now() - session.startTime > 24 * 60 * 60 * 1000) {
+    endSession()
     return null
   }
+  return session
 }
 
 export function updateSession(currentWordCount: number): WritingSession {
@@ -45,18 +38,12 @@ export function updateSession(currentWordCount: number): WritingSession {
   if (diff > 0) session.totalWordsWritten += diff
   session.lastWordCount = currentWordCount
 
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-  } catch {
-  }
+  safeStorage.set(SESSION_KEY, session)
   return session
 }
 
 export function endSession(): void {
-  try {
-    localStorage.removeItem(SESSION_KEY)
-  } catch {
-  }
+  safeStorage.remove(SESSION_KEY)
 }
 
 export function getSessionDuration(session: WritingSession): string {

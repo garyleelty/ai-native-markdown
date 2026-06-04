@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { AIConfig, ThemeMode, SidebarTab, GhostTextConfig } from '@/types'
-import { obfuscateValue, deobfuscateValue } from '@/utils/security'
+import { obfuscateValue, deobfuscateValue, safeStorage } from '@/utils/security'
 
 const defaultAIConfig: AIConfig = {
   provider: 'ollama',
@@ -19,15 +19,22 @@ function loadFromStorage<T>(key: string, defaultValue: T): T {
     if (raw === null) return defaultValue
     return JSON.parse(raw) as T
   } catch {
+    if (typeof defaultValue === 'string') {
+      try {
+        const raw = localStorage.getItem(key)
+        return (raw ?? defaultValue) as T
+      } catch {
+        return defaultValue
+      }
+    }
     return defaultValue
   }
 }
 
 function loadEncryptedConfig(key: string, defaultValue: AIConfig): AIConfig {
   try {
-    const raw = localStorage.getItem(key)
-    if (raw === null) return defaultValue
-    const parsed = JSON.parse(raw) as AIConfig
+    const parsed = safeStorage.get<AIConfig | null>(key, null)
+    if (!parsed) return defaultValue
     if (parsed.apiKey) {
       parsed.apiKey = deobfuscateValue(parsed.apiKey)
     }
@@ -43,16 +50,13 @@ function saveEncryptedConfig(key: string, value: AIConfig): void {
     if (toStore.apiKey) {
       toStore.apiKey = obfuscateValue(toStore.apiKey)
     }
-    localStorage.setItem(key, JSON.stringify(toStore))
+    safeStorage.set(key, toStore)
   } catch {
   }
 }
 
 function saveToStorage(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value))
-  } catch {
-  }
+  safeStorage.set(key, value)
 }
 
 export const useSettingsStore = defineStore('settings', () => {

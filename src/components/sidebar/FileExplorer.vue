@@ -69,22 +69,21 @@
         :default-expanded-keys="expandedKeys"
       >
         <template #default="{ node, data }">
-          <span class="tree-node">
-            <el-icon v-if="data.isDirectory" :size="14"><Folder /></el-icon>
-            <el-icon v-else-if="data.name.endsWith('.json')" :size="14" color="var(--el-color-warning)"><Document /></el-icon>
-            <el-icon v-else-if="data.name.endsWith('.png') || data.name.endsWith('.jpg')" :size="14" color="var(--el-color-success)"><Picture /></el-icon>
-            <el-icon v-else :size="14" color="var(--el-color-primary)"><Document /></el-icon>
-            <span class="tree-node-label">{{ node.label }}</span>
-            <el-dropdown trigger="contextmenu" @command="(cmd: string) => handleTreeAction(cmd, data)">
-              <span class="tree-node-trigger" @click.stop />
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="rename">重命名</el-dropdown-item>
-                  <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </span>
+          <el-dropdown trigger="contextmenu" class="tree-node-menu" @command="(cmd: string) => handleTreeAction(cmd, data)">
+            <span class="tree-node" :data-file-path="data.path">
+              <el-icon v-if="data.isDirectory" :size="14"><Folder /></el-icon>
+              <el-icon v-else-if="data.name.endsWith('.json')" :size="14" color="var(--el-color-warning)"><Document /></el-icon>
+              <el-icon v-else-if="data.name.endsWith('.png') || data.name.endsWith('.jpg')" :size="14" color="var(--el-color-success)"><Picture /></el-icon>
+              <el-icon v-else :size="14" color="var(--el-color-primary)"><Document /></el-icon>
+              <span class="tree-node-label">{{ node.label }}</span>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="rename">重命名</el-dropdown-item>
+                <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </template>
       </el-tree>
     </div>
@@ -103,16 +102,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { nextTick, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Folder, Document, DocumentAdd, FolderAdd, Search, Picture } from '@element-plus/icons-vue'
 import { fileSystem } from '../../services/fileSystem'
-import { sanitizeFilePath, isValidFileName } from '../../utils/security'
+import { sanitizeFilePath, isValidFileName, safeStorage } from '../../utils/security'
 import type { TreeNode } from '../../types'
 
 const emit = defineEmits<{
   (e: 'select', path: string): void
   (e: 'root-path-change', path: string): void
+  (e: 'renamed', payload: { oldPath: string; newPath: string; isDirectory: boolean }): void
+  (e: 'deleted', payload: { path: string; isDirectory: boolean }): void
 }>()
 
 const rootPath = ref('')
@@ -128,18 +129,12 @@ const addRecentFile = (path: string) => {
     { name, path },
     ...recentFiles.value.filter(f => f.path !== path)
   ].slice(0, 10)
-  try {
-    localStorage.setItem('recent_files', JSON.stringify(recentFiles.value))
-  } catch {
-  }
+  safeStorage.set('recent_files', recentFiles.value)
 }
 
 const loadRecentFiles = () => {
-  try {
-    recentFiles.value = JSON.parse(localStorage.getItem('recent_files') || '[]')
-  } catch {
-    recentFiles.value = []
-  }
+  const stored = safeStorage.get<Array<{ name: string; path: string }>>('recent_files', [])
+  recentFiles.value = stored.filter(file => file.name && file.path).slice(0, 10)
 }
 
 const treeProps = {
@@ -178,16 +173,30 @@ const buildTree = (items: any[]): TreeNode[] => {
     }))
 }
 
-const handleNodeClick = async (data: TreeNode) => {
+const expandTreeNode = async (data: TreeNode, node?: any) => {
+  if (!expandedKeys.value.includes(data.path)) {
+    expandedKeys.value = [...expandedKeys.value, data.path]
+  }
+  await nextTick()
+  if (node) {
+    if (typeof node.expand === 'function') node.expand()
+    else node.expanded = true
+  }
+}
+
+const handleNodeClick = async (data: TreeNode, node?: any) => {
   if (data.isDirectory) {
     if (!data.children || data.children.length === 0) {
       try {
         const children = await fileSystem.readDirectory(data.path)
         data.children = buildTree(children)
         data.isExpanded = true
+        await expandTreeNode(data, node)
       } catch (e: any) {
         ElMessage.error('加载目录失败')
       }
+    } else {
+      await expandTreeNode(data, node)
     }
   } else {
     currentFilePath.value = data.path
@@ -199,10 +208,15 @@ const handleNodeClick = async (data: TreeNode) => {
 const handleTreeAction = async (command: string, data: TreeNode) => {
   if (command === 'delete') {
     try {
-      await ElMessageBox.confirm(`确定删除 "${data.name}" 吗？`, '删除确认', { type: 'warning' })
+      await ElMessageBox.confirm(`确定删除 "${data.name}" 吗？`, '删除确认', {
+        type: 'warning',
+        confirmButtonText: '确定',
+        cancelButtonText: '取消'
+      })
       await fileSystem.deleteFile(data.path)
       await loadTreeFromFS()
       if (currentFilePath.value === data.path) currentFilePath.value = ''
+      emit('deleted', { path: data.path, isDirectory: data.isDirectory })
       ElMessage.success('已删除')
     } catch (e: any) {
       if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '删除失败')
@@ -220,6 +234,7 @@ const handleTreeAction = async (command: string, data: TreeNode) => {
         await fileSystem.renameFile(data.path, newPath)
         await loadTreeFromFS()
         if (currentFilePath.value === data.path) currentFilePath.value = newPath
+        emit('renamed', { oldPath: data.path, newPath, isDirectory: data.isDirectory })
         ElMessage.success('已重命名')
       }
     } catch (e: any) {
@@ -315,7 +330,7 @@ const handleSearchResultClick = (result: { filePath: string }) => {
 }
 
 const readFile = async (filePath: string): Promise<string> => {
-  try { return await fileSystem.readFile(filePath) } catch { return '' }
+  return fileSystem.readFileOrEmpty(filePath)
 }
 
 const saveFile = async (filePath: string, content: string): Promise<boolean> => {
@@ -494,6 +509,12 @@ onMounted(() => {
   color: var(--obsidian-text-faint, #666);
 }
 
+.tree-node-menu {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
 .tree-node {
   display: flex;
   align-items: center;
@@ -510,12 +531,6 @@ onMounted(() => {
   white-space: nowrap;
   font-size: 13px;
   color: var(--obsidian-text-normal, #dcddde);
-}
-
-.tree-node-trigger {
-  flex: 1;
-  min-width: 20px;
-  min-height: 20px;
 }
 
 .empty-prompt {

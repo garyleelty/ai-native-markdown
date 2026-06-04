@@ -18,10 +18,10 @@ test.describe('AI 与多模态回归', () => {
     })
 
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await expect(page.locator('.app-container')).toBeVisible()
     await page.getByRole('menuitem', { name: 'AI 配置' }).click()
     await page.locator('.el-form-item').filter({ hasText: 'Provider' }).locator('.el-select').click()
-    await page.locator('.el-select-dropdown__item').filter({ hasText: 'OpenAI 兼容' }).click()
+    await page.getByRole('option', { name: 'OpenAI 兼容' }).click()
     await page.locator('.el-form-item').filter({ hasText: 'API Key' }).locator('input').fill('sk-playwright')
     await page.locator('.el-form-item').filter({ hasText: 'API 地址' }).locator('input').fill('https://ai.test.local/v1')
     await page.locator('.el-form-item').filter({ hasText: '模型' }).locator('input').fill('test-model')
@@ -33,20 +33,31 @@ test.describe('AI 与多模态回归', () => {
     expect(savedConfig.baseURL).toBe('https://ai.test.local/v1')
     expect(savedConfig.model).toBe('test-model')
 
+    await page.evaluate(async () => {
+      const { useSettingsStore } = await import('/src/stores/settings.ts')
+      useSettingsStore().updateAIConfig({ systemPrompt: '自定义系统提示：回答要简洁。' })
+    })
+
     await page.getByRole('button', { name: 'AI 助手' }).click()
     await page.locator('.chat-input-area textarea').fill('帮我总结当前文档')
     await page.getByRole('button', { name: '发送' }).click()
     await expect(page.locator('.message-text').filter({ hasText: 'mock answer' })).toBeVisible()
 
+    const providerStatus = await page.evaluate(async () => {
+      const { aiService } = await import('/src/services/ai.ts')
+      return aiService.getActiveProvider()?.status
+    })
+
     expect(requestBody.model).toBe('test-model')
     expect(requestBody.messages[0].role).toBe('system')
-    expect(requestBody.messages[0].content).toContain('Markdown 写作助手')
+    expect(requestBody.messages[0].content).toContain('自定义系统提示')
     expect(requestBody.messages.some((message: any) => message.role === 'user' && message.content.includes('帮我总结'))).toBe(true)
+    expect(providerStatus).toBe('connected')
   })
 
   test('AI 请求失败时显示错误消息且历史不会超过上限', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await expect(page.locator('.app-container')).toBeVisible()
     await page.evaluate(async () => {
       localStorage.setItem('ai_config', JSON.stringify({
         provider: 'openai',
@@ -84,13 +95,42 @@ test.describe('AI 与多模态回归', () => {
     expect(historyLength).toBeLessThanOrEqual(50)
   })
 
+  test('AI 聊天历史渲染会清理危险 HTML', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.locator('.app-container')).toBeVisible()
+    await page.evaluate(() => {
+      localStorage.setItem('ai_chat_history', JSON.stringify([{
+        id: 'malicious-assistant',
+        role: 'assistant',
+        content: '<img src=x onerror="window.__aiXss = true"><script>window.__aiXss = true</script>**safe**',
+        timestamp: Date.now(),
+      }]))
+    })
+
+    await page.getByRole('button', { name: 'AI 助手' }).click()
+    const message = page.locator('.message-text').filter({ hasText: 'safe' })
+    await expect(message).toBeVisible()
+
+    const rendered = await message.evaluate((node) => ({
+      rawImages: node.querySelectorAll('img').length,
+      dangerousImages: node.querySelectorAll('img[onerror]').length,
+      scripts: node.querySelectorAll('script').length,
+      xssRan: Boolean((window as any).__aiXss),
+    }))
+
+    expect(rendered.rawImages).toBe(0)
+    expect(rendered.dangerousImages).toBe(0)
+    expect(rendered.scripts).toBe(0)
+    expect(rendered.xssRan).toBe(false)
+  })
+
   test('语音输入在不支持 SpeechRecognition 时显示禁用状态', async ({ page }) => {
     await page.addInitScript(() => {
       Object.defineProperty(window, 'SpeechRecognition', { value: undefined, configurable: true })
       Object.defineProperty(window, 'webkitSpeechRecognition', { value: undefined, configurable: true })
     })
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await expect(page.locator('.app-container')).toBeVisible()
     await loadDemoWorkspace(page)
     await openFirstMarkdownFile(page)
 
@@ -102,7 +142,7 @@ test.describe('AI 与多模态回归', () => {
 
   test('智能粘贴会清理文本并把富文本转换为 Markdown', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await expect(page.locator('.app-container')).toBeVisible()
     const result = await page.evaluate(async () => {
       const { cleanPastedContent, convertHTMLToMarkdown } = await import('/src/extensions/smart-paste/pasteHandler.ts')
       return {
@@ -119,16 +159,31 @@ test.describe('AI 与多模态回归', () => {
 
   test('OCR/PDF 拖拽处理服务会生成预期 Markdown 片段', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await expect(page.locator('.app-container')).toBeVisible()
     const result = await page.evaluate(async () => {
-      const { extractTextFromImage, extractTextFromPDF } = await import('/src/extensions/multimodal/ocrService.ts')
-      return {
-        hasImageExtractor: typeof extractTextFromImage === 'function',
-        hasPdfExtractor: typeof extractTextFromPDF === 'function',
+      const { insertDroppedFiles } = await import('/src/extensions/multimodal/dropHandler.ts')
+      const dispatched: Array<{ from: number, insert: string }> = []
+      const mockView = {
+        dispatch(update: { changes: { from: number, insert: string } }) {
+          dispatched.push(update.changes)
+        },
       }
+      const image = new File(['image-bytes'], 'scan.png', { type: 'image/png' })
+      const pdf = new File(['pdf-bytes'], 'notes.pdf', { type: 'application/pdf' })
+      const unsupported = new File(['data'], 'archive.zip', { type: 'application/zip' })
+
+      await insertDroppedFiles([image, pdf, unsupported], 5, mockView as any, {
+        image: async (source) => source instanceof File ? 'OCR line one\nOCR line two' : '',
+        pdf: async (source) => source instanceof File ? 'PDF extracted text' : '',
+      })
+
+      return dispatched
     })
 
-    expect(result.hasImageExtractor).toBe(true)
-    expect(result.hasPdfExtractor).toBe(true)
+    expect(result).toHaveLength(3)
+    expect(result[0]).toEqual({ from: 5, insert: '\n![scan.png](scan.png)\n' })
+    expect(result[1].insert).toContain('OCR 提取文字')
+    expect(result[1].insert).toContain('OCR line two')
+    expect(result[2].insert).toContain('PDF extracted text')
   })
 })

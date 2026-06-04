@@ -53,6 +53,14 @@ function splitIntoChunks(text: string, chunkSize = 500, overlap = 50): string[] 
   return chunks.filter(c => c.length > 0)
 }
 
+function titleFromPath(filePath: string): string {
+  return filePath.split('/').pop()?.replace(/\.md$/i, '') || filePath
+}
+
+function pathMatchesPrefix(filePath: string, prefix: string): boolean {
+  return filePath === prefix || filePath.startsWith(`${prefix}/`)
+}
+
 export const ragService = {
   async indexDocument(filePath: string, content: string): Promise<number> {
     const chunks = splitIntoChunks(content)
@@ -68,7 +76,7 @@ export const ragService = {
       }))
       await ragDb.chunks.bulkAdd(records)
 
-      const title = filePath.split('/').pop()?.replace(/\.md$/i, '') || filePath
+      const title = titleFromPath(filePath)
       await ragDb.meta.put({
         filePath,
         title,
@@ -133,5 +141,63 @@ export const ragService = {
   async deleteDocument(filePath: string): Promise<void> {
     await ragDb.chunks.where('filePath').equals(filePath).delete()
     await ragDb.meta.where('filePath').equals(filePath).delete()
+  },
+
+  async deleteByPrefix(prefix: string): Promise<void> {
+    await ragDb.transaction('rw', [ragDb.chunks, ragDb.meta], async () => {
+      const chunks = await ragDb.chunks.filter(chunk => pathMatchesPrefix(chunk.filePath, prefix)).toArray()
+      await ragDb.chunks.bulkDelete(chunks.map(chunk => chunk.id!).filter(Boolean))
+      const metas = await ragDb.meta.filter(meta => pathMatchesPrefix(meta.filePath, prefix)).toArray()
+      await ragDb.meta.bulkDelete(metas.map(meta => meta.filePath))
+    })
+  },
+
+  async renameDocument(oldPath: string, newPath: string): Promise<void> {
+    await ragDb.transaction('rw', [ragDb.chunks, ragDb.meta], async () => {
+      const chunks = await ragDb.chunks.where('filePath').equals(oldPath).toArray()
+      await Promise.all(chunks.map(chunk => {
+        if (!chunk.id) return Promise.resolve()
+        return ragDb.chunks.update(chunk.id, { filePath: newPath, updatedAt: Date.now() })
+      }))
+
+      const meta = await ragDb.meta.where('filePath').equals(oldPath).first()
+      if (meta) {
+        await ragDb.meta.delete(oldPath)
+        await ragDb.meta.put({
+          ...meta,
+          filePath: newPath,
+          title: titleFromPath(newPath),
+          lastIndexed: Date.now(),
+        })
+      }
+    })
+  },
+
+  async renameByPrefix(oldPrefix: string, newPrefix: string): Promise<void> {
+    await ragDb.transaction('rw', [ragDb.chunks, ragDb.meta], async () => {
+      const now = Date.now()
+      const chunks = await ragDb.chunks.filter(chunk => pathMatchesPrefix(chunk.filePath, oldPrefix)).toArray()
+      await Promise.all(chunks.map(chunk => {
+        if (!chunk.id) return Promise.resolve()
+        const nextPath = chunk.filePath === oldPrefix
+          ? newPrefix
+          : `${newPrefix}${chunk.filePath.slice(oldPrefix.length)}`
+        return ragDb.chunks.update(chunk.id, { filePath: nextPath, updatedAt: now })
+      }))
+
+      const metas = await ragDb.meta.filter(meta => pathMatchesPrefix(meta.filePath, oldPrefix)).toArray()
+      await ragDb.meta.bulkDelete(metas.map(meta => meta.filePath))
+      await ragDb.meta.bulkPut(metas.map(meta => {
+        const nextPath = meta.filePath === oldPrefix
+          ? newPrefix
+          : `${newPrefix}${meta.filePath.slice(oldPrefix.length)}`
+        return {
+          ...meta,
+          filePath: nextPath,
+          title: titleFromPath(nextPath),
+          lastIndexed: now,
+        }
+      }))
+    })
   }
 }

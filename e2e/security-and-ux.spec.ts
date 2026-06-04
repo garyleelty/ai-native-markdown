@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test'
+import { loadDemoWorkspace, openApp, openFirstMarkdownFile, setEditorContent } from './helpers'
 
 test.describe('安全修复验证', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:1420/')
-    await page.waitForLoadState('networkidle')
+    await openApp(page)
   })
 
   test('CSP meta标签存在', async ({ page }) => {
@@ -13,23 +13,12 @@ test.describe('安全修复验证', () => {
   })
 
   test('XSS payload在预览中被转义', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(500)
-
-    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
-    await welcomeBtn.click()
-    await page.waitForTimeout(1000)
-
-    const firstMd = page.locator('.el-tree-node').filter({ hasText: '.md' }).first()
-    await firstMd.click()
-    await page.waitForTimeout(500)
-
-    const editor = page.locator('.cm-content')
-    await editor.click()
-    await editor.fill('<script>alert("xss")</script>\n\n<img src=x onerror=alert(1)>')
-    await page.waitForTimeout(1000)
+    await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
+    await setEditorContent(page, '<script>alert("xss")</script>\n\n<img src=x onerror=alert(1)>')
 
     const preview = page.locator('.preview-content')
+    await expect(preview).toContainText('<script>alert')
     const html = await preview.innerHTML()
     expect(html).not.toContain('<script>')
     expect(html).toContain('&lt;script&gt;')
@@ -48,12 +37,28 @@ test.describe('安全修复验证', () => {
       expect(label!.length).toBeGreaterThan(0)
     }
   })
+
+  test('localStorage不可用时应用仍可进入基础工作流', async ({ page }) => {
+    await page.addInitScript(() => {
+      const fail = () => {
+        throw new Error('localStorage unavailable')
+      }
+      Object.defineProperty(Storage.prototype, 'getItem', { value: fail, configurable: true })
+      Object.defineProperty(Storage.prototype, 'setItem', { value: fail, configurable: true })
+      Object.defineProperty(Storage.prototype, 'removeItem', { value: fail, configurable: true })
+      Object.defineProperty(Storage.prototype, 'clear', { value: fail, configurable: true })
+    })
+
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('.app-container')).toBeVisible()
+    await page.getByRole('button', { name: '试用示例工作区' }).click()
+    await expect(page.locator('.el-tree')).toBeVisible()
+  })
 })
 
 test.describe('性能优化验证', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:1420/')
-    await page.waitForLoadState('networkidle')
+    await openApp(page)
   })
 
   test('初始加载不包含mermaid chunk', async ({ page }) => {
@@ -63,9 +68,8 @@ test.describe('性能优化验证', () => {
       if (url.includes('.js')) requests.push(url)
     })
 
-    await page.goto('http://localhost:1420/')
-    await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
+    await openApp(page)
+    await expect(page.locator('.app-container')).toBeVisible()
 
     const mermaidLoaded = requests.some(url => url.includes('mermaid'))
     expect(mermaidLoaded).toBe(false)
@@ -74,21 +78,12 @@ test.describe('性能优化验证', () => {
 
 test.describe('UX修复验证', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:1420/')
-    await page.waitForLoadState('networkidle')
+    await openApp(page)
   })
 
   test('标签页状态持久化到localStorage', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(500)
-
-    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
-    await welcomeBtn.click()
-    await page.waitForTimeout(1000)
-
-    const firstMd = page.locator('.el-tree-node').filter({ hasText: '.md' }).first()
-    await firstMd.click()
-    await page.waitForTimeout(500)
+    await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
 
     const tabState = await page.evaluate(() => localStorage.getItem('editor_tab_state'))
     expect(tabState).toBeTruthy()
@@ -98,19 +93,28 @@ test.describe('UX修复验证', () => {
     expect(parsed).toHaveProperty('viewMode')
   })
 
-  test('AI对话历史持久化', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(500)
+  test('刷新页面后活动标签会从本地工作区恢复内容', async ({ page }) => {
+    await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
+    await setEditorContent(page, '# Reload Persisted\n\ncontent after reload')
+    await page.keyboard.press('Control+S')
+    await expect(page.locator('.save-status')).toContainText('保存成功')
 
-    const aiBtn = page.locator('button[aria-label="AI 助手"]')
-    await aiBtn.click()
-    await page.waitForTimeout(500)
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await expect(page.locator('.app-container')).toBeVisible()
+    await expect(page.locator('.tabs-bar')).toContainText('README.md')
+    await expect(page.locator('.cm-content')).toContainText('Reload Persisted')
+    await expect(page.locator('.status-bar')).toContainText('已保存')
+  })
+
+  test('AI对话历史持久化', async ({ page }) => {
+    await page.getByRole('button', { name: 'AI 助手' }).click()
 
     const input = page.locator('.chat-input-area textarea')
     await input.fill('Hello test')
     await page.keyboard.press('Enter')
-    await page.waitForTimeout(500)
 
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('ai_chat_history'))).not.toBeNull()
     const chatHistory = await page.evaluate(() => localStorage.getItem('ai_chat_history'))
     expect(chatHistory).toBeTruthy()
     const parsed = JSON.parse(chatHistory!)
@@ -119,37 +123,22 @@ test.describe('UX修复验证', () => {
   })
 
   test('未保存更改警告 - 关闭标签页时提示', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(500)
+    await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
+    await setEditorContent(page, '# Unsaved Content')
 
-    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
-    await welcomeBtn.click()
-    await page.waitForTimeout(1000)
+    await page.locator('.el-tabs__nav-wrap .is-icon-close').first().click()
+    const dialog = page.getByRole('dialog', { name: '关闭确认' })
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
 
-    const firstMd = page.locator('.el-tree-node').filter({ hasText: '.md' }).first()
-    await firstMd.click()
-    await page.waitForTimeout(500)
-
-    const editor = page.locator('.cm-content')
-    await editor.click()
-    await editor.type(' some new content')
-    await page.waitForTimeout(500)
-
-    const closeTab = page.locator('.el-tabs__nav-wrap .is-icon-close').first()
-    if (await closeTab.isVisible()) {
-      page.once('dialog', async dialog => {
-        expect(dialog.message()).toContain('未保存')
-        await dialog.dismiss()
-      })
-      await closeTab.click()
-    }
+    await expect(page.locator('.tabs-bar')).toContainText('README.md')
   })
 })
 
 test.describe('功能完整性验证', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:1420/')
-    await page.waitForLoadState('networkidle')
+    await openApp(page)
   })
 
   test('应用正常加载', async ({ page }) => {
@@ -158,16 +147,7 @@ test.describe('功能完整性验证', () => {
   })
 
   test('试用示例工作区功能正常', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(500)
-
-    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
-    await expect(welcomeBtn).toBeVisible()
-    await welcomeBtn.click()
-    await page.waitForTimeout(1000)
-
-    const tree = page.locator('.el-tree')
-    await expect(tree).toBeVisible()
+    await loadDemoWorkspace(page)
   })
 
   test('重命名到已存在路径会失败且不会产生重复文件记录', async ({ page }) => {
@@ -202,70 +182,41 @@ test.describe('功能完整性验证', () => {
   })
 
   test('编辑器加载和输入正常', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(500)
-
-    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
-    await welcomeBtn.click()
-    await page.waitForTimeout(1000)
-
-    const firstMd = page.locator('.el-tree-node').filter({ hasText: '.md' }).first()
-    await firstMd.click()
-    await page.waitForTimeout(500)
+    await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
+    await setEditorContent(page, '# Hello World\n\nThis is a test.')
 
     const editor = page.locator('.cm-content')
-    await editor.click()
-    await editor.type('# Hello World\n\nThis is a test.')
-    await page.waitForTimeout(500)
-
     const content = await editor.textContent()
     expect(content).toContain('Hello World')
   })
 
   test('预览面板渲染正常', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(500)
-
-    const welcomeBtn = page.locator('button:has-text("试用示例工作区")')
-    await welcomeBtn.click()
-    await page.waitForTimeout(1000)
-
-    const firstMd = page.locator('.el-tree-node').filter({ hasText: '.md' }).first()
-    await firstMd.click()
-    await page.waitForTimeout(500)
-
-    const editor = page.locator('.cm-content')
-    await editor.click()
-    await editor.type('# Test Heading\n\n**Bold text** and *italic text*')
-    await page.waitForTimeout(1000)
+    await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
+    await setEditorContent(page, '# Test Heading\n\n**Bold text** and *italic text*')
 
     const preview = page.locator('.preview-content')
     await expect(preview).toBeVisible()
+    await expect(preview).toContainText('Test Heading')
     const html = await preview.innerHTML()
     expect(html).toContain('<h1')
     expect(html).toContain('<strong>')
     expect(html).toContain('<em>')
   })
 
-  test('命令面板可打开', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(500)
-
-    await page.keyboard.press('Control+Shift+P')
-    await page.waitForTimeout(500)
+  test('命令面板可通过欢迎页提示的快捷键打开', async ({ page }) => {
+    await page.locator('.app-container').click({ position: { x: 20, y: 20 } })
+    await page.keyboard.press('Control+P')
 
     const palette = page.locator('.command-palette')
     await expect(palette).toBeVisible()
   })
 
   test('专注模式可切换', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.waitForTimeout(500)
-
-    const focusBtn = page.locator('button[aria-label="专注模式"]')
+    const focusBtn = page.getByRole('button', { name: '专注模式' })
     await expect(focusBtn).toBeVisible()
     await focusBtn.click()
-    await page.waitForTimeout(500)
 
     const app = page.locator('.app-container')
     await expect(app).toHaveClass(/focus-mode-active/)

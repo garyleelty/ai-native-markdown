@@ -16,9 +16,6 @@
         <el-form-item label="包含目录">
           <el-switch v-model="includeTOC" />
         </el-form-item>
-        <el-form-item label="独立文件（内联 CSS）">
-          <el-switch v-model="standalone" />
-        </el-form-item>
       </template>
 
       <el-form-item label="文件名">
@@ -37,6 +34,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
+import { escapeHtml, sanitizeMarkdown } from '@/utils/security'
 
 const props = defineProps<{
   modelValue: boolean
@@ -56,23 +54,31 @@ const visible = computed({
 const format = ref<'markdown' | 'html' | 'plain'>('markdown')
 const includeStyles = ref(true)
 const includeTOC = ref(false)
-const standalone = ref(true)
-const fileName = ref(props.defaultFileName || 'document')
+const normalizeBaseName = (name: string): string => {
+  const base = name
+    .replace(/\.(md|markdown|html|txt)$/i, '')
+    .replace(/[\\/:*?"<>|\x00-\x1f]/g, '-')
+    .trim()
+  return base || 'document'
+}
+
+const fileName = ref(normalizeBaseName(props.defaultFileName || 'document'))
 
 watch(() => props.defaultFileName, (newName) => {
-  if (newName) fileName.value = newName
+  if (newName) fileName.value = normalizeBaseName(newName)
 })
 
 const handleExport = () => {
   let blob: Blob
   let name: string
+  const baseName = normalizeBaseName(fileName.value)
 
   if (format.value === 'markdown') {
     blob = new Blob([props.content], { type: 'text/markdown' })
-    name = `${fileName.value}.md`
+    name = `${baseName}.md`
   } else if (format.value === 'html') {
-    const md = new MarkdownIt({ html: true, linkify: true, typographer: true })
-    let body = md.render(props.content)
+    const md = new MarkdownIt({ html: false, linkify: true, typographer: true })
+    let body = sanitizeMarkdown(md.render(props.content))
 
     if (includeTOC.value) {
       const headings = props.content.match(/^#{1,3}\s+.+$/gm) || []
@@ -83,14 +89,14 @@ const handleExport = () => {
           const id = text.toLowerCase().replace(/\s+/g, '-')
           return `${'  '.repeat(level - 1)}- [${text}](#${id})`
         }).join('\n')
-        body = md.render(toc) + '<hr>' + body
+        body = sanitizeMarkdown(md.render(toc)) + '<hr>' + body
       }
     }
 
     const styles = includeStyles.value ? `<style>body{max-width:800px;margin:0 auto;padding:20px 40px;font-family:system-ui,-apple-system,sans-serif;line-height:1.7;color:#333}h1,h2,h3{margin-top:1.5em}a{color:#0366d6}code{background:#f6f8fa;padding:2px 6px;border-radius:3px;font-size:85%}pre{background:#f6f8fa;padding:16px;border-radius:6px;overflow-x:auto}pre code{background:none;padding:0}blockquote{border-left:4px solid #dfe2e5;padding:0 16px;color:#666}table{border-collapse:collapse;width:100%}th,td{border:1px solid #dfe2e5;padding:8px 12px}th{background:#f6f8fa}img{max-width:100%}hr{border:none;border-top:1px solid #eee;margin:2em 0}</style>` : ''
-    const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${fileName.value}</title>${styles}</head><body>${body}</body></html>`
+    const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(baseName)}</title>${styles}</head><body>${body}</body></html>`
     blob = new Blob([html], { type: 'text/html' })
-    name = `${fileName.value}.html`
+    name = `${baseName}.html`
   } else {
     const text = props.content
       .replace(/^#{1,6}\s+/gm, '')
@@ -100,7 +106,7 @@ const handleExport = () => {
       .replace(/\[(.+?)\]\(.+?\)/g, '$1')
       .replace(/!\[.*?\]\(.+?\)/g, '[图片]')
     blob = new Blob([text], { type: 'text/plain' })
-    name = `${fileName.value}.txt`
+    name = `${baseName}.txt`
   }
 
   const url = URL.createObjectURL(blob)

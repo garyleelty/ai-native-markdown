@@ -26,15 +26,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { safeStorage } from '@/utils/security'
 
 const props = defineProps<{ current: number }>()
 
 function loadWritingGoal(): number {
-  try {
-    return parseInt(localStorage.getItem('writing_goal') || '0')
-  } catch {
-    return 0
-  }
+  return safeStorage.get('writing_goal', 0)
 }
 
 const target = ref(loadWritingGoal())
@@ -51,10 +48,7 @@ const progressColor = computed(() => {
 
 const saveGoal = () => {
   target.value = tempTarget.value
-  try {
-    localStorage.setItem('writing_goal', String(target.value))
-  } catch {
-  }
+  safeStorage.set('writing_goal', target.value)
   showGoalSetting.value = false
 }
 

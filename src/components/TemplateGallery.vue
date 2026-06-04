@@ -7,7 +7,12 @@
         :key="t.id"
         shadow="hover"
         class="template-card"
+        role="button"
+        tabindex="0"
+        :aria-label="`使用${t.name}模板`"
         @click="selectTemplate(t)"
+        @keydown.enter.prevent="selectTemplate(t)"
+        @keydown.space.prevent="selectTemplate(t)"
       >
         <div class="template-icon">
           <el-icon :size="24"><component :is="t.icon" /></el-icon>
@@ -98,6 +103,12 @@ const selectTemplate = (t: typeof templates[0]) => {
 }
 
 .template-card:hover {
+  border-color: var(--obsidian-accent);
+}
+
+.template-card:focus-visible {
+  outline: 2px solid var(--obsidian-accent);
+  outline-offset: 2px;
   border-color: var(--obsidian-accent);
 }
 

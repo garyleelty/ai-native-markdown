@@ -45,10 +45,16 @@ test.describe('文件与编辑器主流程', () => {
       await fileSystem.writeFile(nestedPath, 'nested target')
       await fileSystem.deleteFile(folderPath)
       const rootFiles = await fileSystem.readDirectory('/workspace')
+      let deletedNestedError = ''
+      try {
+        await fileSystem.readFile(nestedPath)
+      } catch (error) {
+        deletedNestedError = error instanceof Error ? error.message : String(error)
+      }
       return {
         renamedContent: await fileSystem.readFile(renamedPath),
         rootPaths: rootFiles.map((file: any) => file.path),
-        deletedNestedContent: await fileSystem.readFile(nestedPath),
+        deletedNestedError,
       }
     }, { originalPath, renamedPath, folderPath, nestedPath })
 
@@ -56,7 +62,42 @@ test.describe('文件与编辑器主流程', () => {
     expect(result.rootPaths).toContain(renamedPath)
     expect(result.rootPaths).not.toContain(originalPath)
     expect(result.rootPaths).not.toContain(folderPath)
-    expect(result.deletedNestedContent).toBe('')
+    expect(result.deletedNestedError).toContain('文件不存在')
+  })
+
+  test('文件系统服务会拒绝破坏文件树一致性的写入', async ({ page }) => {
+    const suffix = Date.now()
+    const parentFile = `/workspace/parent-file-${suffix}.md`
+    const missingFolder = `/workspace/missing-parent-${suffix}`
+
+    const result = await page.evaluate(async ({ parentFile, missingFolder }) => {
+      const { fileSystem } = await import('/src/services/fileSystem.ts')
+      await fileSystem.init()
+      await fileSystem.writeFile(parentFile, 'parent file')
+
+      const captureError = async (action: () => Promise<void>) => {
+        try {
+          await action()
+          return ''
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error)
+        }
+      }
+
+      return {
+        missingParentWriteError: await captureError(() => fileSystem.writeFile(`${missingFolder}/note.md`, 'orphan')),
+        fileParentCreateError: await captureError(() => fileSystem.createFile(`${parentFile}/child.md`)),
+        directoryWriteError: await captureError(() => fileSystem.writeFile('/workspace', 'not a file')),
+        missingParentRenameError: await captureError(() => fileSystem.renameFile(parentFile, `${missingFolder}/renamed.md`)),
+        missingDirectoryReadError: await captureError(() => fileSystem.readDirectory(missingFolder).then(() => undefined)),
+      }
+    }, { parentFile, missingFolder })
+
+    expect(result.missingParentWriteError).toContain('父文件夹不存在')
+    expect(result.fileParentCreateError).toContain('父路径不是文件夹')
+    expect(result.directoryWriteError).toContain('路径是文件夹')
+    expect(result.missingParentRenameError).toContain('父文件夹不存在')
+    expect(result.missingDirectoryReadError).toContain('文件夹不存在')
   })
 
   test('文件名搜索和内容搜索可以定位文档', async ({ page }) => {
@@ -73,6 +114,94 @@ test.describe('文件与编辑器主流程', () => {
     await page.keyboard.press('Enter')
     await expect(page.locator('.search-result-card').filter({ hasText: 'search-target.md' })).toBeVisible()
     await expect(page.locator('.search-result-card').filter({ hasText: 'needle-content-line' })).toBeVisible()
+  })
+
+  test('重命名已打开文件会同步标签路径并保存到新路径', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/open-rename.md', '# Before Rename')
+    await loadDemoWorkspace(page)
+    await page.locator('.el-tree-node').filter({ hasText: 'open-rename.md' }).click()
+    await expect(page.locator('.tabs-bar')).toContainText('open-rename.md')
+
+    await page.locator('.el-tree-node').filter({ hasText: 'open-rename.md' }).click({ button: 'right' })
+    await page.getByRole('menuitem', { name: '重命名' }).click()
+    await page.locator('.el-message-box input').fill('open-renamed.md')
+    await page.getByRole('button', { name: '确定' }).click()
+
+    await expect(page.locator('.tabs-bar')).toContainText('open-renamed.md')
+    await expect(page.locator('.tabs-bar')).not.toContainText('open-rename.md')
+    await setEditorContent(page, '# After Rename Save')
+    await page.keyboard.press('Control+S')
+    await expect.poll(() => readWorkspaceFile(page, '/workspace/open-renamed.md')).toContain('After Rename Save')
+
+    const oldPathError = await page.evaluate(async () => {
+      const { fileSystem } = await import('/src/services/fileSystem.ts')
+      try {
+        await fileSystem.readFile('/workspace/open-rename.md')
+        return ''
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error)
+      }
+    })
+    expect(oldPathError).toContain('文件不存在')
+  })
+
+  test('删除已打开文件会关闭对应标签并清空当前编辑器', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/open-delete.md', '# Delete Me')
+    await loadDemoWorkspace(page)
+    await page.locator('.el-tree-node').filter({ hasText: 'open-delete.md' }).click()
+    await expect(page.locator('.tabs-bar')).toContainText('open-delete.md')
+
+    await page.locator('.el-tree-node').filter({ hasText: 'open-delete.md' }).click({ button: 'right' })
+    await page.getByRole('menuitem', { name: '删除' }).click()
+    await page.getByRole('button', { name: '确定' }).click()
+
+    await expect(page.locator('.tabs-bar')).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'AI Markdown' })).toBeVisible()
+    await expect(page.locator('.cm-content')).toHaveCount(0)
+  })
+
+  test('重命名文件夹会同步嵌套已打开标签路径', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/notes/open-nested-rename.md', '# Nested Before Rename')
+    await loadDemoWorkspace(page)
+    await page.locator('.el-tree-node').filter({ hasText: 'notes' }).first().click()
+    await page.getByRole('treeitem', { name: 'open-nested-rename.md' }).click()
+    await expect(page.locator('.tabs-bar')).toContainText('open-nested-rename.md')
+
+    await page.locator('[data-file-path="/workspace/notes"]').click({ button: 'right' })
+    await page.getByRole('menuitem', { name: '重命名' }).click()
+    await page.locator('.el-message-box input').fill('renamed-notes')
+    await page.getByRole('button', { name: '确定' }).click()
+
+    await setEditorContent(page, '# Nested After Rename Save')
+    await page.keyboard.press('Control+S')
+    await expect.poll(() => readWorkspaceFile(page, '/workspace/renamed-notes/open-nested-rename.md')).toContain('Nested After Rename Save')
+
+    const oldNestedPathError = await page.evaluate(async () => {
+      const { fileSystem } = await import('/src/services/fileSystem.ts')
+      try {
+        await fileSystem.readFile('/workspace/notes/open-nested-rename.md')
+        return ''
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error)
+      }
+    })
+    expect(oldNestedPathError).toContain('文件不存在')
+  })
+
+  test('删除文件夹会关闭嵌套已打开标签并清空当前编辑器', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/notes/open-nested-delete.md', '# Nested Delete Me')
+    await loadDemoWorkspace(page)
+    await page.locator('.el-tree-node').filter({ hasText: 'notes' }).first().click()
+    await page.getByRole('treeitem', { name: 'open-nested-delete.md' }).click()
+    await expect(page.locator('.tabs-bar')).toContainText('open-nested-delete.md')
+
+    await page.locator('[data-file-path="/workspace/notes"]').click({ button: 'right' })
+    await page.getByRole('menuitem', { name: '删除' }).click()
+    await page.getByRole('button', { name: '确定' }).click()
+
+    await expect(page.locator('.tabs-bar')).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'AI Markdown' })).toBeVisible()
+    await expect(page.locator('.cm-content')).toHaveCount(0)
   })
 
   test('源码、分屏、预览模式可以切换', async ({ page }) => {
@@ -110,6 +239,26 @@ test.describe('文件与编辑器主流程', () => {
     expect(content).toContain('**')
     expect(content).toContain('](')
     expect(content).toContain('![')
+  })
+
+  test('Live Preview 任务复选框会写回 Markdown 源码', async ({ page }) => {
+    await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
+    await setEditorContent(page, '- [ ] task item')
+
+    const checkbox = page.locator('.cm-live-preview-checkbox')
+    await expect(checkbox).toBeVisible()
+    await checkbox.click()
+    await expect(checkbox).toBeChecked()
+    await expect(page.locator('.preview-content input[type="checkbox"]')).toBeChecked()
+    await page.keyboard.press('Control+S')
+    await expect.poll(() => readWorkspaceFile(page, '/workspace/README.md')).toContain('- [x] task item')
+
+    await checkbox.click()
+    await expect(checkbox).not.toBeChecked()
+    await expect(page.locator('.preview-content input[type="checkbox"]')).not.toBeChecked()
+    await page.keyboard.press('Control+S')
+    await expect.poll(() => readWorkspaceFile(page, '/workspace/README.md')).toContain('- [ ] task item')
   })
 
   test('查找替换会更新编辑器内容', async ({ page }) => {

@@ -4,6 +4,18 @@ import { extractTextFromImage, extractTextFromPDF } from './ocrService'
 const SUPPORTED_IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']
 const PDF_EXT = '.pdf'
 
+type Extractors = {
+  image: typeof extractTextFromImage
+  pdf: typeof extractTextFromPDF
+}
+
+type DispatchingView = Pick<EditorView, 'dispatch'>
+
+const defaultExtractors: Extractors = {
+  image: extractTextFromImage,
+  pdf: extractTextFromPDF,
+}
+
 function getFileExt(filename: string): string {
   const dotIndex = filename.lastIndexOf('.')
   return dotIndex >= 0 ? filename.slice(dotIndex).toLowerCase() : ''
@@ -19,8 +31,7 @@ export const dropHandlerExtension = EditorView.domEventHandlers({
     const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
     if (pos === null) return false
 
-    // 异步处理文件，不阻塞事件处理
-    handleDroppedFiles(files, pos, view)
+    void insertDroppedFiles(Array.from(files), pos, view)
 
     return true
   },
@@ -31,45 +42,60 @@ export const dropHandlerExtension = EditorView.domEventHandlers({
   }
 })
 
-async function handleDroppedFiles(files: FileList, pos: number, view: EditorView) {
-  for (const file of Array.from(files)) {
+function getFileSource(file: File): string | File {
+  return (file as any).path || file
+}
+
+function advancePosition(pos: number, inserted: string): number {
+  return pos + inserted.length
+}
+
+export async function insertDroppedFiles(
+  files: File[],
+  startPos: number,
+  view: DispatchingView,
+  extractors: Extractors = defaultExtractors
+) {
+  let insertPos = startPos
+
+  for (const file of files) {
     const ext = getFileExt(file.name)
 
     if (SUPPORTED_IMAGE_EXTS.includes(ext)) {
-      const imagePath = (file as any).path as string
-      if (imagePath) {
-        view.dispatch({
-          changes: { from: pos, insert: `\n![${file.name}](${imagePath})\n` }
-        })
+      const imageSource = getFileSource(file)
+      const imageTarget = typeof imageSource === 'string' ? imageSource : file.name
+      const imageMarkdown = `\n![${file.name}](${imageTarget})\n`
+      view.dispatch({
+        changes: { from: insertPos, insert: imageMarkdown }
+      })
+      insertPos = advancePosition(insertPos, imageMarkdown)
 
-        try {
-          const text = await extractTextFromImage(imagePath)
-          if (text) {
-            view.dispatch({
-              changes: { from: pos, insert: `\n> 📷 OCR 提取文字:\n> ${text.split('\n').join('\n> ')}\n` }
-            })
-          }
-        } catch (e) {
-          console.error('OCR 提取失败:', e)
+      try {
+        const text = await extractors.image(imageSource)
+        if (text) {
+          const ocrMarkdown = `\n> OCR 提取文字:\n> ${text.split('\n').join('\n> ')}\n`
+          view.dispatch({
+            changes: { from: insertPos, insert: ocrMarkdown }
+          })
+          insertPos = advancePosition(insertPos, ocrMarkdown)
         }
+      } catch (e) {
+        console.error('OCR 提取失败:', e)
       }
     } else if (ext === PDF_EXT) {
-      const pdfPath = (file as any).path as string
-      if (pdfPath) {
-        view.dispatch({
-          changes: { from: pos, insert: `\n📄 正在提取 PDF 文字...\n` }
-        })
+      const pdfSource = getFileSource(file)
 
-        try {
-          const text = await extractTextFromPDF(pdfPath)
-          if (text) {
-            view.dispatch({
-              changes: { from: pos, insert: `\n---\n${text}\n---\n` }
-            })
-          }
-        } catch (e) {
-          console.error('PDF 提取失败:', e)
+      try {
+        const text = await extractors.pdf(pdfSource)
+        if (text) {
+          const pdfMarkdown = `\n---\n${text}\n---\n`
+          view.dispatch({
+            changes: { from: insertPos, insert: pdfMarkdown }
+          })
+          insertPos = advancePosition(insertPos, pdfMarkdown)
         }
+      } catch (e) {
+        console.error('PDF 提取失败:', e)
       }
     }
   }

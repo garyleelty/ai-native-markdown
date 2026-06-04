@@ -29,6 +29,8 @@
           ref="fileExplorerRef"
           @select="(path: string) => emit('select', path)"
           @root-path-change="handleRootPathChange"
+          @renamed="payload => emit('renamed', payload)"
+          @deleted="payload => emit('deleted', payload)"
         />
         <KnowledgePanel
           v-else-if="activeTab === 'graph'"
@@ -41,7 +43,7 @@
           v-else-if="activeTab === 'settings'"
           :is-dark="isDark"
           :show-a-i="showAI"
-          @toggle-theme="emit('toggle-theme')"
+          @set-theme="(dark: boolean) => emit('set-theme', dark)"
           @toggle-ai="emit('toggle-ai')"
         />
         <div v-else-if="activeTab === 'outline'" class="panel">
@@ -63,6 +65,7 @@ import KnowledgePanel from './sidebar/KnowledgePanel.vue'
 import AIConfigPanel from './sidebar/AIConfigPanel.vue'
 import SettingsPanel from './sidebar/SettingsPanel.vue'
 import OutlinePanel from './editor/OutlinePanel.vue'
+import type { SidebarTab } from '@/types'
 
 interface Props {
   isDark?: boolean
@@ -75,17 +78,22 @@ withDefaults(defineProps<Props>(), { isDark: true, showAI: false, currentFile: '
 
 const emit = defineEmits<{
   (e: 'select', path: string): void
-  (e: 'toggle-theme'): void
+  (e: 'set-theme', dark: boolean): void
   (e: 'toggle-ai'): void
   (e: 'navigate', lineNumber: number): void
+  (e: 'renamed', payload: { oldPath: string; newPath: string; isDirectory: boolean }): void
+  (e: 'deleted', payload: { path: string; isDirectory: boolean }): void
 }>()
 
-const activeTab = ref<'files' | 'graph' | 'ai' | 'outline' | 'settings'>('files')
+const sidebarTabs = new Set<SidebarTab>(['files', 'graph', 'ai', 'outline', 'settings'])
+const activeTab = ref<SidebarTab>('files')
 const rootPath = ref('')
 const fileExplorerRef = ref()
 
 const handleNavSelect = (index: string) => {
-  activeTab.value = index as any
+  if (sidebarTabs.has(index as SidebarTab)) {
+    activeTab.value = index as SidebarTab
+  }
 }
 
 const handleRootPathChange = (path: string) => {

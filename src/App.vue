@@ -60,9 +60,11 @@
           :editor-content="editorContent"
           :cursor-line="editorStore.cursorLine"
           @select="handleFileSelect"
-          @toggle-theme="toggleTheme"
+          @set-theme="setThemeFromSwitch"
           @toggle-ai="toggleAIPanel"
           @navigate="handleOutlineNavigate"
+          @renamed="handleFileTreeRename"
+          @deleted="handleFileTreeDelete"
         />
         <div v-if="settingsStore.showSidebar" class="resize-handle-v" @mousedown="startResize('sidebar', $event)" />
       </el-aside>
@@ -113,6 +115,7 @@
               :content="editorContent"
               :cursor-line="editorStore.cursorLine"
               class="preview-pane"
+              @heading-click="handleOutlineNavigate"
             />
           </div>
         </el-main>
@@ -266,6 +269,7 @@ const viewModeLabel = computed(() => {
 })
 
 const toggleTheme = () => settingsStore.toggleTheme()
+const setThemeFromSwitch = (dark: boolean) => settingsStore.setTheme(dark ? 'dark' : 'light')
 
 const wordCount = computed(() => {
   const text = editorContent.value.trim()
@@ -283,6 +287,24 @@ const handleOutlineNavigate = (lineNumber: number) => {
 }
 const handleAIInsert = (text: string) => {
   if (editorRef.value) editorRef.value.insertText(text)
+}
+
+const syncEditorFromActiveTab = () => {
+  const activeTab = editorStore.getActiveTab()
+  const nextContent = activeTab?.content || ''
+  if (editorRef.value) {
+    editorRef.value.setContent(nextContent)
+  }
+}
+
+const handleFileTreeRename = (payload: { oldPath: string; newPath: string; isDirectory: boolean }) => {
+  editorStore.renameOpenPath(payload.oldPath, payload.newPath, payload.isDirectory)
+  syncEditorFromActiveTab()
+}
+
+const handleFileTreeDelete = (payload: { path: string; isDirectory: boolean }) => {
+  editorStore.removeOpenPath(payload.path, payload.isDirectory)
+  syncEditorFromActiveTab()
 }
 
 const handleVersionRestore = (content: string) => {
@@ -434,7 +456,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
   } else if (mod && e.shiftKey && (e.key === 'H' || e.key === 'h')) {
     e.preventDefault()
     if (editorStore.currentFile) showVersionHistory.value = true
-  } else if (mod && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+  } else if (mod && (e.key === 'P' || e.key === 'p')) {
     e.preventDefault()
     showCommandPalette.value = true
   } else if (mod && e.key === '\\') {
@@ -448,10 +470,17 @@ const handleKeyDown = (e: KeyboardEvent) => {
   }
 }
 
-onMounted(() => {
-  editorStore.setContent('')
+onMounted(async () => {
   settingsStore.applyTheme()
-  fileSystem.init().catch(() => {})
+  try {
+    await fileSystem.init()
+    const restoredContent = await editorStore.hydrateRestoredSession()
+    if (editorRef.value) {
+      editorRef.value.setContent(restoredContent)
+    }
+  } catch {
+    editorStore.setContentSilent('')
+  }
   window.addEventListener('beforeunload', handleBeforeUnload)
   document.addEventListener('keydown', handleKeyDown)
 

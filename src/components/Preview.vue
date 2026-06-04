@@ -33,6 +33,8 @@ const previewRef = ref<HTMLElement>()
 const previewContainer = previewRef
 const debouncedContent = ref(props.content)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+let mermaidBlockId = 0
+let mermaidSvgId = 0
 
 watch(() => props.content, () => {
   if (debounceTimer) clearTimeout(debounceTimer)
@@ -55,6 +57,29 @@ const md: MarkdownIt = new MarkdownIt({
   }
 })
 
+const SOURCE_LINE_BLOCK_TOKENS = new Set([
+  'blockquote_open',
+  'bullet_list_open',
+  'code_block',
+  'fence',
+  'heading_open',
+  'hr',
+  'html_block',
+  'list_item_open',
+  'ordered_list_open',
+  'paragraph_open',
+  'table_open',
+])
+
+md.core.ruler.push('source_line_attrs', (state: any) => {
+  for (const token of state.tokens) {
+    if (!SOURCE_LINE_BLOCK_TOKENS.has(token.type) || !token.map) continue
+    const [start, end] = token.map
+    token.attrSet('data-line', String(start + 1))
+    token.attrSet('data-line-end', String(Math.max(start + 1, end)))
+  }
+})
+
 md.use(taskLists, { enabled: true, label: true })
 md.use(anchor, {
   permalink: anchor.permalink.linkInsideHeader({
@@ -69,29 +94,56 @@ const defaultFenceRenderer = md.renderer.rules.fence?.bind(md.renderer.rules)
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const token = tokens[idx]
   const lang = token.info.trim().split(/\s+/)[0]
+  const lineAttrs = sourceLineAttrs(token)
   if (lang === 'mermaid') {
     const diagram = token.content.trim()
-    const id = 'mermaid-' + Math.random().toString(36).slice(2)
-    return `<div class="mermaid" id="${id}">${md.utils.escapeHtml(diagram)}</div>`
+    const id = `mermaid-${mermaidBlockId++}`
+    return `<div class="mermaid" id="${id}"${lineAttrs}>${md.utils.escapeHtml(diagram)}</div>`
   }
   if (defaultFenceRenderer) {
-    return defaultFenceRenderer(tokens, idx, options, env, self)
+    return withSourceLineAttrs(defaultFenceRenderer(tokens, idx, options, env, self), lineAttrs)
   }
   return self.renderToken(tokens, idx, options)
 }
 
 const lineMap = ref<Map<number, HTMLElement>>(new Map())
 
+function sourceLineAttrs(token: any): string {
+  const start = token.attrGet?.('data-line')
+  const end = token.attrGet?.('data-line-end')
+  if (!start) return ''
+  return ` data-line="${md.utils.escapeHtml(start)}"${end ? ` data-line-end="${md.utils.escapeHtml(end)}"` : ''}`
+}
+
+function withSourceLineAttrs(html: string, attrs: string): string {
+  if (!attrs || !html.startsWith('<pre')) return html
+  return html.replace('<pre', `<pre${attrs}`)
+}
+
 function buildLineMap() {
   const map = new Map<number, HTMLElement>()
   if (!previewRef.value) return map
-  const children = Array.from(previewRef.value.children) as HTMLElement[]
-  let line = 1
-  for (const el of children) {
-    map.set(line, el)
-    line++
+  const lineElements = Array.from(previewRef.value.querySelectorAll<HTMLElement>('[data-line]'))
+  for (const el of lineElements) {
+    const start = parseInt(el.dataset.line || '0', 10)
+    const end = parseInt(el.dataset.lineEnd || el.dataset.line || '0', 10)
+    if (!Number.isFinite(start) || start <= 0) continue
+    const boundedEnd = Number.isFinite(end) && end >= start ? end : start
+    for (let line = start; line <= boundedEnd; line++) {
+      if (!map.has(line)) map.set(line, el)
+    }
   }
   return map
+}
+
+function findElementForLine(line: number): HTMLElement | undefined {
+  if (line <= 0 || lineMap.value.size === 0) return undefined
+  const exact = lineMap.value.get(line)
+  if (exact) return exact
+  const sortedLines = Array.from(lineMap.value.keys()).sort((a, b) => a - b)
+  const following = sortedLines.find((mappedLine) => mappedLine >= line)
+  const fallbackLine = following ?? sortedLines[sortedLines.length - 1]
+  return lineMap.value.get(fallbackLine)
 }
 
 function extractWikiLinks(content: string): { content: string; links: Array<{ token: string; target: string; text: string }> } {
@@ -114,6 +166,7 @@ function restoreWikiLinks(html: string, links: Array<{ token: string; target: st
 
 const renderedContent = computed(() => {
   const { content, links } = extractWikiLinks(debouncedContent.value)
+  mermaidBlockId = 0
   return sanitizeMarkdown(restoreWikiLinks(md.render(content), links))
 })
 
@@ -134,11 +187,12 @@ async function renderMermaid() {
   const els = previewRef.value.querySelectorAll<HTMLElement>('.mermaid')
   if (els.length === 0) return
   const mermaid = await getMermaid()
+  mermaidSvgId = 0
   for (const el of Array.from(els)) {
     const graphDefinition = el.textContent || ''
     try {
       const { svg } = await mermaid.render(
-        'mermaid-svg-' + Math.random().toString(36).slice(2),
+        `mermaid-svg-${mermaidSvgId++}`,
         graphDefinition
       )
       el.innerHTML = sanitizeSvg(svg)
@@ -153,7 +207,7 @@ function highlightCurrentLine() {
   previewRef.value.querySelectorAll('.current-line').forEach((el) => {
     el.classList.remove('current-line')
   })
-  const el = lineMap.value.get(props.cursorLine)
+  const el = findElementForLine(props.cursorLine)
   if (el) {
     el.classList.add('current-line')
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -183,13 +237,7 @@ function handleClick(event: MouseEvent) {
     event.preventDefault()
     const heading = anchor.closest('h1, h2, h3, h4, h5, h6') as HTMLElement | null
     if (heading) {
-      let line = 1
-      for (const [l, el] of lineMap.value.entries()) {
-        if (el === heading) {
-          line = l
-          break
-        }
-      }
+      const line = parseInt(heading.dataset.line || '1', 10)
       emit('heading-click', line)
     }
     return
@@ -210,19 +258,14 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (renderTimer !== null) { clearTimeout(renderTimer); renderTimer = null }
+  if (debounceTimer !== null) { clearTimeout(debounceTimer); debounceTimer = null }
 })
 
 const scrollToLine = (line: number) => {
   const container = previewContainer.value
   if (!container) return
-  const lineElements = container.querySelectorAll('[data-line]')
-  for (const el of lineElements) {
-    const elLine = parseInt((el as HTMLElement).dataset.line || '0')
-    if (elLine >= line) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      break
-    }
-  }
+  const el = findElementForLine(line)
+  el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
 defineExpose({

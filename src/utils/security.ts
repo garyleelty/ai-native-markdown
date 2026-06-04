@@ -43,7 +43,7 @@ const MARKDOWN_ALLOWED_TAGS = [
 const MARKDOWN_ALLOWED_ATTR = [
   'href', 'src', 'alt', 'title', 'class', 'target', 'rel',
   'checked', 'disabled', 'type',
-  'data-filename', 'data-line',
+  'data-filename', 'data-line', 'data-line-end',
   'style',
   'd', 'r', 'cx', 'cy', 'x', 'y', 'width', 'height', 'x1', 'y1', 'x2', 'y2',
   'points', 'transform', 'fill', 'stroke', 'stroke-width', 'stroke-dasharray',

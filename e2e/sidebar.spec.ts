@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 test.describe('侧边栏行为', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await expect(page.locator('.app-container')).toBeVisible()
   })
 
   test('桌面端默认显示侧边栏', async ({ page }) => {
@@ -62,9 +62,21 @@ test.describe('侧边栏行为', () => {
     await expect(page.locator('.panel-title')).toContainText('大纲')
   })
 
+  test('设置里的主题开关只设置明确的亮暗主题', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const wasDark = await page.locator('html').evaluate(el => el.classList.contains('dark'))
+
+    await page.getByRole('menuitem', { name: '设置' }).click()
+    await page.locator('.setting-row').filter({ hasText: '外观主题' }).locator('.el-switch').click()
+
+    const storedTheme = await page.evaluate(() => localStorage.getItem('theme'))
+    expect(storedTheme).toBe(JSON.stringify(wasDark ? 'light' : 'dark'))
+    await expect(page.locator('html')).toHaveClass(wasDark ? /light/ : /dark/)
+  })
+
   test('窄屏下页面不产生横向溢出', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })
-    await page.waitForTimeout(300)
+    await expect(page.locator('.app-container')).toBeVisible()
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
     expect(overflow).toBeLessThanOrEqual(1)

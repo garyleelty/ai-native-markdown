@@ -17,17 +17,37 @@ class HeaderMarkWidget extends WidgetType {
 }
 
 class CheckboxWidget extends WidgetType {
-  constructor(readonly checked: boolean) { super() }
-  toDOM(): HTMLElement {
+  constructor(readonly checked: boolean, readonly from: number, readonly to: number) { super() }
+  toDOM(view: EditorView): HTMLElement {
     const input = document.createElement('input')
     input.type = 'checkbox'
     input.checked = this.checked
     input.className = 'cm-live-preview-checkbox'
     input.setAttribute('aria-label', this.checked ? 'checked' : 'unchecked')
+    input.dataset.from = String(this.from)
+    input.dataset.to = String(this.to)
+    input.addEventListener('mousedown', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      const currentMarker = view.state.sliceDoc(this.from, this.to)
+      const nextChecked = !/^\[[xX]\]$/.test(currentMarker)
+      input.checked = nextChecked
+      view.dispatch({
+        changes: { from: this.from, to: this.to, insert: nextChecked ? '[x]' : '[ ]' },
+        selection: { anchor: this.to },
+      })
+      view.focus()
+    })
+    input.addEventListener('click', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+    })
     return input
   }
-  ignoreEvent(): boolean { return false }
-  eq(other: CheckboxWidget): boolean { return this.checked === other.checked }
+  ignoreEvent(): boolean { return true }
+  eq(other: CheckboxWidget): boolean {
+    return this.checked === other.checked && this.from === other.from && this.to === other.to
+  }
 }
 
 class ImageWidget extends WidgetType {
@@ -96,7 +116,7 @@ function buildDecorations(view: EditorView): DecorationSet {
       builder.add(
         bracketStart,
         bracketEnd,
-        Decoration.replace({ widget: new CheckboxWidget(checked) })
+        Decoration.replace({ widget: new CheckboxWidget(checked, bracketStart, bracketEnd) })
       )
     }
 

@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { KnowledgeGraphData, GraphEdge, GraphNode } from '@/types'
 import { normalizeNoteName, parseMarkdownMetadata, type FrontmatterValue } from '@/utils/metadata'
+import { safeStorage } from '@/utils/security'
 
 export interface KnowledgeIndexRecord {
   id?: number
@@ -68,26 +69,17 @@ function getRecordNames(record: KnowledgeIndexRecord): string[] {
 
 export const knowledgeIndex = {
   markStale(): void {
-    try {
-      localStorage.setItem(STALE_KEY, '1')
-    } catch {
-    }
+    safeStorage.set(STALE_KEY, true)
     notifyChange()
   },
 
   clearStale(): void {
-    try {
-      localStorage.removeItem(STALE_KEY)
-    } catch {
-    }
+    safeStorage.remove(STALE_KEY)
   },
 
   isStale(): boolean {
-    try {
-      return localStorage.getItem(STALE_KEY) === '1'
-    } catch {
-      return true
-    }
+    const stale = safeStorage.get<boolean | number | string>(STALE_KEY, true)
+    return stale === true || stale === 1 || stale === '1'
   },
 
   async count(): Promise<number> {

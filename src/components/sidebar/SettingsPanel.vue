@@ -12,7 +12,7 @@
         </div>
         <el-switch
           :model-value="isDark"
-          @change="$emit('toggle-theme')"
+          @change="(value: string | number | boolean) => $emit('set-theme', Boolean(value))"
           active-text="暗"
           inactive-text="亮"
         />
@@ -49,7 +49,7 @@ interface Props {
 withDefaults(defineProps<Props>(), { isDark: true, showAI: false })
 
 defineEmits<{
-  (e: 'toggle-theme'): void
+  (e: 'set-theme', dark: boolean): void
   (e: 'toggle-ai'): void
 }>()
 </script>
