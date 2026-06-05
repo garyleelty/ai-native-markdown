@@ -24,6 +24,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { List } from '@element-plus/icons-vue'
+import { extractMarkdownHeadings } from '@/utils/wikiLinks'
 
 interface Heading {
   level: number
@@ -42,19 +43,11 @@ defineEmits<{
 
 const headings = computed<Heading[]>(() => {
   if (!props.content) return []
-  const lines = props.content.split('\n')
-  const result: Heading[] = []
-  for (let i = 0; i < lines.length; i++) {
-    const match = lines[i].match(/^(#{1,6})\s+(.+)/)
-    if (match) {
-      result.push({
-        level: match[1].length,
-        text: match[2].trim(),
-        lineNumber: i + 1
-      })
-    }
-  }
-  return result
+  return extractMarkdownHeadings(props.content).map(heading => ({
+    level: heading.level,
+    text: heading.text,
+    lineNumber: heading.lineNumber,
+  }))
 })
 
 const activeHeadingLineNumber = computed(() => {

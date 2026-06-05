@@ -3,7 +3,7 @@ import type { GhostTextConfig } from '@/types'
 
 export interface CompletionResult {
   text: string
-  requestId: string
+  requestId: number
 }
 
 let currentRequestId = 0
@@ -18,10 +18,12 @@ export function requestCompletion(
 ): void {
   cancelCompletion()
 
-  const requestId = `${++currentRequestId}`
+  const requestId = ++currentRequestId
 
   debounceTimer = setTimeout(async () => {
-    abortController = new AbortController()
+    debounceTimer = null
+    const controller = new AbortController()
+    abortController = controller
 
     try {
       const provider = aiService.getActiveProvider()
@@ -40,25 +42,30 @@ export function requestCompletion(
       ], {
         temperature: 0.4,
         maxTokens: config.maxCompletionChars * 2,
-        signal: abortController.signal
+        signal: controller.signal
       })) {
-        if (abortController.signal.aborted) return
+        if (controller.signal.aborted || requestId !== currentRequestId) return
         result += chunk
         if (result.length >= config.maxCompletionChars) break
       }
 
-      if (!abortController.signal.aborted) {
+      if (!controller.signal.aborted && requestId === currentRequestId) {
         onResult({ text: result.trim(), requestId })
       }
     } catch (e: any) {
-      if (!abortController.signal.aborted) {
+      if (!controller.signal.aborted && requestId === currentRequestId) {
         onError(e?.message || String(e))
+      }
+    } finally {
+      if (abortController === controller) {
+        abortController = null
       }
     }
   }, config.debounceMs)
 }
 
 export function cancelCompletion(): void {
+  currentRequestId += 1
   if (debounceTimer) {
     clearTimeout(debounceTimer)
     debounceTimer = null

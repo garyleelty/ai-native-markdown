@@ -17,13 +17,21 @@ import taskLists from 'markdown-it-task-lists'
 import anchor from 'markdown-it-anchor'
 import katex from '@traptitech/markdown-it-katex'
 import { sanitizeMarkdown, sanitizeSvg } from '@/utils/security'
+import { resolveWikiLinkTarget } from '@/utils/wikiLinks'
 
 interface Props {
   content?: string
   cursorLine?: number
+  currentFile?: string
+  markdownPaths?: string[]
 }
 
-const props = withDefaults(defineProps<Props>(), { content: '', cursorLine: 0 })
+const props = withDefaults(defineProps<Props>(), {
+  content: '',
+  cursorLine: 0,
+  currentFile: '',
+  markdownPaths: () => [],
+})
 const emit = defineEmits<{
   navigate: [filename: string]
   'heading-click': [line: number]
@@ -34,7 +42,7 @@ const previewContainer = previewRef
 const debouncedContent = ref(props.content)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let mermaidBlockId = 0
-let mermaidSvgId = 0
+let mermaidRenderVersion = 0
 
 watch(() => props.content, () => {
   if (debounceTimer) clearTimeout(debounceTimer)
@@ -89,6 +97,39 @@ md.use(anchor, {
   })
 })
 md.use(katex, { throwOnError: false, errorColor: 'var(--accent-red)' })
+
+md.inline.ruler.before('emphasis', 'wiki_link', (state: any, silent: boolean) => {
+  const start = state.pos
+  if (state.src.charCodeAt(start) !== 0x5B || state.src.charCodeAt(start + 1) !== 0x5B) return false
+
+  const end = state.src.indexOf(']]', start + 2)
+  if (end === -1) return false
+
+  const raw = state.src.slice(start + 2, end)
+  if (!raw.trim() || raw.includes('\n')) return false
+
+  if (!silent) {
+    const pipeIndex = raw.indexOf('|')
+    const target = (pipeIndex === -1 ? raw : raw.slice(0, pipeIndex)).trim()
+    const text = pipeIndex === -1 ? target : raw.slice(pipeIndex + 1).trim()
+    if (!target) return false
+
+    const exists = resolveWikiLinkTarget(target, props.currentFile, props.markdownPaths) !== null
+    const stateClass = exists ? 'wiki-link-exists' : 'wiki-link-missing'
+    const linkOpen = state.push('link_open', 'a', 1)
+    linkOpen.attrSet('href', '#')
+    linkOpen.attrSet('class', `wiki-link ${stateClass}`)
+    linkOpen.attrSet('data-filename', target)
+
+    const textToken = state.push('text', '', 0)
+    textToken.content = text || target
+
+    state.push('link_close', 'a', -1)
+  }
+
+  state.pos = end + 2
+  return true
+})
 
 const defaultFenceRenderer = md.renderer.rules.fence?.bind(md.renderer.rules)
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
@@ -146,28 +187,9 @@ function findElementForLine(line: number): HTMLElement | undefined {
   return lineMap.value.get(fallbackLine)
 }
 
-function extractWikiLinks(content: string): { content: string; links: Array<{ token: string; target: string; text: string }> } {
-  const links: Array<{ token: string; target: string; text: string }> = []
-  const replaced = content.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target, display) => {
-    const text = display || target
-    const token = `WIKI_LINK_TOKEN_${links.length}`
-    links.push({ token, target, text })
-    return token
-  })
-  return { content: replaced, links }
-}
-
-function restoreWikiLinks(html: string, links: Array<{ token: string; target: string; text: string }>): string {
-  return links.reduce((result, link) => {
-    const anchor = `<a class="wiki-link" data-filename="${md.utils.escapeHtml(link.target)}">${md.utils.escapeHtml(link.text)}</a>`
-    return result.replaceAll(link.token, anchor)
-  }, html)
-}
-
 const renderedContent = computed(() => {
-  const { content, links } = extractWikiLinks(debouncedContent.value)
   mermaidBlockId = 0
-  return sanitizeMarkdown(restoreWikiLinks(md.render(content), links))
+  return sanitizeMarkdown(md.render(debouncedContent.value))
 })
 
 let mermaidInstance: any = null
@@ -181,25 +203,30 @@ async function getMermaid() {
   return mermaidInstance
 }
 
-async function renderMermaid() {
+async function renderMermaid(): Promise<boolean> {
+  const renderVersion = ++mermaidRenderVersion
   await nextTick()
-  if (!previewRef.value) return
-  const els = previewRef.value.querySelectorAll<HTMLElement>('.mermaid')
-  if (els.length === 0) return
+  const root = previewRef.value
+  if (!root) return false
+  const els = root.querySelectorAll<HTMLElement>('.mermaid')
+  if (els.length === 0) return renderVersion === mermaidRenderVersion
   const mermaid = await getMermaid()
-  mermaidSvgId = 0
-  for (const el of Array.from(els)) {
+  if (renderVersion !== mermaidRenderVersion || previewRef.value !== root) return false
+  for (const [index, el] of Array.from(els).entries()) {
     const graphDefinition = el.textContent || ''
     try {
       const { svg } = await mermaid.render(
-        `mermaid-svg-${mermaidSvgId++}`,
+        `mermaid-svg-${renderVersion}-${index}`,
         graphDefinition
       )
+      if (renderVersion !== mermaidRenderVersion || previewRef.value !== root || !root.contains(el)) return false
       el.innerHTML = sanitizeSvg(svg)
     } catch {
+      if (renderVersion !== mermaidRenderVersion || previewRef.value !== root || !root.contains(el)) return false
       el.textContent = 'Mermaid diagram error'
     }
   }
+  return renderVersion === mermaidRenderVersion
 }
 
 function highlightCurrentLine() {
@@ -216,10 +243,11 @@ function highlightCurrentLine() {
 
 let renderTimer: ReturnType<typeof setTimeout> | null = null
 
-watch(debouncedContent, () => {
+watch(renderedContent, () => {
   if (renderTimer) clearTimeout(renderTimer)
   renderTimer = setTimeout(async () => {
-    await renderMermaid()
+    const renderedCurrentContent = await renderMermaid()
+    if (!renderedCurrentContent) return
     lineMap.value = buildLineMap()
     highlightCurrentLine()
   }, 150)
@@ -252,11 +280,14 @@ function handleClick(event: MouseEvent) {
 }
 
 onMounted(() => {
-  renderMermaid()
-  lineMap.value = buildLineMap()
+  renderMermaid().then((renderedCurrentContent) => {
+    if (!renderedCurrentContent) return
+    lineMap.value = buildLineMap()
+  })
 })
 
 onUnmounted(() => {
+  mermaidRenderVersion += 1
   if (renderTimer !== null) { clearTimeout(renderTimer); renderTimer = null }
   if (debounceTimer !== null) { clearTimeout(debounceTimer); debounceTimer = null }
 })
@@ -372,6 +403,19 @@ defineExpose({
 .markdown-body .wiki-link {
   color: var(--obsidian-accent);
   cursor: pointer;
+}
+
+.markdown-body .wiki-link-missing {
+  color: var(--obsidian-text-muted);
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.markdown-body .wiki-link-missing:hover {
+  color: var(--obsidian-accent);
+  text-decoration-style: solid;
 }
 
 .markdown-body code {

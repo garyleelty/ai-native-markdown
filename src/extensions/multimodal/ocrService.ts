@@ -1,7 +1,7 @@
-import { extractTextFromImage as tesseractExtract } from '@/services/ocr'
 import { aiService } from '@/services/ai'
 
 export async function extractTextFromImage(imageSource: string | File): Promise<string> {
+  const { extractTextFromImage: tesseractExtract } = await import('@/services/ocr')
   const ocrText = await tesseractExtract(imageSource)
 
   const provider = aiService.getActiveProvider()

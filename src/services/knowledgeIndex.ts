@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { KnowledgeGraphData, GraphEdge, GraphNode } from '@/types'
 import { normalizeNoteName, parseMarkdownMetadata, type FrontmatterValue } from '@/utils/metadata'
+import { parseWikiLinkTarget } from '@/utils/wikiLinks'
 import { safeStorage } from '@/utils/security'
 
 export interface KnowledgeIndexRecord {
@@ -15,6 +16,7 @@ export interface KnowledgeIndexRecord {
   normalizedLinks: string[]
   frontmatter: Record<string, FrontmatterValue>
   searchableText: string
+  content: string
   updatedAt: number
 }
 
@@ -22,6 +24,7 @@ export interface KnowledgeReference {
   filePath: string
   title: string
   excerpt: string
+  lineNumber?: number
 }
 
 class KnowledgeIndexDB extends Dexie {
@@ -31,6 +34,11 @@ class KnowledgeIndexDB extends Dexie {
     super('ai-markdown-knowledge-index')
     this.version(1).stores({
       records: '++id, &filePath, normalizedTitle, *normalizedAliases, *tags, *normalizedLinks, updatedAt'
+    })
+    this.version(2).stores({
+      records: '++id, &filePath, normalizedTitle, *normalizedAliases, *tags, *normalizedLinks, updatedAt'
+    }).upgrade(() => {
+      safeStorage.set('ai-markdown-knowledge-index-stale', true)
     })
   }
 }
@@ -65,6 +73,53 @@ function makeExcerpt(text: string, needle: string): string {
 
 function getRecordNames(record: KnowledgeIndexRecord): string[] {
   return [record.normalizedTitle, ...record.normalizedAliases]
+}
+
+function getBodyStartLineIndex(content: string): number {
+  const lines = content.split(/\r?\n/)
+  if (lines[0]?.trim() !== '---') return 0
+  const closingIndex = lines.slice(1).findIndex(line => line.trim() === '---')
+  return closingIndex === -1 ? 0 : closingIndex + 2
+}
+
+function stripWikiLinks(line: string): string {
+  return line.replace(/\[\[[^\]]+\]\]/g, ' ')
+}
+
+function hasTextMention(line: string, name: string): boolean {
+  const trimmed = name.trim()
+  if (!trimmed) return false
+  const text = stripWikiLinks(line)
+  if (/^[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]+$/.test(trimmed)) {
+    return trimmed.length >= 3 && text.includes(trimmed)
+  }
+  if (trimmed.length < 3) return false
+  return new RegExp(`(^|[^\\p{L}\\p{N}_-])${escapeRegExp(trimmed)}($|[^\\p{L}\\p{N}_-])`, 'iu').test(text)
+}
+
+function findWikiLinkLine(content: string, normalizedTargets: string[]): number | undefined {
+  const targets = new Set(normalizedTargets)
+  const lines = content.split(/\r?\n/)
+  for (let i = getBodyStartLineIndex(content); i < lines.length; i++) {
+    const matches = lines[i].matchAll(/\[\[([^\]]+)\]\]/g)
+    for (const match of matches) {
+      const parsed = parseWikiLinkTarget(match[1])
+      if (parsed.fileTarget && targets.has(normalizeNoteName(parsed.fileTarget))) {
+        return i + 1
+      }
+    }
+  }
+  return undefined
+}
+
+function findMentionLine(content: string, names: string[]): number | undefined {
+  const lines = content.split(/\r?\n/)
+  for (let i = getBodyStartLineIndex(content); i < lines.length; i++) {
+    if (names.some(name => hasTextMention(lines[i], name))) {
+      return i + 1
+    }
+  }
+  return undefined
 }
 
 export const knowledgeIndex = {
@@ -107,6 +162,7 @@ export const knowledgeIndex = {
       normalizedLinks: metadata.links.map(normalizeNoteName),
       frontmatter: metadata.frontmatter,
       searchableText: metadata.searchableText,
+      content,
       updatedAt: Date.now(),
     }
 
@@ -183,6 +239,7 @@ export const knowledgeIndex = {
         filePath: record.filePath,
         title: record.title,
         excerpt: makeExcerpt(record.searchableText, current.title),
+        lineNumber: findWikiLinkLine(record.content || '', names),
       }))
   },
 
@@ -209,6 +266,7 @@ export const knowledgeIndex = {
         filePath: record.filePath,
         title: record.title,
         excerpt: makeExcerpt(record.searchableText, names[0]),
+        lineNumber: findMentionLine(record.content || '', names),
       }))
   },
 

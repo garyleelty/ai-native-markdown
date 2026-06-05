@@ -54,6 +54,32 @@ test.describe('安全修复验证', () => {
     await page.getByRole('button', { name: '试用示例工作区' }).click()
     await expect(page.locator('.el-tree')).toBeVisible()
   })
+
+  test('全局未处理 Promise 只吞掉已知中断类错误', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const dispatchRejection = (reason: unknown) => {
+        const event = new PromiseRejectionEvent('unhandledrejection', {
+          promise: Promise.resolve(),
+          reason,
+          cancelable: true,
+        })
+        window.dispatchEvent(event)
+        return event.defaultPrevented
+      }
+
+      return {
+        abortPrevented: dispatchRejection(new DOMException('The operation was aborted.', 'AbortError')),
+        networkPrevented: dispatchRejection(new Error('NetworkError when attempting to fetch resource.')),
+        unknownPrevented: dispatchRejection(new Error('Unexpected persistence failure')),
+      }
+    })
+
+    expect(result).toEqual({
+      abortPrevented: true,
+      networkPrevented: true,
+      unknownPrevented: false,
+    })
+  })
 })
 
 test.describe('性能优化验证', () => {
@@ -146,8 +172,35 @@ test.describe('功能完整性验证', () => {
     await expect(page.locator('.app-header')).toBeVisible()
   })
 
+  test('窄屏欢迎页关键入口完整可见', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.reload()
+    await expect(page.locator('.app-container')).toBeVisible()
+
+    const criticalElements = [
+      page.getByRole('heading', { name: 'AI Markdown' }),
+      page.getByRole('button', { name: '新建文档' }),
+      page.getByRole('button', { name: '打开文件夹' }).last(),
+      page.getByRole('button', { name: '试用示例' }),
+    ]
+
+    for (const locator of criticalElements) {
+      await expect(locator).toBeVisible()
+      const box = await locator.boundingBox()
+      expect(box).not.toBeNull()
+      expect(box!.x).toBeGreaterThanOrEqual(0)
+      expect(box!.x + box!.width).toBeLessThanOrEqual(390)
+    }
+
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+    expect(overflow).toBeLessThanOrEqual(1)
+  })
+
   test('试用示例工作区功能正常', async ({ page }) => {
     await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
+    await expect(page.locator('.editor-preview-view.split-mode')).toBeVisible()
+    await expect(page.locator('.preview-pane')).toBeVisible()
   })
 
   test('重命名到已存在路径会失败且不会产生重复文件记录', async ({ page }) => {
@@ -211,6 +264,21 @@ test.describe('功能完整性验证', () => {
 
     const palette = page.locator('.command-palette')
     await expect(palette).toBeVisible()
+  })
+
+  test('命令面板暴露可访问的命令列表和当前选中项', async ({ page }) => {
+    await page.locator('.app-container').click({ position: { x: 20, y: 20 } })
+    await page.keyboard.press('Control+P')
+
+    await expect(page.getByRole('listbox', { name: '命令列表' })).toBeVisible()
+    await page.getByPlaceholder('输入命令...').fill('今日')
+
+    const dailyNote = page.getByRole('option', { name: /今日笔记/ })
+    await expect(dailyNote).toBeVisible()
+    await expect(dailyNote).toHaveAttribute('aria-selected', 'true')
+
+    await page.keyboard.press('Enter')
+    await expect(page.locator('.command-palette')).toHaveCount(0)
   })
 
   test('专注模式可切换', async ({ page }) => {

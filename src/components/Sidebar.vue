@@ -28,15 +28,20 @@
           v-if="activeTab === 'files'"
           ref="fileExplorerRef"
           @select="(path: string) => emit('select', path)"
+          @search-result-select="payload => emit('search-result-select', payload)"
           @root-path-change="handleRootPathChange"
           @renamed="payload => emit('renamed', payload)"
           @deleted="payload => emit('deleted', payload)"
         />
         <KnowledgePanel
           v-else-if="activeTab === 'graph'"
+          ref="knowledgePanelRef"
           :root-path="rootPath"
           :current-file="currentFile"
           @select="(path: string) => emit('select', path)"
+          @reference-select="reference => emit('reference-select', reference)"
+          @wiki-navigate="target => emit('wiki-navigate', target)"
+          @link-mention="payload => emit('link-mention', payload)"
         />
         <AIConfigPanel v-else-if="activeTab === 'ai'" />
         <SettingsPanel
@@ -58,14 +63,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { Folder, Share, MagicStick, Setting, List } from '@element-plus/icons-vue'
 import FileExplorer from './sidebar/FileExplorer.vue'
 import KnowledgePanel from './sidebar/KnowledgePanel.vue'
 import AIConfigPanel from './sidebar/AIConfigPanel.vue'
 import SettingsPanel from './sidebar/SettingsPanel.vue'
 import OutlinePanel from './editor/OutlinePanel.vue'
+import { useSettingsStore } from '@/stores/settings'
 import type { SidebarTab } from '@/types'
+import type { KnowledgeReference } from '@/services/knowledgeIndex'
 
 interface Props {
   isDark?: boolean
@@ -78,21 +85,27 @@ withDefaults(defineProps<Props>(), { isDark: true, showAI: false, currentFile: '
 
 const emit = defineEmits<{
   (e: 'select', path: string): void
+  (e: 'search-result-select', payload: { path: string; lineNumber?: number }): void
+  (e: 'reference-select', reference: KnowledgeReference): void
+  (e: 'wiki-navigate', target: string): void
+  (e: 'link-mention', payload: { reference: KnowledgeReference; targetTitle: string; targetNames: string[] }): void
   (e: 'set-theme', dark: boolean): void
   (e: 'toggle-ai'): void
   (e: 'navigate', lineNumber: number): void
-  (e: 'renamed', payload: { oldPath: string; newPath: string; isDirectory: boolean }): void
+  (e: 'renamed', payload: { oldPath: string; newPath: string; isDirectory: boolean; renamedPaths?: Array<{ oldPath: string; newPath: string; isDirectory: boolean }>; updatedLinkPaths?: string[] }): void
   (e: 'deleted', payload: { path: string; isDirectory: boolean }): void
 }>()
 
 const sidebarTabs = new Set<SidebarTab>(['files', 'graph', 'ai', 'outline', 'settings'])
-const activeTab = ref<SidebarTab>('files')
+const settingsStore = useSettingsStore()
+const activeTab = computed(() => settingsStore.activeSidebarTab)
 const rootPath = ref('')
 const fileExplorerRef = ref()
+const knowledgePanelRef = ref<{ refreshIndex?: () => Promise<void> } | null>(null)
 
 const handleNavSelect = (index: string) => {
   if (sidebarTabs.has(index as SidebarTab)) {
-    activeTab.value = index as SidebarTab
+    settingsStore.setActiveTab(index as SidebarTab)
   }
 }
 
@@ -112,12 +125,56 @@ const saveFile = async (filePath: string, content: string): Promise<boolean> => 
   return fileExplorerRef.value?.saveFile?.(filePath, content) ?? false
 }
 
+const openTab = (tab: SidebarTab) => {
+  if (sidebarTabs.has(tab)) settingsStore.setActiveTab(tab)
+}
+
+const waitForFileExplorer = async () => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    await nextTick()
+    if (fileExplorerRef.value) return fileExplorerRef.value
+    await new Promise(resolve => window.setTimeout(resolve, 50))
+  }
+  return fileExplorerRef.value
+}
+
+const waitForKnowledgePanel = async () => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    await nextTick()
+    if (knowledgePanelRef.value) return knowledgePanelRef.value
+    await new Promise(resolve => window.setTimeout(resolve, 50))
+  }
+  return knowledgePanelRef.value
+}
+
+const refreshKnowledgeIndex = async () => {
+  openTab('graph')
+  const panel = await waitForKnowledgePanel()
+  await panel?.refreshIndex?.()
+}
+
+const focusFileSearch = async (mode: 'name' | 'content', query = '') => {
+  openTab('files')
+  const explorer = await waitForFileExplorer()
+  await explorer?.focusSearch?.(mode, query)
+}
+
 const handleCreateFile = () => fileExplorerRef.value?.handleCreateFile?.()
 const handleCreateFolder = () => fileExplorerRef.value?.handleCreateFolder?.()
 const openFolder = () => fileExplorerRef.value?.openFolder?.()
 const initDemoWorkspace = () => fileExplorerRef.value?.initDemoWorkspace?.()
 
-defineExpose({ readFile, saveFile, handleCreateFile, handleCreateFolder, openFolder, initDemoWorkspace })
+defineExpose({
+  readFile,
+  saveFile,
+  handleCreateFile,
+  handleCreateFolder,
+  openFolder,
+  initDemoWorkspace,
+  openTab,
+  refreshKnowledgeIndex,
+  focusFileSearch,
+})
 </script>
 
 <style scoped>

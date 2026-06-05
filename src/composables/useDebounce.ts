@@ -1,19 +1,37 @@
-import { ref, watch, type Ref } from 'vue'
+import { getCurrentScope, onScopeDispose, ref, watch, type Ref } from 'vue'
+
+type CancelableFunction<T extends (...args: any[]) => any> = ((...args: Parameters<T>) => void) & {
+  cancel: () => void
+}
 
 export function useDebounce<T>(value: Ref<T>, delay: number = 300): Ref<T> {
   const debouncedValue = ref(value.value) as Ref<T>
   let timeout: ReturnType<typeof setTimeout> | null = null
+  const clearPending = () => {
+    if (timeout) {
+      clearTimeout(timeout)
+      timeout = null
+    }
+  }
 
-  watch(
+  const stop = watch(
     value,
     (newValue) => {
-      if (timeout) clearTimeout(timeout)
+      clearPending()
       timeout = setTimeout(() => {
         debouncedValue.value = newValue
+        timeout = null
       }, delay)
     },
     { immediate: true }
   )
+
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      clearPending()
+      stop()
+    })
+  }
 
   return debouncedValue
 }
@@ -21,26 +39,60 @@ export function useDebounce<T>(value: Ref<T>, delay: number = 300): Ref<T> {
 export function debounce<T extends (...args: any[]) => any>(
   fn: T,
   delay: number = 300
-): (...args: Parameters<T>) => void {
+): CancelableFunction<T> {
   let timeout: ReturnType<typeof setTimeout> | null = null
 
-  return (...args: Parameters<T>) => {
+  const debounced = ((...args: Parameters<T>) => {
     if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => fn(...args), delay)
+    timeout = setTimeout(() => {
+      timeout = null
+      fn(...args)
+    }, delay)
+  }) as CancelableFunction<T>
+
+  debounced.cancel = () => {
+    if (timeout) {
+      clearTimeout(timeout)
+      timeout = null
+    }
   }
+
+  if (getCurrentScope()) {
+    onScopeDispose(debounced.cancel)
+  }
+
+  return debounced
 }
 
 export function throttle<T extends (...args: any[]) => any>(
   fn: T,
   limit: number = 100
-): (...args: Parameters<T>) => void {
+): CancelableFunction<T> {
   let inThrottle = false
+  let timeout: ReturnType<typeof setTimeout> | null = null
 
-  return (...args: Parameters<T>) => {
+  const throttled = ((...args: Parameters<T>) => {
     if (!inThrottle) {
       fn(...args)
       inThrottle = true
-      setTimeout(() => { inThrottle = false }, limit)
+      timeout = setTimeout(() => {
+        inThrottle = false
+        timeout = null
+      }, limit)
     }
+  }) as CancelableFunction<T>
+
+  throttled.cancel = () => {
+    if (timeout) {
+      clearTimeout(timeout)
+      timeout = null
+    }
+    inThrottle = false
   }
+
+  if (getCurrentScope()) {
+    onScopeDispose(throttled.cancel)
+  }
+
+  return throttled
 }

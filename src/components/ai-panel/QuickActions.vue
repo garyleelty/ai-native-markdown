@@ -6,6 +6,7 @@
         v-for="action in actions"
         :key="action.label"
         size="small"
+        native-type="button"
         @click="$emit('action', action.prompt, action.label)"
       >
         <el-icon><component :is="action.icon" /></el-icon>

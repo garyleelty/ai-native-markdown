@@ -24,8 +24,8 @@
     </el-form>
 
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" @click="handleExport">导出</el-button>
+      <el-button native-type="button" @click="visible = false">取消</el-button>
+      <el-button type="primary" native-type="button" @click="handleExport">导出</el-button>
     </template>
   </el-dialog>
 </template>

@@ -1,24 +1,34 @@
 import type { AIConfig, ChatMessage } from '@/types'
 
-function createTimeoutSignal(ms: number): AbortSignal {
+function createTimeoutSignal(ms: number): { signal: AbortSignal; cleanup: () => void } {
   if (typeof AbortSignal.timeout === 'function') {
-    return AbortSignal.timeout(ms)
+    return { signal: AbortSignal.timeout(ms), cleanup: () => {} }
   }
   const controller = new AbortController()
-  setTimeout(() => controller.abort(), ms)
-  return controller.signal
+  const timeoutId = setTimeout(() => controller.abort(), ms)
+  return {
+    signal: controller.signal,
+    cleanup: () => clearTimeout(timeoutId),
+  }
 }
 
-function combineAbortSignals(signals: AbortSignal[]): AbortSignal {
+function combineAbortSignals(signals: AbortSignal[]): { signal: AbortSignal; cleanup: () => void } {
   const availableSignals = signals.filter(Boolean)
-  if (availableSignals.length === 1) return availableSignals[0]
+  if (availableSignals.length === 1) return { signal: availableSignals[0], cleanup: () => {} }
   if (typeof AbortSignal.any === 'function') {
-    return AbortSignal.any(availableSignals)
+    return { signal: AbortSignal.any(availableSignals), cleanup: () => {} }
   }
 
   const controller = new AbortController()
+  const listeners: Array<[AbortSignal, () => void]> = []
   const abort = () => {
     if (!controller.signal.aborted) controller.abort()
+  }
+  const cleanup = () => {
+    for (const [signal, listener] of listeners) {
+      signal.removeEventListener('abort', listener)
+    }
+    listeners.length = 0
   }
 
   for (const signal of availableSignals) {
@@ -27,9 +37,23 @@ function combineAbortSignals(signals: AbortSignal[]): AbortSignal {
       break
     }
     signal.addEventListener('abort', abort, { once: true })
+    listeners.push([signal, abort])
   }
 
-  return controller.signal
+  return { signal: controller.signal, cleanup }
+}
+
+function createRequestSignal(timeoutMs: number, signal?: AbortSignal): { signal: AbortSignal; cleanup: () => void } {
+  const timeout = createTimeoutSignal(timeoutMs)
+  if (!signal) return timeout
+  const combined = combineAbortSignals([signal, timeout.signal])
+  return {
+    signal: combined.signal,
+    cleanup: () => {
+      combined.cleanup()
+      timeout.cleanup()
+    },
+  }
 }
 
 export interface AIProvider {
@@ -88,12 +112,11 @@ export class FetchAIProvider implements AIProvider {
   }
 
   async testConnection(signal?: AbortSignal): Promise<{ ok: boolean; error?: string }> {
+    const requestSignal = createRequestSignal(8000, signal)
     try {
       this.status = 'connecting'
-      const timeoutSignal = createTimeoutSignal(8000)
-      const combinedSignal = signal ? combineAbortSignals([signal, timeoutSignal]) : timeoutSignal
       if (this.providerType === 'ollama') {
-        const resp = await fetch(`${this.baseURL}/api/tags`, { signal: combinedSignal })
+        const resp = await fetch(`${this.baseURL}/api/tags`, { signal: requestSignal.signal })
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
         const data = await resp.json()
         const models = data.models?.map((m: any) => m.name) || []
@@ -105,7 +128,7 @@ export class FetchAIProvider implements AIProvider {
       } else {
         const headers: Record<string, string> = {}
         if (this.apiKey) headers['Authorization'] = `Bearer ${this.apiKey}`
-        const resp = await fetch(`${this.baseURL}/models`, { headers, signal: combinedSignal })
+        const resp = await fetch(`${this.baseURL}/models`, { headers, signal: requestSignal.signal })
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       }
       this.status = 'connected'
@@ -116,14 +139,15 @@ export class FetchAIProvider implements AIProvider {
       this.status = 'error'
       this.lastError = error
       return { ok: false, error }
+    } finally {
+      requestSignal.cleanup()
     }
   }
 
   async chat(messages: ChatMessage[], options?: AIOptions): Promise<string> {
+    const requestSignal = createRequestSignal(60000, options?.signal)
     try {
       this.status = 'connecting'
-      const timeoutSignal = createTimeoutSignal(60000)
-      const signal = options?.signal ? combineAbortSignals([options.signal, timeoutSignal]) : timeoutSignal
       let result: string
       if (this.providerType === 'ollama') {
         const resp = await fetch(`${this.baseURL}/api/chat`, {
@@ -135,7 +159,7 @@ export class FetchAIProvider implements AIProvider {
             stream: false,
             options: { temperature: options?.temperature ?? this.temperature, num_predict: options?.maxTokens ?? this.maxTokens }
           }),
-          signal
+          signal: requestSignal.signal
         })
         if (!resp.ok) throw new Error(`Ollama HTTP ${resp.status}`)
         const data = await resp.json()
@@ -153,7 +177,7 @@ export class FetchAIProvider implements AIProvider {
             max_tokens: options?.maxTokens ?? this.maxTokens,
             stream: false,
           }),
-          signal
+          signal: requestSignal.signal
         })
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
         const data = await resp.json()
@@ -170,14 +194,15 @@ export class FetchAIProvider implements AIProvider {
       this.status = 'error'
       this.lastError = e?.message || String(e)
       throw new Error(this.lastError)
+    } finally {
+      requestSignal.cleanup()
     }
   }
 
   async *streamChat(messages: ChatMessage[], options?: AIOptions): AsyncGenerator<string> {
+    const requestSignal = createRequestSignal(60000, options?.signal)
     this.status = 'connecting'
     try {
-      const timeoutSignal = createTimeoutSignal(60000)
-      const signal = options?.signal ? combineAbortSignals([options.signal, timeoutSignal]) : timeoutSignal
       if (this.providerType === 'ollama') {
         const resp = await fetch(`${this.baseURL}/api/chat`, {
           method: 'POST',
@@ -188,13 +213,23 @@ export class FetchAIProvider implements AIProvider {
             stream: true,
             options: { temperature: options?.temperature ?? this.temperature, num_predict: options?.maxTokens ?? this.maxTokens }
           }),
-          signal
+          signal: requestSignal.signal
         })
         if (!resp.ok) throw new Error(`Ollama HTTP ${resp.status}`)
         const reader = resp.body?.getReader()
         if (!reader) throw new Error('No response body')
         const decoder = new TextDecoder()
         let buffer = ''
+        const emitOllamaLine = function* (line: string) {
+          if (!line.trim()) return
+          try {
+            const json = JSON.parse(line)
+            if (json.message?.content) yield json.message.content
+            if (json.error) throw new Error(json.error)
+          } catch (e: any) {
+            if (e.message && !e.message.includes('JSON')) throw e
+          }
+        }
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
@@ -202,16 +237,10 @@ export class FetchAIProvider implements AIProvider {
           const lines = buffer.split('\n')
           buffer = lines.pop() || ''
           for (const line of lines) {
-            if (!line.trim()) continue
-            try {
-              const json = JSON.parse(line)
-              if (json.message?.content) yield json.message.content
-              if (json.error) throw new Error(json.error)
-            } catch (e: any) {
-              if (e.message && !e.message.includes('JSON')) throw e
-            }
+            yield* emitOllamaLine(line)
           }
         }
+        yield* emitOllamaLine(buffer)
       } else {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' }
         if (this.apiKey) headers['Authorization'] = `Bearer ${this.apiKey}`
@@ -225,13 +254,28 @@ export class FetchAIProvider implements AIProvider {
             max_tokens: options?.maxTokens ?? this.maxTokens,
             stream: true,
           }),
-          signal
+          signal: requestSignal.signal
         })
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
         const reader = resp.body?.getReader()
         if (!reader) throw new Error('No response body')
         const decoder = new TextDecoder()
         let buffer = ''
+        const provider = this
+        const emitOpenAICompatibleLine = function* (line: string) {
+          if (!line.startsWith('data: ')) return
+          const data = line.slice(6).trimEnd()
+          if (data === '[DONE]') {
+            provider.status = 'connected'
+            provider.lastError = undefined
+            return
+          }
+          try {
+            const json = JSON.parse(data)
+            const content = json.choices?.[0]?.delta?.content
+            if (content) yield content
+          } catch {}
+        }
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
@@ -239,20 +283,10 @@ export class FetchAIProvider implements AIProvider {
           const lines = buffer.split('\n')
           buffer = lines.pop() || ''
           for (const line of lines) {
-            if (!line.startsWith('data: ')) continue
-            const data = line.slice(6)
-            if (data === '[DONE]') {
-              this.status = 'connected'
-              this.lastError = undefined
-              return
-            }
-            try {
-              const json = JSON.parse(data)
-              const content = json.choices?.[0]?.delta?.content
-              if (content) yield content
-            } catch {}
+            yield* emitOpenAICompatibleLine(line)
           }
         }
+        yield* emitOpenAICompatibleLine(buffer)
       }
       this.status = 'connected'
       this.lastError = undefined
@@ -264,6 +298,8 @@ export class FetchAIProvider implements AIProvider {
       this.status = 'error'
       this.lastError = e?.message || String(e)
       throw new Error(this.lastError)
+    } finally {
+      requestSignal.cleanup()
     }
   }
 }
@@ -304,32 +340,41 @@ export class AIService {
     return () => { this.listeners = this.listeners.filter(l => l !== listener) }
   }
 
-  async listOllamaModels(baseURL: string): Promise<string[]> {
+  async listOllamaModels(baseURL: string, signal?: AbortSignal): Promise<string[]> {
+    const requestSignal = createRequestSignal(8000, signal)
     try {
-      const resp = await fetch(`${baseURL}/api/tags`, { signal: createTimeoutSignal(8000) })
+      const resp = await fetch(`${baseURL}/api/tags`, { signal: requestSignal.signal })
       if (!resp.ok) return []
       const data = await resp.json()
       return data.models?.map((m: any) => m.name) || []
     } catch {
       return []
+    } finally {
+      requestSignal.cleanup()
     }
   }
 }
 
 export const aiService = new AIService()
 
-let _defaultRegistered = false
+const defaultAIConfig: AIConfig = {
+  provider: 'ollama',
+  baseURL: 'http://localhost:11434',
+  apiKey: '',
+  model: 'qwen2.5:7b',
+  temperature: 0.7,
+  maxTokens: 4096,
+  systemPrompt: '',
+}
+
+export function configureAIProvider(config: AIConfig): FetchAIProvider {
+  const provider = new FetchAIProvider(config)
+  aiService.registerProvider(provider)
+  aiService.setActiveProvider(provider.id)
+  return provider
+}
 
 export function ensureDefaultProvider() {
-  if (_defaultRegistered || aiService.listProviders().length > 0) return
-  _defaultRegistered = true
-  aiService.registerProvider(new FetchAIProvider({
-    provider: 'ollama',
-    baseURL: 'http://localhost:11434',
-    apiKey: '',
-    model: 'qwen2.5:7b',
-    temperature: 0.7,
-    maxTokens: 4096,
-    systemPrompt: '',
-  }))
+  if (aiService.listProviders().length > 0) return
+  configureAIProvider(defaultAIConfig)
 }

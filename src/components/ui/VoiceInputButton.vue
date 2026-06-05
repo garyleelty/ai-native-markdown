@@ -1,11 +1,13 @@
 <template>
   <button
+    type="button"
     class="voice-input-btn"
     :class="{
       'is-listening': status === 'listening',
       'is-recognizing': status === 'recognizing',
       'is-error': status === 'error',
-      'is-unsupported': !isSupported
+      'is-unsupported': !isSupported,
+      'is-disabled': isDisabled
     }"
     @mousedown="handleMouseDown"
     @mouseup="handleMouseUp"
@@ -14,7 +16,8 @@
     @touchend="handleTouchEnd"
     @click="handleClick"
     :title="buttonTitle"
-    :disabled="!isSupported"
+    :aria-label="buttonTitle"
+    :disabled="isDisabled"
   >
     <!-- 麦克风图标 -->
     <svg
@@ -84,7 +87,10 @@ const { status, isSupported, startListening, stopListening } = useVoiceInput({
   },
 })
 
+const isDisabled = computed(() => props.disabled || !isSupported)
+
 const buttonTitle = computed(() => {
+  if (props.disabled) return '语音输入已禁用'
   if (!isSupported) return '当前浏览器不支持语音输入'
   if (status.value === 'listening') return '录音中... (松开结束)'
   if (status.value === 'recognizing') return '识别中...'
@@ -95,7 +101,7 @@ const buttonTitle = computed(() => {
 let isHolding = false
 
 const handleMouseDown = () => {
-  if (props.mode === 'hold' && isSupported && !props.disabled) {
+  if (props.mode === 'hold' && !isDisabled.value) {
     isHolding = true
     startListening()
   }
@@ -116,7 +122,7 @@ const handleMouseLeave = () => {
 }
 
 const handleTouchStart = (e: TouchEvent) => {
-  if (props.mode === 'hold' && isSupported && !props.disabled) {
+  if (props.mode === 'hold' && !isDisabled.value) {
     e.preventDefault()
     isHolding = true
     startListening()
@@ -132,7 +138,7 @@ const handleTouchEnd = (e: TouchEvent) => {
 }
 
 const handleClick = () => {
-  if (props.mode === 'toggle' && isSupported && !props.disabled) {
+  if (props.mode === 'toggle' && !isDisabled.value) {
     if (status.value === 'listening') {
       stopListening()
     } else {

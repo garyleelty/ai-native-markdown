@@ -1,4 +1,6 @@
 export { extractWikiLinks, extractTags, buildLinkGraph, getAllTags, buildKnowledgeGraph } from './knowledge'
+export { createWikiLinkInitialContent, extractMarkdownHeadings, findMarkdownHeadingLine, getCreatableWikiLinkPath, linkFirstUnlinkedMention, parseWikiLinkTarget, resolveWikiLinkTarget, updateWikiLinksForRename } from './wikiLinks'
+export type { MarkdownHeading, ParsedWikiLinkTarget } from './wikiLinks'
 export { parseFrontmatter, parseMarkdownMetadata, normalizeNoteName } from './metadata'
 export type { FrontmatterValue, ParsedMarkdownMetadata } from './metadata'
 export type { WikiLinkData, TagData } from './knowledge'

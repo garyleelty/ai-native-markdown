@@ -14,23 +14,38 @@ export function useFileOperations(editorRef: Ref<any>) {
   const saveStatusClass = ref('')
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null
+  let statusTimer: ReturnType<typeof setTimeout> | null = null
+  let isDisposed = false
+  let fileSelectRequestId = 0
+  let saveRequestId = 0
 
   const saveCurrentFile = async (filePath?: string) => {
+    const requestId = ++saveRequestId
     const path = filePath || editorStore.currentFile
     if (!path) return
+    const tab = editorStore.openTabs.find(item => item.filePath === path)
+    const contentToSave = path === editorStore.currentFile ? editorStore.content : tab?.content ?? editorStore.content
     saveStatusMessage.value = '正在保存...'
     saveStatusClass.value = 'text-info'
     try {
-      await fileSystem.writeFile(path, editorStore.content)
-      editorStore.markSaved()
-      await versionHistory.saveSnapshot(path, editorStore.content, '自动保存').catch(() => {})
+      await fileSystem.writeFile(path, contentToSave)
+      if (isDisposed) return
+      editorStore.markPathSaved(path, contentToSave)
+      await versionHistory.saveSnapshot(path, contentToSave, '自动保存').catch(() => {})
       if (settingsStore.enableRAG) {
-        await ragService.indexDocument(path, editorStore.content).catch(() => {})
+        await ragService.indexDocument(path, contentToSave).catch(() => {})
       }
+      if (isDisposed || requestId !== saveRequestId) return
       saveStatusMessage.value = '保存成功'
       saveStatusClass.value = 'text-success'
-      setTimeout(() => { saveStatusMessage.value = ''; saveStatusClass.value = '' }, 3000)
+      if (statusTimer) clearTimeout(statusTimer)
+      statusTimer = setTimeout(() => {
+        saveStatusMessage.value = ''
+        saveStatusClass.value = ''
+        statusTimer = null
+      }, 3000)
     } catch (e: any) {
+      if (isDisposed || requestId !== saveRequestId) return
       saveStatusMessage.value = '保存失败'
       saveStatusClass.value = 'text-danger'
     }
@@ -38,6 +53,7 @@ export function useFileOperations(editorRef: Ref<any>) {
 
   const stopAutoSave = () => {
     if (saveTimer !== null) { clearTimeout(saveTimer); saveTimer = null }
+    if (statusTimer !== null) { clearTimeout(statusTimer); statusTimer = null }
   }
 
   watch(() => editorStore.content, () => {
@@ -52,11 +68,14 @@ export function useFileOperations(editorRef: Ref<any>) {
   })
 
   const handleFileSelect = async (filePath: string) => {
+    const requestId = ++fileSelectRequestId
     if (editorStore.isModified && editorStore.currentFile) {
       await saveCurrentFile()
+      if (isDisposed || requestId !== fileSelectRequestId) return
     }
     try {
       const content = await fileSystem.readFile(filePath)
+      if (isDisposed || requestId !== fileSelectRequestId) return
       editorStore.addTab(filePath, content)
       if (editorRef.value) {
         editorStore.setContentSilent(content)
@@ -123,6 +142,9 @@ export function useFileOperations(editorRef: Ref<any>) {
   }
 
   onUnmounted(() => {
+    isDisposed = true
+    fileSelectRequestId += 1
+    saveRequestId += 1
     stopAutoSave()
   })
 

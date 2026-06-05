@@ -17,11 +17,15 @@ export async function resetBrowserState(page: Page) {
 
 export async function loadDemoWorkspace(page: Page) {
   await page.setViewportSize({ width: 1440, height: 900 })
-  const demoButton = page.getByRole('button', { name: '试用示例工作区' })
-  if (await demoButton.isVisible()) {
-    await demoButton.click()
+  const fileTree = page.locator('.el-tree')
+  if (await fileTree.isVisible().catch(() => false)) {
+    return
   }
-  await expect(page.locator('.el-tree')).toBeVisible()
+
+  const demoButton = page.getByRole('button', { name: /^试用示例工作区$/ })
+  await expect(demoButton).toBeVisible()
+  await demoButton.click()
+  await expect(fileTree).toBeVisible()
 }
 
 export async function openFirstMarkdownFile(page: Page) {

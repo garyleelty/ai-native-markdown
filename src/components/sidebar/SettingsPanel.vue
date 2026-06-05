@@ -31,6 +31,53 @@
 
       <el-divider />
 
+      <div class="setting-section-title">写作智能</div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <span class="setting-label">知识库增强问答</span>
+          <span class="setting-desc">回答时引用当前工作区内容</span>
+        </div>
+        <el-switch
+          :model-value="settingsStore.enableRAG"
+          @change="(value: string | number | boolean) => settingsStore.setEnableRAG(Boolean(value))"
+        />
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <span class="setting-label">AI 行内操作</span>
+          <span class="setting-desc">在编辑器中启用 AI 快捷动作</span>
+        </div>
+        <el-switch
+          :model-value="settingsStore.enableAIActions"
+          @change="(value: string | number | boolean) => settingsStore.setEnableAIActions(Boolean(value))"
+        />
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <span class="setting-label">智能粘贴</span>
+          <span class="setting-desc">清理文本并转换富文本为 Markdown</span>
+        </div>
+        <el-switch
+          :model-value="settingsStore.enableSmartPaste"
+          @change="(value: string | number | boolean) => settingsStore.setEnableSmartPaste(Boolean(value))"
+        />
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <span class="setting-label">行内编辑</span>
+          <span class="setting-desc">允许选中文本后触发局部改写</span>
+        </div>
+        <el-switch
+          :model-value="settingsStore.enableInlineEdit"
+          @change="(value: string | number | boolean) => settingsStore.setEnableInlineEdit(Boolean(value))"
+        />
+      </div>
+
+      <el-divider />
+
       <div class="setting-section-title">关于</div>
       <el-card shadow="never" class="about-card">
         <div class="about-brand">AI Markdown</div>
@@ -42,6 +89,8 @@
 </template>
 
 <script setup lang="ts">
+import { useSettingsStore } from '@/stores/settings'
+
 interface Props {
   isDark?: boolean
   showAI?: boolean
@@ -52,6 +101,8 @@ defineEmits<{
   (e: 'set-theme', dark: boolean): void
   (e: 'toggle-ai'): void
 }>()
+
+const settingsStore = useSettingsStore()
 </script>
 
 <style scoped>

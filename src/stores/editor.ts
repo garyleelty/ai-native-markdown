@@ -85,6 +85,16 @@ export const useEditorStore = defineStore('editor', () => {
     if (activeTabId.value) markTabSaved(activeTabId.value)
   }
 
+  const markPathSaved = (filePath: string, savedContent?: string) => {
+    const tab = openTabs.value.find(t => t.filePath === filePath)
+    if (!tab) return
+    if (savedContent !== undefined && tab.content !== savedContent) return
+    tab.isModified = false
+    if (activeTabId.value === tab.id && (savedContent === undefined || content.value === savedContent)) {
+      isModified.value = false
+    }
+  }
+
   const addTab = (filePath: string, contentStr: string) => {
     const existingTab = openTabs.value.find(t => t.filePath === filePath)
     if (existingTab) {
@@ -235,7 +245,7 @@ export const useEditorStore = defineStore('editor', () => {
   return {
     content, currentFile, viewMode, cursorLine, cursorColumn, isModified,
     openTabs, activeTabId,
-    setContent, setContentSilent, setViewMode, setCursor, markSaved,
+    setContent, setContentSilent, setViewMode, setCursor, markSaved, markPathSaved,
     addTab, closeTab, switchTab, markTabSaved, renameOpenPath, removeOpenPath,
     getActiveTab, moveTab, hydrateRestoredSession
   }

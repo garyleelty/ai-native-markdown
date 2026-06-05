@@ -3,23 +3,25 @@
     <div class="panel-header">
       <span class="panel-title">资源管理器</span>
       <div class="panel-actions" v-if="rootPath">
-        <el-button :icon="DocumentAdd" size="small" circle aria-label="新建文件" @click="handleCreateFile" title="新建文件" />
-        <el-button :icon="FolderAdd" size="small" circle aria-label="新建文件夹" @click="handleCreateFolder" title="新建文件夹" />
+        <el-button :icon="DocumentAdd" native-type="button" size="small" circle aria-label="新建文件" @click="handleCreateFile" title="新建文件" />
+        <el-button :icon="FolderAdd" native-type="button" size="small" circle aria-label="新建文件夹" @click="handleCreateFolder" title="新建文件夹" />
       </div>
     </div>
 
     <div class="search-bar" v-if="rootPath">
       <el-input
+        ref="searchInputRef"
         v-model="searchQuery"
         placeholder="搜索文件..."
         size="small"
         clearable
         :prefix-icon="Search"
-        @keydown.enter="searchContent"
+        @input="handleSearchInput"
+        @keydown.enter="handleSearchEnter"
         @clear="clearSearch"
       >
         <template #append>
-          <el-button :icon="Document" size="small" :type="searchMode === 'content' ? 'primary' : 'default'" @click="toggleSearchMode" title="切换搜索模式" />
+          <el-button :icon="Document" native-type="button" size="small" :type="searchMode === 'content' ? 'primary' : 'default'" aria-label="切换搜索模式" @click="toggleSearchMode" title="切换搜索模式" />
         </template>
       </el-input>
       <div class="search-mode-hint">{{ searchMode === 'name' ? '文件名搜索' : '内容搜索' }}</div>
@@ -41,10 +43,10 @@
       <el-divider style="margin: 8px 0" />
     </div>
 
-    <div class="search-results" v-if="searchResults.length > 0 && searchQuery">
-      <div class="search-result-header">找到 {{ searchResults.length }} 个结果</div>
+    <div class="search-results" v-if="activeSearchResults.length > 0 && trimmedSearchQuery">
+      <div class="search-result-header">找到 {{ activeSearchResults.length }} 个{{ searchMode === 'name' ? '文件' : '结果' }}</div>
       <el-card
-        v-for="result in searchResults"
+        v-for="result in activeSearchResults"
         :key="result.filePath"
         shadow="hover"
         class="search-result-card"
@@ -52,13 +54,17 @@
       >
         <div class="result-file-name">{{ result.fileName }}</div>
         <div v-for="(match, idx) in result.matches.slice(0, 3)" :key="idx" class="result-match-line">
-          <el-tag size="small" type="info" effect="plain">{{ match.lineNumber }}</el-tag>
+          <el-tag size="small" type="info" effect="plain">{{ match.lineNumber || '路径' }}</el-tag>
           <span class="match-content">{{ match.lineContent }}</span>
         </div>
       </el-card>
     </div>
 
-    <div class="file-list" v-if="rootPath && (!searchQuery || searchResults.length === 0)">
+    <div class="search-empty" v-else-if="rootPath && trimmedSearchQuery">
+      没有找到匹配的{{ searchMode === 'name' ? '文件' : '内容' }}
+    </div>
+
+    <div class="file-list" v-else-if="rootPath">
       <el-tree
         :data="treeData"
         :props="treeProps"
@@ -90,36 +96,43 @@
 
     <div class="empty-prompt" v-else>
       <el-empty description="选择工作区" :image-size="48">
-        <el-button type="primary" @click="openFolder">
+        <el-button type="primary" native-type="button" @click="openFolder">
           <el-icon><FolderAdd /></el-icon>
           打开文件夹
         </el-button>
         <p class="empty-hint">或使用浏览器内置虚拟文件系统</p>
-        <el-button size="small" @click="initDemoWorkspace">试用示例工作区</el-button>
+        <el-button size="small" native-type="button" @click="initDemoWorkspace">试用示例工作区</el-button>
       </el-empty>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, onMounted } from 'vue'
+import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Folder, Document, DocumentAdd, FolderAdd, Search, Picture } from '@element-plus/icons-vue'
 import { fileSystem } from '../../services/fileSystem'
 import { sanitizeFilePath, isValidFileName, safeStorage } from '../../utils/security'
 import type { TreeNode } from '../../types'
 
+const WORKSPACE_ROOT_STORAGE_KEY = 'workspace_root_path'
+
 const emit = defineEmits<{
   (e: 'select', path: string): void
+  (e: 'search-result-select', payload: { path: string; lineNumber?: number }): void
   (e: 'root-path-change', path: string): void
-  (e: 'renamed', payload: { oldPath: string; newPath: string; isDirectory: boolean }): void
+  (e: 'renamed', payload: { oldPath: string; newPath: string; isDirectory: boolean; renamedPaths?: Array<{ oldPath: string; newPath: string; isDirectory: boolean }>; updatedLinkPaths?: string[] }): void
   (e: 'deleted', payload: { path: string; isDirectory: boolean }): void
 }>()
 
-const rootPath = ref('')
+const rootPath = ref(safeStorage.get<string>(WORKSPACE_ROOT_STORAGE_KEY, ''))
 const treeData = ref<TreeNode[]>([])
 const expandedKeys = ref<string[]>([])
 const currentFilePath = ref('')
+let isDisposed = false
+let treeLoadRequestId = 0
+let nameSearchRequestId = 0
+let contentSearchRequestId = 0
 
 const recentFiles = ref<Array<{ name: string; path: string }>>([])
 
@@ -144,14 +157,24 @@ const treeProps = {
 }
 
 const loadTreeFromFS = async () => {
-  if (!rootPath.value) return
+  const requestId = ++treeLoadRequestId
+  const activeRootPath = rootPath.value
+  if (!activeRootPath) return
   try {
-    const children = await fileSystem.readDirectory(rootPath.value)
+    const children = await fileSystem.readDirectory(activeRootPath)
+    if (isDisposed || requestId !== treeLoadRequestId || rootPath.value !== activeRootPath) return
     treeData.value = buildTree(children)
-    expandedKeys.value = [rootPath.value]
+    expandedKeys.value = [activeRootPath]
   } catch (e: any) {
+    if (isDisposed || requestId !== treeLoadRequestId) return
     ElMessage.error('加载目录失败: ' + e.message)
   }
+}
+
+const setRootPath = (path: string) => {
+  rootPath.value = path
+  safeStorage.set(WORKSPACE_ROOT_STORAGE_KEY, path)
+  emit('root-path-change', path)
 }
 
 const buildTree = (items: any[]): TreeNode[] => {
@@ -189,6 +212,7 @@ const handleNodeClick = async (data: TreeNode, node?: any) => {
     if (!data.children || data.children.length === 0) {
       try {
         const children = await fileSystem.readDirectory(data.path)
+        if (isDisposed) return
         data.children = buildTree(children)
         data.isExpanded = true
         await expandTreeNode(data, node)
@@ -214,6 +238,7 @@ const handleTreeAction = async (command: string, data: TreeNode) => {
         cancelButtonText: '取消'
       })
       await fileSystem.deleteFile(data.path)
+      if (isDisposed) return
       await loadTreeFromFS()
       if (currentFilePath.value === data.path) currentFilePath.value = ''
       emit('deleted', { path: data.path, isDirectory: data.isDirectory })
@@ -231,11 +256,18 @@ const handleTreeAction = async (command: string, data: TreeNode) => {
         }
         const parentPath = data.path.substring(0, data.path.lastIndexOf('/'))
         const newPath = sanitizeFilePath(`${parentPath}/${value}`)
-        await fileSystem.renameFile(data.path, newPath)
+        const renameResult = await fileSystem.renameFile(data.path, newPath)
+        if (isDisposed) return
         await loadTreeFromFS()
         if (currentFilePath.value === data.path) currentFilePath.value = newPath
-        emit('renamed', { oldPath: data.path, newPath, isDirectory: data.isDirectory })
-        ElMessage.success('已重命名')
+        emit('renamed', {
+          oldPath: data.path,
+          newPath,
+          isDirectory: data.isDirectory,
+          renamedPaths: renameResult.renamedPaths,
+          updatedLinkPaths: renameResult.updatedLinkPaths,
+        })
+        ElMessage.success(renameResult.updatedLinkPaths.length > 0 ? `已重命名并更新 ${renameResult.updatedLinkPaths.length} 个链接` : '已重命名')
       }
     } catch (e: any) {
       if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '重命名失败')
@@ -246,10 +278,10 @@ const handleTreeAction = async (command: string, data: TreeNode) => {
 const openFolder = async () => {
   try {
     const count = await fileSystem.importFromPicker()
+    if (isDisposed) return
     if (count > 0) {
-      rootPath.value = '/workspace'
+      setRootPath('/workspace')
       await loadTreeFromFS()
-      emit('root-path-change', rootPath.value)
       ElMessage.success(`已导入 ${count} 个文件`)
     }
   } catch (e: any) {
@@ -259,9 +291,10 @@ const openFolder = async () => {
 
 const initDemoWorkspace = async () => {
   await fileSystem.init()
-  rootPath.value = '/workspace'
+  if (isDisposed) return
+  setRootPath('/workspace')
   await loadTreeFromFS()
-  emit('root-path-change', rootPath.value)
+  if (isDisposed) return
   ElMessage.success('已加载示例工作区')
 }
 
@@ -276,6 +309,7 @@ const handleCreateFile = async () => {
       const name = value.endsWith('.md') ? value : value + '.md'
       const path = sanitizeFilePath(`${rootPath.value}/${name}`)
       await fileSystem.createFile(path)
+      if (isDisposed) return
       await loadTreeFromFS()
       currentFilePath.value = path
       emit('select', path)
@@ -296,6 +330,7 @@ const handleCreateFolder = async () => {
       }
       const path = sanitizeFilePath(`${rootPath.value}/${value}`)
       await fileSystem.createDirectory(path)
+      if (isDisposed) return
       await loadTreeFromFS()
       ElMessage.success('文件夹已创建')
     }
@@ -305,27 +340,128 @@ const handleCreateFolder = async () => {
 }
 
 const searchQuery = ref('')
+const searchInputRef = ref<{ focus: () => void } | null>(null)
 const searchMode = ref<'name' | 'content'>('name')
-const searchResults = ref<Array<{ filePath: string; fileName: string; matches: Array<{ lineNumber: number; lineContent: string }> }>>([])
+type SearchResult = { filePath: string; fileName: string; matches: Array<{ lineNumber?: number; lineContent: string }> }
+const contentSearchResults = ref<SearchResult[]>([])
+const nameSearchResults = ref<SearchResult[]>([])
+const trimmedSearchQuery = computed(() => searchQuery.value.trim())
+const activeSearchResults = computed(() => searchMode.value === 'name' ? nameSearchResults.value : contentSearchResults.value)
 
 const toggleSearchMode = () => {
   searchMode.value = searchMode.value === 'name' ? 'content' : 'name'
-  if (searchMode.value === 'content' && searchQuery.value) searchContent()
+  contentSearchResults.value = []
+  nameSearchResults.value = []
+  if (searchMode.value === 'content' && trimmedSearchQuery.value) searchContent()
+  if (searchMode.value === 'name' && trimmedSearchQuery.value) searchFileNames()
 }
 
-const clearSearch = () => { searchQuery.value = ''; searchResults.value = [] }
+const clearSearch = () => {
+  nameSearchRequestId += 1
+  contentSearchRequestId += 1
+  searchQuery.value = ''
+  contentSearchResults.value = []
+  nameSearchResults.value = []
+}
 
-const searchContent = async () => {
-  if (!searchQuery.value.trim() || !rootPath.value) return
+const getRelativeWorkspacePath = (path: string) => {
+  const prefix = rootPath.value.endsWith('/') ? rootPath.value : `${rootPath.value}/`
+  return path.startsWith(prefix) ? path.slice(prefix.length) : path
+}
+
+const searchFileNames = async () => {
+  const requestId = ++nameSearchRequestId
+  const query = trimmedSearchQuery.value.toLowerCase()
+  const activeRootPath = rootPath.value
+  if (!query || !activeRootPath) {
+    nameSearchResults.value = []
+    return
+  }
+
   try {
-    searchResults.value = await fileSystem.searchFiles(searchQuery.value)
-  } catch (e: any) {
+    const files = await fileSystem.getAllMarkdownFiles()
+    if (
+      isDisposed ||
+      requestId !== nameSearchRequestId ||
+      searchMode.value !== 'name' ||
+      trimmedSearchQuery.value.toLowerCase() !== query ||
+      rootPath.value !== activeRootPath
+    ) return
+    nameSearchResults.value = files
+      .filter(file => file.path.startsWith(`${activeRootPath}/`))
+      .filter(file => file.name.toLowerCase().includes(query) || getRelativeWorkspacePath(file.path).toLowerCase().includes(query))
+      .sort((a, b) => {
+        const aName = a.name.toLowerCase()
+        const bName = b.name.toLowerCase()
+        const aStarts = aName.startsWith(query) ? 0 : 1
+        const bStarts = bName.startsWith(query) ? 0 : 1
+        if (aStarts !== bStarts) return aStarts - bStarts
+        return a.name.localeCompare(b.name)
+      })
+      .slice(0, 30)
+      .map(file => ({
+        filePath: file.path,
+        fileName: file.name,
+        matches: [{ lineContent: getRelativeWorkspacePath(file.path) }],
+      }))
+  } catch {
+    if (isDisposed || requestId !== nameSearchRequestId) return
+    nameSearchResults.value = []
     ElMessage.error('搜索失败')
   }
 }
 
-const handleSearchResultClick = (result: { filePath: string }) => {
-  emit('select', result.filePath)
+const handleSearchInput = () => {
+  if (searchMode.value === 'name') {
+    void searchFileNames()
+  } else {
+    contentSearchResults.value = []
+  }
+}
+
+const handleSearchEnter = () => {
+  if (searchMode.value === 'content') void searchContent()
+  else void searchFileNames()
+}
+
+const focusSearch = async (mode: 'name' | 'content', query = '') => {
+  searchMode.value = mode
+  searchQuery.value = query
+  contentSearchResults.value = []
+  nameSearchResults.value = []
+  await nextTick()
+  searchInputRef.value?.focus()
+  if (mode === 'content' && query.trim()) await searchContent()
+  if (mode === 'name' && query.trim()) await searchFileNames()
+}
+
+const searchContent = async () => {
+  const requestId = ++contentSearchRequestId
+  const query = trimmedSearchQuery.value
+  const activeRootPath = rootPath.value
+  if (!query || !activeRootPath) {
+    contentSearchResults.value = []
+    return
+  }
+  try {
+    const results = await fileSystem.searchFiles(query)
+    if (
+      isDisposed ||
+      requestId !== contentSearchRequestId ||
+      searchMode.value !== 'content' ||
+      trimmedSearchQuery.value !== query ||
+      rootPath.value !== activeRootPath
+    ) return
+    contentSearchResults.value = results
+  } catch (e: any) {
+    if (isDisposed || requestId !== contentSearchRequestId) return
+    ElMessage.error('搜索失败')
+  }
+}
+
+const handleSearchResultClick = (result: SearchResult) => {
+  const lineNumber = result.matches.find(match => match.lineNumber)?.lineNumber
+  emit('search-result-select', { path: result.filePath, lineNumber })
   clearSearch()
 }
 
@@ -337,10 +473,21 @@ const saveFile = async (filePath: string, content: string): Promise<boolean> => 
   try { await fileSystem.writeFile(filePath, content); return true } catch { return false }
 }
 
-defineExpose({ readFile, saveFile, handleCreateFile, handleCreateFolder, openFolder, initDemoWorkspace, rootPath })
+defineExpose({ readFile, saveFile, handleCreateFile, handleCreateFolder, openFolder, initDemoWorkspace, refreshTree: loadTreeFromFS, focusSearch, rootPath })
 
-onMounted(() => {
+onMounted(async () => {
   loadRecentFiles()
+  if (rootPath.value) {
+    emit('root-path-change', rootPath.value)
+    await loadTreeFromFS()
+  }
+})
+
+onUnmounted(() => {
+  isDisposed = true
+  treeLoadRequestId += 1
+  nameSearchRequestId += 1
+  contentSearchRequestId += 1
 })
 </script>
 
@@ -440,6 +587,13 @@ onMounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 4px 8px;
+}
+
+.search-empty {
+  padding: 18px 12px;
+  color: var(--obsidian-text-faint, #666);
+  font-size: 12px;
+  text-align: center;
 }
 
 .search-result-card {

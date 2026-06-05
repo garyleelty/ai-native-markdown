@@ -2,7 +2,7 @@
   <Transition name="focus-toolbar">
     <div class="focus-mode-toolbar" v-if="active">
       <el-tooltip content="退出专注模式 (Esc)" placement="bottom">
-        <el-button :icon="Close" circle size="small" @click="$emit('exit')" />
+        <el-button :icon="Close" native-type="button" circle size="small" aria-label="退出专注模式" @click="$emit('exit')" />
       </el-tooltip>
       <span class="focus-file-name">{{ fileName }}</span>
       <span class="focus-stats">{{ wordCount }} 词</span>

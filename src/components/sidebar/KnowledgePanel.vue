@@ -2,7 +2,7 @@
   <div class="panel">
     <div class="panel-header">
       <span class="panel-title">知识</span>
-      <el-button :icon="Refresh" size="small" circle aria-label="刷新知识索引" @click="refreshIndex" />
+      <el-button :icon="Refresh" native-type="button" size="small" circle aria-label="刷新知识索引" @click="refreshIndex" />
     </div>
 
     <div class="index-summary">
@@ -44,7 +44,13 @@
 
             <div class="section" v-if="currentRecord.links.length">
               <div class="section-label">Outgoing Links</div>
-              <button v-for="link in currentRecord.links" :key="link" class="link-chip">
+              <button
+                v-for="link in currentRecord.links"
+                :key="link"
+                type="button"
+                class="link-chip"
+                @click="emit('wiki-navigate', link)"
+              >
                 [[{{ link }}]]
               </button>
             </div>
@@ -58,7 +64,7 @@
           <ReferenceList
             :items="backlinks"
             empty-text="暂无反链"
-            @select="path => emit('select', path)"
+            @select="item => emit('reference-select', item)"
           />
         </div>
       </el-tab-pane>
@@ -68,16 +74,19 @@
           <ReferenceList
             :items="unlinkedMentions"
             empty-text="暂无未链接提及"
-            @select="path => emit('select', path)"
+            action-label="链接"
+            @select="item => emit('reference-select', item)"
+            @action="item => handleLinkMention(item)"
           />
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="图谱" name="graph">
+      <el-tab-pane label="图谱" name="graph" lazy>
         <div class="graph-panel-content">
           <KnowledgeGraph
             v-if="graphData"
             :graph-data="graphData"
+            :current-file="props.currentFile"
             @node-click="handleGraphNodeClick"
           />
           <div class="graph-loading" v-else-if="graphLoading">
@@ -91,14 +100,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Loading, Refresh } from '@element-plus/icons-vue'
-import { KnowledgeGraph } from '../knowledge'
 import { knowledgeIndex, type KnowledgeIndexRecord, type KnowledgeReference } from '../../services/knowledgeIndex'
 import { fileSystem } from '../../services/fileSystem'
 import type { GraphNode, KnowledgeGraphData } from '../../types'
 import ReferenceList from './ReferenceList.vue'
+
+const KnowledgeGraph = defineAsyncComponent(() => import('../knowledge/KnowledgeGraph.vue'))
 
 interface Props {
   rootPath?: string
@@ -108,6 +118,9 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'select', path: string): void
+  (e: 'reference-select', reference: KnowledgeReference): void
+  (e: 'wiki-navigate', target: string): void
+  (e: 'link-mention', payload: { reference: KnowledgeReference; targetTitle: string; targetNames: string[] }): void
 }>()
 
 const activeTab = ref('properties')
@@ -142,73 +155,103 @@ const ensureIndexReady = async () => {
 }
 
 const loadCurrentFileKnowledge = async () => {
-  if (!props.currentFile) {
+  const filePath = props.currentFile
+  const version = ++currentKnowledgeLoadVersion
+  if (!filePath) {
     currentRecord.value = null
     backlinks.value = []
     unlinkedMentions.value = []
     return
   }
 
-  currentRecord.value = await knowledgeIndex.getByPath(props.currentFile) ?? null
-  backlinks.value = await knowledgeIndex.getBacklinks(props.currentFile)
-  unlinkedMentions.value = await knowledgeIndex.getUnlinkedMentions(props.currentFile)
+  const [record, nextBacklinks, nextMentions] = await Promise.all([
+    knowledgeIndex.getByPath(filePath),
+    knowledgeIndex.getBacklinks(filePath),
+    knowledgeIndex.getUnlinkedMentions(filePath),
+  ])
+  if (isDisposed || version !== currentKnowledgeLoadVersion || props.currentFile !== filePath) return
+  currentRecord.value = record ?? null
+  backlinks.value = nextBacklinks
+  unlinkedMentions.value = nextMentions
 }
 
 const loadGraphData = async () => {
+  const version = ++graphLoadVersion
   graphLoading.value = true
   try {
-    graphData.value = await knowledgeIndex.buildGraphData()
+    const nextGraphData = await knowledgeIndex.buildGraphData()
+    if (isDisposed || version !== graphLoadVersion) return
+    graphData.value = nextGraphData
   } catch {
-    ElMessage.error('加载知识索引失败')
+    if (!isDisposed && version === graphLoadVersion) ElMessage.error('加载知识索引失败')
   } finally {
-    graphLoading.value = false
+    if (!isDisposed && version === graphLoadVersion) graphLoading.value = false
   }
 }
 
 const refreshIndex = async () => {
   try {
     await rebuildIndex()
+    if (isDisposed) return
     await Promise.all([loadCurrentFileKnowledge(), loadGraphData()])
-    ElMessage.success('知识索引已刷新')
+    if (!isDisposed) ElMessage.success('知识索引已刷新')
   } catch {
-    ElMessage.error('刷新知识索引失败')
+    if (!isDisposed) ElMessage.error('刷新知识索引失败')
   }
 }
 
 const handleGraphNodeClick = (node: GraphNode) => { emit('select', node.path) }
+const handleLinkMention = (reference: KnowledgeReference) => {
+  if (!currentRecord.value) return
+  emit('link-mention', {
+    reference,
+    targetTitle: currentRecord.value.title,
+    targetNames: [currentRecord.value.title, ...currentRecord.value.aliases],
+  })
+}
 
 let unsubscribeIndex: (() => void) | null = null
 let reloadTimer: ReturnType<typeof setTimeout> | null = null
+let isDisposed = false
+let currentKnowledgeLoadVersion = 0
+let graphLoadVersion = 0
 
 const scheduleReload = () => {
+  if (isDisposed) return
   if (reloadTimer) clearTimeout(reloadTimer)
   reloadTimer = setTimeout(() => {
-    Promise.all([loadCurrentFileKnowledge(), loadGraphData()])
+    if (!isDisposed) void Promise.all([loadCurrentFileKnowledge(), loadGraphData()])
   }, 120)
 }
 
 onMounted(async () => {
   try {
     await ensureIndexReady()
+    if (isDisposed) return
     await Promise.all([loadCurrentFileKnowledge(), loadGraphData()])
-    unsubscribeIndex = knowledgeIndex.subscribe(scheduleReload)
+    if (!isDisposed) unsubscribeIndex = knowledgeIndex.subscribe(scheduleReload)
   } catch {
-    ElMessage.error('初始化知识索引失败')
+    if (!isDisposed) ElMessage.error('初始化知识索引失败')
   }
 })
 
 onUnmounted(() => {
+  isDisposed = true
+  currentKnowledgeLoadVersion++
+  graphLoadVersion++
   if (unsubscribeIndex) unsubscribeIndex()
   if (reloadTimer) clearTimeout(reloadTimer)
 })
 
 watch(() => props.currentFile, () => {
-  loadCurrentFileKnowledge()
+  void loadCurrentFileKnowledge()
 })
 
 watch(() => props.rootPath, async (newPath, oldPath) => {
   if (newPath && newPath !== oldPath) await refreshIndex()
 })
+
+defineExpose({ refreshIndex })
 </script>
 
 <style scoped>
@@ -416,6 +459,15 @@ watch(() => props.rootPath, async (newPath, oldPath) => {
 
 .panel :deep(.reference-item) {
   width: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  border-radius: 5px;
+}
+
+.panel :deep(.reference-main) {
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 8px;
   border: none;
   border-radius: 5px;
@@ -425,15 +477,55 @@ watch(() => props.rootPath, async (newPath, oldPath) => {
   cursor: pointer;
 }
 
-.panel :deep(.reference-item:hover) {
+.panel :deep(.reference-main:hover) {
   background: var(--obsidian-bg-hover, #303030);
 }
 
+.panel :deep(.reference-action) {
+  align-self: center;
+  flex: 0 0 auto;
+  min-width: 40px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--el-color-primary) 34%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--el-color-primary) 12%, transparent);
+  color: var(--el-color-primary);
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.panel :deep(.reference-action:hover) {
+  background: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+}
+
 .panel :deep(.reference-title) {
-  display: block;
+  min-width: 0;
   font-size: 12px;
   font-weight: 650;
   color: var(--obsidian-text-normal, #dcddde);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel :deep(.reference-heading) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.panel :deep(.reference-line) {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--el-color-primary) 16%, transparent);
+  color: var(--el-color-primary);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.4;
 }
 
 .panel :deep(.reference-path) {

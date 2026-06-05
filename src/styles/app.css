@@ -100,6 +100,8 @@
   flex: 1;
   overflow: hidden;
   display: flex;
+  position: relative;
+  min-width: 0;
 }
 
 /* ── 侧边栏 ── */
@@ -109,11 +111,13 @@
   border-right: 1px solid var(--obsidian-border);
   overflow: hidden;
   transition: width 0s;
+  flex-shrink: 0;
 }
 
 /* ── 编辑器主区域 ── */
 .editor-container-main {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -269,6 +273,8 @@
   flex-shrink: 0;
   gap: 16px;
   user-select: none;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .status-bar .status-item {
@@ -276,10 +282,12 @@
   align-items: center;
   gap: 4px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .status-bar .status-spacer {
   flex: 1;
+  min-width: 0;
 }
 
 .status-bar .status-dot {
@@ -318,6 +326,11 @@
   padding: 0 6px;
   border-radius: var(--radius-xs);
   transition: all var(--duration-fast);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  height: 20px;
 }
 
 .status-bar .view-mode-btn:hover {
@@ -371,6 +384,14 @@
 
 .drag-content .el-icon {
   color: var(--obsidian-accent);
+}
+
+.mobile-sidebar-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(2px);
 }
 
 /* ── 调整手柄 ── */
@@ -460,18 +481,95 @@
     padding: 0 8px;
   }
 
+  .app-header .header-left,
+  .app-header .header-right {
+    gap: 2px;
+  }
+
+  .app-header .el-button {
+    width: 32px;
+    height: 32px;
+  }
+
   .app-brand .brand-text {
     display: none;
+  }
+
+  .header-center {
+    display: none !important;
+  }
+
+  .sidebar-aside {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    max-width: 86vw;
+    box-shadow: var(--shadow-lg);
+    transition: transform var(--duration-slow) var(--ease-default);
+    transform: translateX(-100%);
+  }
+
+  .sidebar-aside.is-mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-aside:not(.is-mobile-open) {
+    width: 0 !important;
+    max-width: 0;
+    border-right: 0;
+    box-shadow: none;
+    pointer-events: none;
+  }
+
+  .editor-container-main {
+    flex: 0 0 100%;
+    width: 100%;
+  }
+
+  .editor-preview-view.split-mode {
+    flex-direction: column;
+  }
+
+  .editor-preview-view.split-mode .editor-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--obsidian-border);
   }
 
   .status-bar {
     height: 22px !important;
     padding: 0 8px;
     font-size: 10px;
-    gap: 10px;
+    gap: 8px;
   }
 
-  .status-bar .status-item:nth-child(n+4) {
+  .status-bar .status-format,
+  .status-bar .status-line,
+  .status-bar .status-stats,
+  .status-bar .status-duration,
+  .status-bar .ai-status,
+  .status-bar .writing-goal {
     display: none;
+  }
+
+  .status-bar .status-save {
+    min-width: 0;
+    max-width: calc(100vw - 88px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .status-bar .save-status {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .status-bar .view-mode-btn {
+    height: 22px;
+    min-width: 44px;
+    justify-content: center;
+    padding: 0 8px;
+    background: var(--obsidian-bg-hover);
+    color: var(--obsidian-text-muted);
   }
 }

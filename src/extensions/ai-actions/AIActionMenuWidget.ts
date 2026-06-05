@@ -1,13 +1,14 @@
 import { WidgetType, EditorView } from '@codemirror/view'
 import { AI_ACTIONS, type AIAction } from './types'
 import { aiService } from '@/services/ai'
-import { sanitizeMarkdown } from '@/utils/security'
 
 export class AIActionMenuWidget extends WidgetType {
   private selectedText: string
   private from: number
   private to: number
   private view: EditorView
+  private abortController: AbortController | null = null
+  private destroyed = false
 
   constructor(selectedText: string, from: number, to: number, view: EditorView) {
     super()
@@ -35,7 +36,12 @@ export class AIActionMenuWidget extends WidgetType {
       label.className = 'cm-ai-action-label'
       label.textContent = action.label
       btn.append(icon, label)
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+      })
       btn.addEventListener('click', (e) => {
+        e.preventDefault()
         e.stopPropagation()
         this.executeAction(action)
       })
@@ -53,12 +59,16 @@ export class AIActionMenuWidget extends WidgetType {
   }
 
   private async executeAction(action: AIAction) {
+    if (this.destroyed) return
     const provider = aiService.getActiveProvider()
     if (!provider) {
       this.showResult('请先在设置中配置 AI 服务', 'error')
       return
     }
 
+    this.abortController?.abort()
+    const controller = new AbortController()
+    this.abortController = controller
     this.showLoading()
 
     try {
@@ -66,13 +76,18 @@ export class AIActionMenuWidget extends WidgetType {
       for await (const chunk of provider.streamChat([
         { role: 'system', content: action.systemRole },
         { role: 'user', content: action.prompt + this.selectedText }
-      ], { temperature: action.temperature ?? 0.3 })) {
+      ], { temperature: action.temperature ?? 0.3, signal: controller.signal })) {
+        if (this.destroyed || controller.signal.aborted) return
         result += chunk
         this.showStreamingResult(result)
       }
+      if (this.destroyed || controller.signal.aborted) return
       this.showResult(result.trim(), 'success')
     } catch (e: any) {
+      if (this.destroyed || controller.signal.aborted || e?.name === 'AbortError') return
       this.showResult(`处理失败: ${e?.message || String(e)}`, 'error')
+    } finally {
+      if (this.abortController === controller) this.abortController = null
     }
   }
 
@@ -94,6 +109,10 @@ export class AIActionMenuWidget extends WidgetType {
     close.textContent = 'x'
     close.addEventListener('click', () => {
       this.destroyResult()
+    })
+    close.addEventListener('pointerdown', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
     })
     header.append(status, close)
 
@@ -139,13 +158,19 @@ export class AIActionMenuWidget extends WidgetType {
     closeBtn.className = 'cm-ai-result-close'
     closeBtn.title = '关闭'
     closeBtn.textContent = 'x'
+    for (const button of [acceptBtn, insertBtn, closeBtn]) {
+      button.addEventListener('pointerdown', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+      })
+    }
 
     actions.append(acceptBtn, insertBtn, closeBtn)
     header.append(status, actions)
 
     const body = document.createElement('div')
     body.className = 'cm-ai-result-body'
-    body.innerHTML = sanitizeMarkdown(text)
+    body.textContent = text
     resultEl.append(header, body)
 
     if (type === 'success') {
@@ -181,6 +206,8 @@ export class AIActionMenuWidget extends WidgetType {
   }
 
   private destroyResult() {
+    this.abortController?.abort()
+    this.abortController = null
     const resultEl = this.getResultContainer()
     if (resultEl) resultEl.style.display = 'none'
   }
@@ -189,9 +216,15 @@ export class AIActionMenuWidget extends WidgetType {
     this.view.dispatch({ selection: { anchor: this.to } })
     this.view.focus()
   }
-  ignoreEvent(): boolean { return false }
+  ignoreEvent(): boolean { return true }
 
   eq(other: AIActionMenuWidget): boolean {
     return this.from === other.from && this.to === other.to && this.selectedText === other.selectedText
+  }
+
+  destroy(): void {
+    this.destroyed = true
+    this.abortController?.abort()
+    this.abortController = null
   }
 }

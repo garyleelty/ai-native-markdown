@@ -3,10 +3,23 @@
     <div class="chart-header">
       <span class="chart-type-badge">{{ chartType }}</span>
       <div class="chart-actions">
-        <button class="chart-btn" @click="toggleSource" title="查看源码">
+        <button
+          type="button"
+          class="chart-btn"
+          @click="toggleSource"
+          :title="showSource ? '隐藏源码' : '查看源码'"
+          :aria-label="showSource ? '隐藏图表源码' : '查看图表源码'"
+          :aria-pressed="showSource"
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
         </button>
-        <button class="chart-btn" @click="regenerateChart" title="重新生成">
+        <button
+          type="button"
+          class="chart-btn"
+          @click="regenerateChart"
+          title="重新生成"
+          aria-label="重新生成图表"
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
         </button>
       </div>
@@ -18,8 +31,12 @@
   </div>
 </template>
 
+<script lang="ts">
+let chartInstanceCounter = 0
+</script>
+
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { sanitizeSvg } from '@/utils/security'
 
 const props = defineProps<{
@@ -34,6 +51,8 @@ const chartContainer = ref<HTMLElement>()
 const previewContainer = ref<HTMLElement>()
 const showSource = ref(false)
 const chartType = ref('chart')
+let renderVersion = 0
+const chartInstanceId = ++chartInstanceCounter
 
 onMounted(() => {
   detectChartType()
@@ -41,7 +60,16 @@ onMounted(() => {
 })
 
 watch(() => props.mermaidSource, () => {
+  detectChartType()
   renderChart()
+})
+
+watch(showSource, (visible) => {
+  if (!visible) renderChart()
+}, { flush: 'post' })
+
+onUnmounted(() => {
+  renderVersion += 1
 })
 
 function detectChartType() {
@@ -56,20 +84,27 @@ function detectChartType() {
 }
 
 async function renderChart() {
-  if (!previewContainer.value) return
-  previewContainer.value.textContent = ''
+  const currentVersion = ++renderVersion
+  await nextTick()
+  const container = previewContainer.value
+  if (!container) return
+  const source = props.mermaidSource
+  container.textContent = ''
   try {
     const mermaid = (await import('mermaid')).default
+    if (currentVersion !== renderVersion || previewContainer.value !== container) return
     mermaid.initialize({ startOnLoad: false, theme: 'dark' })
-    const { svg } = await mermaid.render(`chart-${Date.now()}`, props.mermaidSource)
-    previewContainer.value.innerHTML = sanitizeSvg(svg)
+    const { svg } = await mermaid.render(`chart-${chartInstanceId}-${currentVersion}`, source)
+    if (currentVersion !== renderVersion || previewContainer.value !== container) return
+    container.innerHTML = sanitizeSvg(svg)
   } catch (e) {
+    if (currentVersion !== renderVersion || previewContainer.value !== container) return
     const errorEl = document.createElement('div')
     errorEl.style.color = 'var(--accent-red)'
     errorEl.style.fontSize = '12px'
     errorEl.style.padding = '8px'
     errorEl.textContent = `图表渲染失败: ${e instanceof Error ? e.message : String(e)}`
-    previewContainer.value.appendChild(errorEl)
+    container.appendChild(errorEl)
   }
 }
 
@@ -121,6 +156,10 @@ function regenerateChart() {
   align-items: center;
 }
 .chart-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.chart-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
 .chart-source {
   padding: 12px;
   overflow-x: auto;

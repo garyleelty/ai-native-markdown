@@ -78,6 +78,16 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   const isSupported = !!SpeechRecognitionCtor
 
   let recognition: SpeechRecognition | null = null
+  let disposed = false
+
+  const isCurrentRecognition = (rec: SpeechRecognition) => !disposed && recognition === rec
+
+  const detachRecognitionHandlers = (rec: SpeechRecognition) => {
+    rec.onstart = null
+    rec.onresult = null
+    rec.onerror = null
+    rec.onend = null
+  }
 
   const createRecognition = (): SpeechRecognition | null => {
     if (!SpeechRecognitionCtor) return null
@@ -89,11 +99,13 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       rec.maxAlternatives = 1
 
       rec.onstart = () => {
+        if (!isCurrentRecognition(rec)) return
         status.value = 'listening'
         error.value = null
       }
 
       rec.onresult = (event: SpeechRecognitionEvent) => {
+        if (!isCurrentRecognition(rec)) return
         let finalTranscript = ''
         let interim = ''
 
@@ -108,16 +120,17 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
 
         if (finalTranscript) {
           transcript.value += finalTranscript
-          onResult?.(transcript.value, true)
+          onResult?.(finalTranscript, true)
         }
 
         interimTranscript.value = interim
         if (interim) {
-          onResult?.(transcript.value + interim, false)
+          onResult?.(interim, false)
         }
       }
 
       rec.onerror = (event: SpeechRecognitionErrorEvent) => {
+        if (!isCurrentRecognition(rec)) return
         let errorMsg = ''
         switch (event.error) {
           case 'no-speech':
@@ -147,9 +160,11 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       }
 
       rec.onend = () => {
+        if (!isCurrentRecognition(rec)) return
         if (status.value === 'listening' || status.value === 'recognizing') {
           status.value = 'idle'
         }
+        recognition = null
       }
 
       return rec
@@ -177,6 +192,11 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       recognition = createRecognition()
       if (recognition) {
         recognition.start()
+      } else {
+        const msg = '初始化语音识别失败'
+        error.value = msg
+        status.value = 'error'
+        onError?.(msg)
       }
     } catch (e: any) {
       const msg = `启动语音识别失败: ${e?.message || String(e)}`
@@ -206,7 +226,17 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   }
 
   onUnmounted(() => {
-    stopListening()
+    disposed = true
+    if (recognition) {
+      const rec = recognition
+      recognition = null
+      detachRecognitionHandlers(rec)
+      try {
+        rec.abort()
+      } catch {
+        // ignore
+      }
+    }
   })
 
   return {

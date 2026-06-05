@@ -36,7 +36,8 @@ export default defineConfig({
           'element-plus': ['element-plus', '@element-plus/icons-vue'],
           'codemirror': ['codemirror', '@codemirror/state', '@codemirror/view', '@codemirror/lang-markdown', '@codemirror/theme-one-dark', '@codemirror/search'],
           'markdown': ['markdown-it', 'markdown-it-anchor', 'markdown-it-task-lists', 'highlight.js', 'katex'],
-          'mermaid': ['mermaid', 'd3'],
+          'mermaid': ['mermaid'],
+          'graph': ['d3'],
           'pdf-ocr': ['pdfjs-dist', 'tesseract.js'],
         }
       }

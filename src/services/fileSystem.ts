@@ -1,5 +1,8 @@
 import Dexie, { type Table } from 'dexie'
 import { knowledgeIndex } from './knowledgeIndex'
+import { ragService } from './rag'
+import { versionHistory } from './versionHistory'
+import { updateWikiLinksForRename } from '@/utils/wikiLinks'
 
 export interface FileRecord {
   id?: number
@@ -11,6 +14,11 @@ export interface FileRecord {
   createdAt: number
   updatedAt: number
   size: number
+}
+
+export interface RenameFileResult {
+  renamedPaths: Array<{ oldPath: string; newPath: string; isDirectory: boolean }>
+  updatedLinkPaths: string[]
 }
 
 class FileSystemDB extends Dexie {
@@ -25,6 +33,64 @@ class FileSystemDB extends Dexie {
 }
 
 const db = new FileSystemDB()
+
+const DEMO_README_CONTENT = [
+  '# AI Markdown 示例工作区',
+  '',
+  '这是一个本地优先的 Markdown 工作台示例。你可以直接编辑这篇文档，切换预览，或打开右侧 AI 面板继续写作。',
+  '',
+  '## 已展示能力',
+  '',
+  '- [x] 本地工作区与多标签编辑',
+  '- [x] 实时预览、Wiki Link、任务列表',
+  '- [x] Mermaid 图表',
+  '- [x] KaTeX 数学公式',
+  '- [x] 与 AI 写作面板协同',
+  '',
+  '## 知识连接',
+  '',
+  '这篇笔记连接到 [[notes/Research Map|研究地图]]。在预览中点击链接可以跳转，也可以在知识图谱里查看关系。',
+  '',
+  '## Mermaid',
+  '',
+  '```mermaid',
+  'flowchart LR',
+  '  A[Capture] --> B[Write]',
+  '  B --> C[Preview]',
+  '  C --> D[Graph]',
+  '  D --> E[AI Assist]',
+  '```',
+  '',
+  '## KaTeX',
+  '',
+  '行内公式：$E = mc^2$',
+  '',
+  '块级公式：',
+  '',
+  '$$',
+  '\\\\int_0^1 x^2 dx = \\\\frac{1}{3}',
+  '$$',
+  '',
+  '## 下一步',
+  '',
+  '1. 用 `[[` 创建或跳转到关联笔记。',
+  '2. 拖入 Markdown、PDF 或图片，测试导入、OCR 与预览流程。',
+  '3. 打开 AI 面板，基于当前文档生成摘要、改写或续写。',
+].join('\n')
+
+const DEMO_RESEARCH_MAP_CONTENT = [
+  '# 研究地图',
+  '',
+  '这是一篇被 README 连接的示例笔记，用来展示 Wiki Link 和知识图谱。',
+  '',
+  '## 主题',
+  '',
+  '- Local-first workspace',
+  '- AI-assisted writing',
+  '- Markdown knowledge graph',
+  '',
+  '返回 [[README|README]]。',
+].join('\n')
 
 async function assertPathAvailable(path: string, oldPath?: string): Promise<void> {
   const existing = await db.files.where('path').equals(path).first()
@@ -57,6 +123,57 @@ async function syncKnowledgeIndex(operation: () => Promise<void>): Promise<void>
   }
 }
 
+async function syncSecondaryStore(name: string, operation: () => Promise<void>): Promise<void> {
+  try {
+    await operation()
+  } catch (error) {
+    console.warn(`${name} sync failed; file operation was kept.`, error)
+  }
+}
+
+function isMarkdownFile(record: FileRecord): boolean {
+  return !record.isDirectory && (record.name.endsWith('.md') || record.name.endsWith('.markdown'))
+}
+
+function getSourcePathBeforeRename(path: string, oldPath: string, newPath: string, isDirectory: boolean): string {
+  if (path === newPath) return oldPath
+  if (isDirectory && path.startsWith(`${newPath}/`)) {
+    return `${oldPath}${path.slice(newPath.length)}`
+  }
+  return path
+}
+
+async function updateSavedWikiLinksForRename(
+  oldPath: string,
+  newPath: string,
+  isDirectory: boolean,
+  markdownPathsBeforeRename: string[]
+): Promise<string[]> {
+  const markdownFiles = await db.files.filter(isMarkdownFile).toArray()
+  const updatedPaths: string[] = []
+
+  for (const file of markdownFiles) {
+    const updatedContent = updateWikiLinksForRename(file.content, {
+      sourcePath: file.path,
+      sourcePathBeforeRename: getSourcePathBeforeRename(file.path, oldPath, newPath, isDirectory),
+      oldPath,
+      newPath,
+      isDirectory,
+      markdownPathsBeforeRename,
+    })
+    if (updatedContent === file.content) continue
+
+    await db.files.update(file.id!, {
+      content: updatedContent,
+      updatedAt: Date.now(),
+      size: updatedContent.length,
+    })
+    updatedPaths.push(file.path)
+  }
+
+  return updatedPaths
+}
+
 export const fileSystem = {
   async init() {
     await db.transaction('rw', db.files, async () => {
@@ -70,8 +187,9 @@ export const fileSystem = {
       }
       if (count === 0) {
         await db.files.bulkAdd([
-          { path: '/workspace/README.md', name: 'README.md', content: '# Welcome to AI Markdown\n\nStart writing here!', isDirectory: false, parentPath: '/workspace', createdAt: now, updatedAt: now, size: 0 },
+          { path: '/workspace/README.md', name: 'README.md', content: DEMO_README_CONTENT, isDirectory: false, parentPath: '/workspace', createdAt: now, updatedAt: now, size: DEMO_README_CONTENT.length },
           { path: '/workspace/notes', name: 'notes', content: '', isDirectory: true, parentPath: '/workspace', createdAt: now, updatedAt: now, size: 0 },
+          { path: '/workspace/notes/Research Map.md', name: 'Research Map.md', content: DEMO_RESEARCH_MAP_CONTENT, isDirectory: false, parentPath: '/workspace/notes', createdAt: now, updatedAt: now, size: DEMO_RESEARCH_MAP_CONTENT.length },
         ])
       }
     })
@@ -154,14 +272,17 @@ export const fileSystem = {
         removedPaths.push(p)
       }
     })
-    await syncKnowledgeIndex(async () => {
-      await Promise.all(removedPaths.map(p => knowledgeIndex.removeFile(p, { silent: true })))
-      if (removedPaths.length > 0) knowledgeIndex.notifyChanged()
-    })
+    if (removedPaths.length === 0) return
+    await Promise.all([
+      syncKnowledgeIndex(() => knowledgeIndex.removeByPrefix(path)),
+      syncSecondaryStore('Version history', () => versionHistory.clearByPrefix(path)),
+      syncSecondaryStore('RAG index', () => ragService.deleteByPrefix(path)),
+    ])
   },
 
-  async renameFile(oldPath: string, newPath: string): Promise<void> {
+  async renameFile(oldPath: string, newPath: string): Promise<RenameFileResult> {
     const renamedPaths: Array<{ oldPath: string; newPath: string; content: string; isDirectory: boolean }> = []
+    const markdownPathsBeforeRename = (await db.files.filter(isMarkdownFile).toArray()).map(file => file.path)
     await db.transaction('rw', db.files, async () => {
       const record = await db.files.where('path').equals(oldPath).first()
       if (!record) throw new Error(`File not found: ${oldPath}`)
@@ -202,12 +323,48 @@ export const fileSystem = {
         }
       }
     })
+    if (renamedPaths.length === 0) return { renamedPaths: [], updatedLinkPaths: [] }
+    const rootRename = renamedPaths[0]
+    const updatedLinkPaths = await updateSavedWikiLinksForRename(
+      oldPath,
+      newPath,
+      rootRename.isDirectory,
+      markdownPathsBeforeRename
+    )
     await syncKnowledgeIndex(async () => {
+      const updatedRecords = (await Promise.all(
+        updatedLinkPaths.map(path => db.files.where('path').equals(path).first())
+      )).filter((file): file is FileRecord => Boolean(file))
+      const updatedContentByPath = new Map(updatedRecords.map(file => [file.path, file.content]))
+      const renamedMarkdownPaths = new Set(renamedPaths.filter(item => !item.isDirectory).map(item => item.newPath))
+
       await Promise.all(renamedPaths
         .filter(item => !item.isDirectory)
-        .map(item => knowledgeIndex.renameFile(item.oldPath, item.newPath, item.content, { silent: true })))
-      if (renamedPaths.some(item => !item.isDirectory)) knowledgeIndex.notifyChanged()
+        .map(item => knowledgeIndex.renameFile(
+          item.oldPath,
+          item.newPath,
+          updatedContentByPath.get(item.newPath) ?? item.content,
+          { silent: true }
+        )))
+      await Promise.all(updatedRecords
+        .filter(item => !renamedMarkdownPaths.has(item.path))
+        .map(item => knowledgeIndex.indexFile(item.path, item.content, { silent: true })))
+      if (renamedPaths.some(item => !item.isDirectory) || updatedRecords.length > 0) knowledgeIndex.notifyChanged()
     })
+    const historyRename = rootRename.isDirectory
+      ? () => versionHistory.renameByPrefix(oldPath, newPath)
+      : () => versionHistory.renameFile(oldPath, newPath)
+    const ragRename = rootRename.isDirectory
+      ? () => ragService.renameByPrefix(oldPath, newPath)
+      : () => ragService.renameDocument(oldPath, newPath)
+    await Promise.all([
+      syncSecondaryStore('Version history', historyRename),
+      syncSecondaryStore('RAG index', ragRename),
+    ])
+    return {
+      renamedPaths: renamedPaths.map(item => ({ oldPath: item.oldPath, newPath: item.newPath, isDirectory: item.isDirectory })),
+      updatedLinkPaths,
+    }
   },
 
   async readDirectory(path: string): Promise<FileRecord[]> {
@@ -249,7 +406,7 @@ export const fileSystem = {
 
   async getAllMarkdownFiles(): Promise<FileRecord[]> {
     const files = await db.files.toArray()
-    return files.filter(f => !f.isDirectory && (f.name.endsWith('.md') || f.name.endsWith('.markdown')))
+    return files.filter(isMarkdownFile)
   },
 
   async importFromPicker(): Promise<number> {

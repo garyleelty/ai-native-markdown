@@ -19,6 +19,7 @@ export class InlineEditWidget extends WidgetType {
   private container: HTMLElement | null = null
   private vueApp: App | null = null
   private destroyed = false
+  private abortController: AbortController | null = null
 
   constructor(selectedText: string, from: number, to: number, view: EditorView, onClose: () => void) {
     super()
@@ -60,6 +61,10 @@ export class InlineEditWidget extends WidgetType {
         cursor: pointer;
         transition: all 0.15s ease;
       `
+      btn.addEventListener('pointerdown', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      })
       btn.addEventListener('click', () => this.handleAction(action))
       btn.addEventListener('mouseenter', () => {
         btn.style.color = 'var(--accent-primary)'
@@ -89,6 +94,10 @@ export class InlineEditWidget extends WidgetType {
       background: none; border: none; color: var(--text-muted);
       cursor: pointer; font-size: 14px; padding: 2px 4px;
     `
+    closeBtn.addEventListener('pointerdown', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+    })
     closeBtn.addEventListener('click', () => {
       this.cleanup()
       const pos = this.view.state.selection.main.head
@@ -101,6 +110,8 @@ export class InlineEditWidget extends WidgetType {
 
   private cleanup() {
     this.destroyed = true
+    this.abortController?.abort()
+    this.abortController = null
     this.unmountVueApp()
     this.onClose()
   }
@@ -115,13 +126,19 @@ export class InlineEditWidget extends WidgetType {
   private async handleAction(action: typeof INLINE_EDIT_ACTIONS[number]) {
     if (this.destroyed) return
 
-    const provider = aiService.getActiveProvider()
-    if (!provider) return
-
     const diffContainer = this.container?.querySelector('.inline-edit-diff-container') as HTMLElement
     if (!diffContainer || !diffContainer.isConnected) return
 
+    const provider = aiService.getActiveProvider()
+    if (!provider) {
+      this.showStatus(diffContainer, '请先在设置中配置 AI 服务', 'error')
+      return
+    }
+
     this.unmountVueApp()
+    this.abortController?.abort()
+    const controller = new AbortController()
+    this.abortController = controller
 
     diffContainer.style.display = 'block'
     const loadingEl = document.createElement('div')
@@ -135,12 +152,12 @@ export class InlineEditWidget extends WidgetType {
       for await (const chunk of provider.streamChat([
         { role: 'system', content: '你是一个专业的 Markdown 写作助手，只输出处理后的文本。' },
         { role: 'user', content: action.prompt + this.selectedText }
-      ], { temperature: 0.5 })) {
+      ], { temperature: 0.5, signal: controller.signal })) {
         result += chunk
-        if (this.destroyed) return
+        if (this.destroyed || controller.signal.aborted) return
       }
 
-      if (this.destroyed || !diffContainer.isConnected) return
+      if (this.destroyed || controller.signal.aborted || !diffContainer.isConnected) return
 
       diffContainer.replaceChildren()
       this.vueApp = createApp({
@@ -163,14 +180,31 @@ export class InlineEditWidget extends WidgetType {
       })
       this.vueApp.mount(diffContainer)
     } catch (e: any) {
-      if (this.destroyed || !diffContainer.isConnected) return
-      diffContainer.replaceChildren()
-      const errorEl = document.createElement('div')
-      errorEl.style.cssText = 'color: var(--accent-red); font-size: 12px; padding: 8px;'
-      errorEl.textContent = `处理失败: ${e?.message || e}`
-      diffContainer.appendChild(errorEl)
+      if (this.destroyed || controller.signal.aborted || e?.name === 'AbortError' || !diffContainer.isConnected) return
+      this.showStatus(diffContainer, `处理失败: ${e?.message || e}`, 'error')
+    } finally {
+      if (this.abortController === controller) this.abortController = null
     }
   }
 
-  ignoreEvent() { return false }
+  private showStatus(container: HTMLElement, message: string, type: 'error' | 'muted') {
+    this.unmountVueApp()
+    container.style.display = 'block'
+    container.replaceChildren()
+    const statusEl = document.createElement('div')
+    statusEl.className = `inline-edit-status ${type}`
+    statusEl.style.cssText = `color: ${type === 'error' ? 'var(--accent-red)' : 'var(--text-muted)'}; font-size: 12px; padding: 8px;`
+    statusEl.textContent = message
+    container.appendChild(statusEl)
+  }
+
+  ignoreEvent() { return true }
+
+  destroy() {
+    this.destroyed = true
+    this.abortController?.abort()
+    this.abortController = null
+    this.unmountVueApp()
+    this.container = null
+  }
 }

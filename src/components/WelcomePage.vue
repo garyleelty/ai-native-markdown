@@ -1,58 +1,98 @@
 <template>
   <div class="welcome-page">
     <div class="welcome-content">
-      <div class="welcome-logo">
-        <el-icon :size="48" color="var(--el-color-primary)"><Document /></el-icon>
-      </div>
-      <h1 class="welcome-title">AI Markdown</h1>
-      <p class="welcome-subtitle">AI 原生 Markdown 编辑器，让写作更智能</p>
-
-      <div class="welcome-actions">
-        <el-button type="primary" size="large" @click="$emit('new-file')">
-          <el-icon><DocumentAdd /></el-icon>
-          新建文档
-        </el-button>
-        <el-button size="large" @click="$emit('open-folder')">
-          <el-icon><FolderAdd /></el-icon>
-          打开文件夹
-        </el-button>
-        <el-button size="large" @click="$emit('demo')">
-          <el-icon><MagicStick /></el-icon>
-          试用示例
-        </el-button>
-      </div>
-
-      <el-divider>快捷键</el-divider>
-
-      <div class="shortcuts-grid">
-        <div class="shortcut-item" v-for="s in shortcuts" :key="s.keys">
-          <kbd>{{ s.keys }}</kbd>
-          <span>{{ s.desc }}</span>
+      <section class="welcome-primary" aria-labelledby="welcome-title">
+        <div class="welcome-logo">
+          <el-icon :size="34"><Document /></el-icon>
         </div>
-      </div>
+        <p class="welcome-kicker">Local-first AI workspace</p>
+        <h1 id="welcome-title" class="welcome-title">AI Markdown</h1>
+        <p class="welcome-subtitle">
+          面向知识工作流的 Markdown 编辑器，把本地文件、实时预览、知识图谱和 AI 写作放在同一个工作台里。
+        </p>
 
-      <div class="welcome-tip">{{ currentTip }}</div>
+        <div class="welcome-actions">
+          <el-button type="primary" native-type="button" size="large" @click="$emit('new-file')">
+            <el-icon><DocumentAdd /></el-icon>
+            新建文档
+          </el-button>
+          <el-button native-type="button" size="large" @click="$emit('open-folder')">
+            <el-icon><FolderAdd /></el-icon>
+            打开文件夹
+          </el-button>
+          <el-button native-type="button" size="large" @click="$emit('demo')">
+            <el-icon><MagicStick /></el-icon>
+            试用示例
+          </el-button>
+        </div>
+      </section>
 
-      <div class="welcome-recent" v-if="recentFiles.length > 0">
-        <el-divider>最近文件</el-divider>
-        <el-card
+      <section class="welcome-panel" aria-labelledby="capabilities-title">
+        <div class="section-heading">
+          <h2 id="capabilities-title">已就绪能力</h2>
+          <span>写作、连接、增强</span>
+        </div>
+        <div class="capability-grid">
+          <div v-for="item in capabilities" :key="item.title" class="capability-item">
+            <span class="capability-icon">
+              <el-icon><component :is="item.icon" /></el-icon>
+            </span>
+            <span>
+              <strong>{{ item.title }}</strong>
+              <small>{{ item.desc }}</small>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section class="workflow-panel" aria-labelledby="workflow-title">
+        <div class="section-heading">
+          <h2 id="workflow-title">推荐工作流</h2>
+          <span>从文件到知识网络</span>
+        </div>
+        <ol class="workflow-list">
+          <li v-for="step in workflow" :key="step.title">
+            <span class="step-index">{{ step.index }}</span>
+            <span>
+              <strong>{{ step.title }}</strong>
+              <small>{{ step.desc }}</small>
+            </span>
+          </li>
+        </ol>
+      </section>
+
+      <section v-if="recentFiles.length > 0" class="welcome-recent" aria-labelledby="recent-title">
+        <div class="section-heading">
+          <h2 id="recent-title">最近文件</h2>
+          <span>继续上次写作</span>
+        </div>
+        <button
           v-for="f in recentFiles"
           :key="f.path"
-          shadow="hover"
+          type="button"
           class="recent-card"
           @click="$emit('open-file', f.path)"
         >
-          <div class="recent-name">{{ f.name }}</div>
-          <div class="recent-path">{{ f.path }}</div>
-        </el-card>
-      </div>
+          <span class="recent-name">{{ f.name }}</span>
+          <span class="recent-path">{{ f.path }}</span>
+        </button>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Document, DocumentAdd, FolderAdd, MagicStick } from '@element-plus/icons-vue'
+import { shallowRef } from 'vue'
+import {
+  Collection,
+  Connection,
+  Cpu,
+  Document,
+  DocumentAdd,
+  FolderAdd,
+  MagicStick,
+  Microphone,
+} from '@element-plus/icons-vue'
 
 defineEmits<{
   (e: 'new-file'): void
@@ -61,212 +101,360 @@ defineEmits<{
   (e: 'open-file', path: string): void
 }>()
 
-const recentFiles = ref<Array<{ name: string; path: string }>>([])
+const recentFiles = shallowRef<Array<{ name: string; path: string }>>([])
 
-const shortcuts = [
-  { keys: 'Ctrl+P', desc: '命令面板' },
-  { keys: 'Ctrl+S', desc: '保存文件' },
-  { keys: 'Ctrl+B', desc: '加粗' },
-  { keys: 'Ctrl+I', desc: '斜体' },
-  { keys: 'Ctrl+K', desc: '插入链接' },
-  { keys: 'Ctrl+F', desc: '查找替换' },
+const capabilities = [
+  { title: '本地工作区', desc: '导入、重命名、删除和导出 Markdown', icon: Collection },
+  { title: '实时预览', desc: 'Mermaid、KaTeX 与 Wiki Link 导航', icon: Connection },
+  { title: 'AI 写作', desc: 'Ollama 与 OpenAI-compatible Provider', icon: Cpu },
+  { title: '多模态输入', desc: '语音输入、OCR、PDF 拖拽和知识图谱', icon: Microphone },
 ]
 
-const tips = [
-  '💡 使用 Ctrl+P 打开命令面板，快速执行任何操作',
-  '💡 试试 AI 续写功能，让灵感不断流',
-  '💡 使用 [[WikiLink]] 创建文档间的关联',
-  '💡 专注模式 (Ctrl+\\) 让你沉浸写作',
-  '💡 拖放 Markdown 文件到窗口即可导入',
+const workflow = [
+  { index: '01', title: '选择工作区', desc: '打开本地文件夹或直接试用示例库' },
+  { index: '02', title: '写 Markdown', desc: '源码、分屏、预览随时切换' },
+  { index: '03', title: '连接笔记', desc: '用 Wiki Link、反链和图谱整理知识' },
+  { index: '04', title: '用 AI 加速', desc: '基于当前内容继续写作和问答' },
 ]
-
-const currentTip = ref(tips[Math.floor(Math.random() * tips.length)])
 </script>
 
 <style scoped>
 .welcome-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
   height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   background: var(--obsidian-bg-primary);
+  color: var(--obsidian-text-normal);
 }
 
 .welcome-content {
-  max-width: 480px;
-  padding: 64px 24px;
-  text-align: center;
+  width: min(100%, 1040px);
+  margin: 0 auto;
+  padding: clamp(28px, 6vh, 64px) clamp(16px, 4vw, 40px);
+  display: grid;
+  grid-template-columns: minmax(280px, 1.08fr) minmax(280px, 0.92fr);
+  grid-template-areas:
+    "primary capabilities"
+    "primary workflow"
+    "recent recent";
+  gap: 16px;
+}
+
+.welcome-primary,
+.welcome-panel,
+.workflow-panel,
+.welcome-recent {
+  border: 1px solid var(--obsidian-border);
+  background: var(--obsidian-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.welcome-primary {
+  grid-area: primary;
+  min-height: 420px;
+  padding: clamp(24px, 5vw, 44px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.welcome-panel {
+  grid-area: capabilities;
+  padding: 22px;
+}
+
+.workflow-panel {
+  grid-area: workflow;
+  padding: 22px;
+}
+
+.welcome-recent {
+  grid-area: recent;
+  padding: 18px;
 }
 
 .welcome-logo {
-  margin-bottom: 20px;
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 22px;
+  color: var(--obsidian-accent);
+  background: var(--obsidian-accent-soft);
+  border: 1px solid rgba(127, 109, 242, 0.24);
+  border-radius: var(--radius-md);
 }
 
-.welcome-logo .el-icon {
-  color: var(--obsidian-accent) !important;
-  opacity: 0.7;
+.welcome-kicker {
+  margin: 0 0 8px;
+  color: var(--obsidian-accent);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
 .welcome-title {
-  font-family: var(--font-sans);
-  font-size: 24px;
-  font-weight: 600;
+  margin: 0;
   color: var(--obsidian-text-normal);
-  margin: 0 0 6px;
-  letter-spacing: -0.02em;
+  font-family: var(--font-sans);
+  font-size: clamp(32px, 5vw, 52px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0;
 }
 
 .welcome-subtitle {
-  font-size: 13px;
+  max-width: 560px;
+  margin: 18px 0 0;
   color: var(--obsidian-text-muted);
-  margin: 0 0 40px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.75;
 }
 
 .welcome-actions {
   display: flex;
-  gap: 8px;
-  justify-content: center;
   flex-wrap: wrap;
-  margin-bottom: 40px;
+  gap: 10px;
+  margin-top: 34px;
 }
 
 .welcome-actions .el-button {
-  font-family: var(--font-sans) !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  height: 36px !important;
+  min-height: 44px !important;
+  margin-left: 0 !important;
   padding: 0 18px !important;
   border-radius: var(--radius-sm) !important;
-  transition: all var(--duration-fast) var(--ease-default) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
   box-shadow: none !important;
 }
 
 .welcome-actions .el-button .el-icon {
-  margin-right: 4px;
+  margin-right: 5px;
 }
 
 .welcome-actions .el-button--primary {
   background: var(--obsidian-accent) !important;
-  border: none !important;
+  border-color: var(--obsidian-accent) !important;
   color: #fff !important;
 }
 
 .welcome-actions .el-button--primary:hover {
   background: var(--obsidian-accent-hover) !important;
-}
-
-.welcome-actions .el-button--primary:active {
-  background: var(--obsidian-accent) !important;
-  opacity: 0.85;
+  border-color: var(--obsidian-accent-hover) !important;
 }
 
 .welcome-actions .el-button:not(.el-button--primary) {
   background: transparent !important;
-  border: 1px solid var(--obsidian-border) !important;
+  border-color: var(--obsidian-border) !important;
   color: var(--obsidian-text-muted) !important;
 }
 
 .welcome-actions .el-button:not(.el-button--primary):hover {
+  background: var(--obsidian-bg-hover) !important;
   border-color: var(--obsidian-text-faint) !important;
   color: var(--obsidian-text-normal) !important;
-  background: var(--obsidian-bg-hover) !important;
 }
 
-.welcome-actions .el-button:not(.el-button--primary):active {
-  background: var(--obsidian-bg-active) !important;
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
-.welcome-content :deep(.el-divider) {
-  border-top-color: var(--obsidian-border) !important;
+.section-heading h2 {
+  margin: 0;
+  color: var(--obsidian-text-normal);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
 }
 
-.welcome-content :deep(.el-divider__text) {
-  background: var(--obsidian-bg-primary) !important;
-  color: var(--obsidian-text-faint) !important;
-  font-size: 11px !important;
-  font-weight: 500 !important;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0 16px !important;
+.section-heading span {
+  color: var(--obsidian-text-faint);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
-.shortcuts-grid {
+.capability-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px 32px;
-  text-align: left;
-  margin-top: 16px;
-}
-
-.shortcut-item {
-  display: flex;
-  align-items: center;
   gap: 10px;
-  font-size: 12px;
-  color: var(--obsidian-text-muted);
-  padding: 3px 0;
 }
 
-kbd {
-  background: var(--obsidian-bg-secondary);
+.capability-item {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  background: var(--obsidian-bg-primary);
   border: 1px solid var(--obsidian-border);
-  border-radius: var(--radius-xs);
-  padding: 2px 8px;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--obsidian-text-faint);
-  min-width: 56px;
-  text-align: center;
-  line-height: 1.6;
+  border-radius: var(--radius-sm);
 }
 
-.welcome-tip {
-  margin-top: 32px;
+.capability-icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--obsidian-accent);
+  background: var(--obsidian-accent-soft);
+  border-radius: var(--radius-sm);
+}
+
+.capability-item strong,
+.workflow-list strong {
+  display: block;
+  color: var(--obsidian-text-normal);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.capability-item small,
+.workflow-list small {
+  display: block;
+  margin-top: 4px;
+  color: var(--obsidian-text-faint);
   font-size: 12px;
-  color: var(--obsidian-text-faint);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
-.welcome-recent {
-  margin-top: 32px;
+.workflow-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-list li {
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-top: 1px solid var(--obsidian-border);
+}
+
+.workflow-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.step-index {
+  color: var(--obsidian-accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .recent-card {
-  cursor: pointer;
-  margin-bottom: 4px;
+  width: 100%;
+  min-height: 48px;
+  display: block;
+  margin-top: 8px;
+  padding: 10px 12px;
   text-align: left;
-  border: 1px solid var(--obsidian-border) !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  border-radius: var(--radius-sm) !important;
-  transition: all var(--duration-fast) var(--ease-default) !important;
+  border: 1px solid var(--obsidian-border);
+  background: var(--obsidian-bg-primary);
+  color: inherit;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-default), border-color var(--duration-fast) var(--ease-default);
 }
 
 .recent-card:hover {
-  border-color: var(--obsidian-text-faint) !important;
-  background: var(--obsidian-bg-hover) !important;
-}
-
-.recent-card:active {
-  background: var(--obsidian-bg-active) !important;
-}
-
-.recent-card :deep(.el-card__body) {
-  padding: 8px 14px !important;
+  border-color: var(--obsidian-text-faint);
+  background: var(--obsidian-bg-hover);
 }
 
 .recent-name {
-  font-size: 13px;
-  font-weight: 500;
+  display: block;
   color: var(--obsidian-text-normal);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .recent-path {
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--obsidian-text-faint);
+  display: block;
   margin-top: 2px;
+  overflow: hidden;
+  color: var(--obsidian-text-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .welcome-content {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "primary"
+      "capabilities"
+      "workflow"
+      "recent";
+  }
+
+  .welcome-primary {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .welcome-content {
+    padding: 18px 12px 28px;
+    gap: 12px;
+  }
+
+  .welcome-primary,
+  .welcome-panel,
+  .workflow-panel,
+  .welcome-recent {
+    padding: 18px;
+  }
+
+  .welcome-logo {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 18px;
+  }
+
+  .welcome-subtitle {
+    font-size: 14px;
+  }
+
+  .welcome-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    margin-top: 24px;
+  }
+
+  .welcome-actions .el-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .capability-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section-heading {
+    display: block;
+  }
+
+  .section-heading span {
+    display: block;
+    margin-top: 4px;
+    white-space: normal;
+  }
 }
 </style>

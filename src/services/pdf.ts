@@ -13,19 +13,28 @@ export async function extractTextFromPDF(source: string | File | ArrayBuffer): P
     data = await source.arrayBuffer()
   } else {
     const resp = await fetch(source)
+    if (!resp.ok) throw new Error(`PDF fetch failed: HTTP ${resp.status}`)
     data = await resp.arrayBuffer()
   }
 
   const pdf = await pdfjsLib.getDocument({ data }).promise
   const texts: string[] = []
 
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i)
-    const content = await page.getTextContent()
-    const pageText = content.items
-      .map((item: any) => item.str)
-      .join(' ')
-    texts.push(pageText)
+  try {
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i)
+      try {
+        const content = await page.getTextContent()
+        const pageText = content.items
+          .map((item: any) => item.str)
+          .join(' ')
+        texts.push(pageText)
+      } finally {
+        page.cleanup()
+      }
+    }
+  } finally {
+    await pdf.destroy()
   }
 
   return texts.join('\n\n')

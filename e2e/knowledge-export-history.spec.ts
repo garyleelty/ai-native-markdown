@@ -274,6 +274,235 @@ test.describe('知识整理、导出、模板、版本历史', () => {
     await expect(page.locator('.reference-item').filter({ hasText: 'Stale Source' })).toBeVisible()
   })
 
+  test('知识图谱搜索结果可以打开对应笔记', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/Graph Alpha.md', [
+      '# Graph Alpha',
+      '',
+      'Linked to [[Graph Beta]].',
+    ].join('\n'))
+    await createWorkspaceFile(page, '/workspace/Graph Beta.md', '# Graph Beta\n\nGraph search target body.')
+    await loadDemoWorkspace(page)
+    await page.locator('.tree-node-label').filter({ hasText: 'Graph Alpha.md' }).click()
+    await page.getByRole('menuitem', { name: '知识图谱' }).click()
+    await page.getByRole('button', { name: '刷新知识索引' }).click()
+    await page.getByRole('tab', { name: '图谱' }).click()
+
+    await page.getByPlaceholder('搜索笔记...').fill('Graph Beta')
+    const result = page.getByRole('button', { name: /打开图谱节点 Graph Beta/ })
+    await expect(result).toBeVisible()
+    await result.click()
+
+    await expect(page.locator('.tabs-bar')).toContainText('Graph Beta.md')
+    await expect(page.locator('.cm-content')).toContainText('Graph search target body.')
+  })
+
+  test('知识图谱当前笔记模式只展示一跳邻域并限制搜索范围', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/Graph Focus Alpha.md', '# Graph Focus Alpha\n\n[[Graph Focus Beta]]')
+    await createWorkspaceFile(page, '/workspace/Graph Focus Beta.md', '# Graph Focus Beta')
+    await createWorkspaceFile(page, '/workspace/Graph Focus Isolated.md', '# Graph Focus Isolated')
+    await loadDemoWorkspace(page)
+    await page.locator('.tree-node-label').filter({ hasText: 'Graph Focus Alpha.md' }).click()
+    await page.getByRole('menuitem', { name: '知识图谱' }).click()
+    await page.getByRole('button', { name: '刷新知识索引' }).click()
+    await page.getByRole('tab', { name: '图谱' }).click()
+
+    await page.getByRole('button', { name: '当前笔记图谱' }).click()
+    await expect(page.locator('.graph-focus-summary')).toContainText('Graph Focus Alpha')
+    await expect(page.locator('.graph-focus-summary')).toContainText('1 个邻居')
+    await expect(page.locator('.graph-stats')).toContainText('节点: 2')
+    await expect(page.locator('.graph-stats')).toContainText('链接: 1')
+
+    await page.getByPlaceholder('搜索笔记...').fill('Isolated')
+    await expect(page.locator('.graph-search-empty')).toContainText('没有匹配笔记')
+
+    await page.getByRole('button', { name: '全局图谱' }).click()
+    await expect(page.getByRole('button', { name: /打开图谱节点 Graph Focus Isolated/ })).toBeVisible()
+  })
+
+  test('知识图谱卸载时会清理鼠标监听', async ({ page }) => {
+    await page.addInitScript(() => {
+      const counters = { added: 0, removed: 0, active: 0 }
+      const listeners = new WeakMap<Element, Set<EventListenerOrEventListenerObject>>()
+      const originalAddEventListener = Element.prototype.addEventListener
+      const originalRemoveEventListener = Element.prototype.removeEventListener
+
+      Object.defineProperty(window, '__graphMouseCounters', {
+        configurable: true,
+        value: counters,
+      })
+
+      Element.prototype.addEventListener = function addEventListenerWithGraphCounter(type, listener, options) {
+        if (type === 'mousemove' && listener && this.classList.contains('graph-canvas')) {
+          let elementListeners = listeners.get(this)
+          if (!elementListeners) {
+            elementListeners = new Set()
+            listeners.set(this, elementListeners)
+          }
+          if (!elementListeners.has(listener)) {
+            elementListeners.add(listener)
+            counters.added += 1
+            counters.active += 1
+          }
+        }
+        return originalAddEventListener.call(this, type, listener, options)
+      }
+
+      Element.prototype.removeEventListener = function removeEventListenerWithGraphCounter(type, listener, options) {
+        if (type === 'mousemove' && listener && this.classList.contains('graph-canvas')) {
+          const elementListeners = listeners.get(this)
+          if (elementListeners?.has(listener)) {
+            elementListeners.delete(listener)
+            counters.removed += 1
+            counters.active -= 1
+          }
+        }
+        return originalRemoveEventListener.call(this, type, listener, options)
+      }
+    })
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('.app-container')).toBeVisible()
+
+    await createWorkspaceFile(page, '/workspace/Graph Listener Alpha.md', '# Graph Listener Alpha\n\n[[Graph Listener Beta]]')
+    await createWorkspaceFile(page, '/workspace/Graph Listener Beta.md', '# Graph Listener Beta')
+    await loadDemoWorkspace(page)
+    await page.locator('.tree-node-label').filter({ hasText: 'Graph Listener Alpha.md' }).click()
+    await page.getByRole('menuitem', { name: '知识图谱' }).click()
+    await page.getByRole('button', { name: '刷新知识索引' }).click()
+    await page.getByRole('tab', { name: '图谱' }).click()
+    await expect(page.locator('.graph-canvas svg')).toBeVisible()
+
+    await expect.poll(() => page.evaluate(() => (window as any).__graphMouseCounters.active)).toBe(1)
+    await page.getByRole('menuitem', { name: '设置' }).click()
+    await expect(page.locator('.panel-title')).toContainText('设置')
+    await expect.poll(() => page.evaluate(() => (window as any).__graphMouseCounters.active)).toBe(0)
+    const counters = await page.evaluate(() => (window as any).__graphMouseCounters)
+    expect(counters.added).toBe(counters.removed)
+  })
+
+  test('知识面板点击反链会打开来源并定位到 Wiki Link 行', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/Target.md', '# Target Note\n\nReference target.')
+    await createWorkspaceFile(page, '/workspace/Source.md', [
+      '# Source Note',
+      '',
+      'Intro paragraph.',
+      '',
+      'The backlink to [[Target Note]] lives here.',
+    ].join('\n'))
+    await loadDemoWorkspace(page)
+    await page.locator('.tree-node-label').filter({ hasText: 'Target.md' }).click()
+    await page.getByRole('menuitem', { name: '知识图谱' }).click()
+    await page.getByRole('button', { name: '刷新知识索引' }).click()
+
+    await page.getByRole('tab', { name: /反链/ }).click()
+    const backlink = page.locator('.reference-item').filter({ hasText: 'Source Note' })
+    await expect(backlink).toContainText('L5')
+    await backlink.click()
+
+    await expect(page.locator('.tabs-bar')).toContainText('Source.md')
+    await expect(page.locator('.status-bar')).toContainText('行 5')
+    await expect(page.locator('.cm-line').nth(4)).toContainText('The backlink to [[Target Note]] lives here.')
+  })
+
+  test('知识面板点击未链接提及会打开来源并定位到提及行', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/MentionTarget.md', [
+      '---',
+      'title: Mention Target',
+      'aliases: [FocusTerm]',
+      '---',
+      '',
+      '# Mention Target',
+    ].join('\n'))
+    await createWorkspaceFile(page, '/workspace/MentionSource.md', [
+      '# Mention Source',
+      '',
+      'Opening context.',
+      '',
+      'FocusTerm appears here without a wiki link.',
+    ].join('\n'))
+    await loadDemoWorkspace(page)
+    await page.locator('.tree-node-label').filter({ hasText: 'MentionTarget.md' }).click()
+    await page.getByRole('menuitem', { name: '知识图谱' }).click()
+    await page.getByRole('button', { name: '刷新知识索引' }).click()
+
+    await page.getByRole('tab', { name: /提及/ }).click()
+    const mention = page.locator('.reference-item').filter({ hasText: 'Mention Source' })
+    await expect(mention).toContainText('L5')
+    await mention.click()
+
+    await expect(page.locator('.tabs-bar')).toContainText('MentionSource.md')
+    await expect(page.locator('.status-bar')).toContainText('行 5')
+    await expect(page.locator('.cm-line').nth(4)).toContainText('FocusTerm appears here without a wiki link.')
+  })
+
+  test('知识面板 Outgoing Link 点击会打开已有目标文档', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/Outgoing Source.md', [
+      '# Outgoing Source',
+      '',
+      'Jump to [[Outgoing Target]].',
+    ].join('\n'))
+    await createWorkspaceFile(page, '/workspace/Outgoing Target.md', '# Outgoing Target\n\nTarget body.')
+    await loadDemoWorkspace(page)
+    await page.locator('.tree-node-label').filter({ hasText: 'Outgoing Source.md' }).click()
+    await page.getByRole('menuitem', { name: '知识图谱' }).click()
+    await page.getByRole('button', { name: '刷新知识索引' }).click()
+
+    await page.locator('.link-chip').filter({ hasText: '[[Outgoing Target]]' }).click()
+
+    await expect(page.locator('.tabs-bar')).toContainText('Outgoing Target.md')
+    await expect(page.locator('.cm-content')).toContainText('Target body.')
+  })
+
+  test('知识面板 Outgoing Link 点击缺失目标会创建并打开文档', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/Idea Source.md', [
+      '# Idea Source',
+      '',
+      'Capture [[Knowledge Missing]] later.',
+    ].join('\n'))
+    await loadDemoWorkspace(page)
+    await page.locator('.tree-node-label').filter({ hasText: 'Idea Source.md' }).click()
+    await page.getByRole('menuitem', { name: '知识图谱' }).click()
+    await page.getByRole('button', { name: '刷新知识索引' }).click()
+
+    await page.locator('.link-chip').filter({ hasText: '[[Knowledge Missing]]' }).click()
+
+    await expect(page.locator('.tabs-bar')).toContainText('Knowledge Missing.md')
+    const content = await readWorkspaceFile(page, '/workspace/Knowledge Missing.md')
+    expect(content).toBe('# Knowledge Missing\n')
+  })
+
+  test('知识面板一键链接未链接提及会写回 Wiki Link', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/Link Target.md', [
+      '---',
+      'title: Link Target',
+      'aliases: [LinkMe]',
+      '---',
+      '',
+      '# Link Target',
+    ].join('\n'))
+    await createWorkspaceFile(page, '/workspace/Link Source.md', [
+      '# Link Source',
+      '',
+      'LinkMe deserves a direct note link.',
+    ].join('\n'))
+    await loadDemoWorkspace(page)
+    await page.locator('.tree-node-label').filter({ hasText: 'Link Target.md' }).click()
+    await page.getByRole('menuitem', { name: '知识图谱' }).click()
+    await page.getByRole('button', { name: '刷新知识索引' }).click()
+    await page.getByRole('tab', { name: /提及/ }).click()
+
+    const mention = page.locator('.reference-item').filter({ hasText: 'Link Source' })
+    await expect(mention).toContainText('L3')
+    await mention.getByRole('button', { name: '链接' }).click()
+
+    await expect(page.getByText('已链接提及')).toBeVisible()
+    const updated = await readWorkspaceFile(page, '/workspace/Link Source.md')
+    expect(updated).toContain('[[Link Target]] deserves a direct note link.')
+
+    await page.getByRole('button', { name: '刷新知识索引' }).click()
+    await expect(page.getByText('暂无未链接提及')).toBeVisible()
+    await expect(page.locator('.reference-item:visible').filter({ hasText: 'Link Source' })).toHaveCount(0)
+  })
+
   test('窄屏下导出弹窗、模板弹窗和 AI 面板不产生横向溢出', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 740 })
     await loadDemoWorkspace(page)

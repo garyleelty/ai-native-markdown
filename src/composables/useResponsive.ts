@@ -13,16 +13,28 @@ const update = () => {
 }
 
 let initialized = false
+let consumerCount = 0
 const listeners = new Set<() => void>()
+
+const handleWindowResize = () => {
+  update()
+  listeners.forEach(fn => fn())
+}
 
 export function useResponsive() {
   if (!initialized) {
     initialized = true
-    window.addEventListener('resize', () => {
-      update()
-      listeners.forEach(fn => fn())
-    })
+    window.addEventListener('resize', handleWindowResize)
   }
+  consumerCount += 1
+
+  onUnmounted(() => {
+    consumerCount = Math.max(0, consumerCount - 1)
+    if (consumerCount === 0 && initialized) {
+      window.removeEventListener('resize', handleWindowResize)
+      initialized = false
+    }
+  })
 
   const onResize = (fn: () => void) => {
     listeners.add(fn)

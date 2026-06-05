@@ -8,7 +8,7 @@
     />
     <div class="goal-info">
       <span>{{ remaining > 0 ? `还需 ${remaining} 词` : '目标达成！🎉' }}</span>
-      <el-button size="small" text @click="showGoalSetting = true">设置目标</el-button>
+      <el-button size="small" text native-type="button" @click="showGoalSetting = true">设置目标</el-button>
     </div>
     <el-dialog v-model="showGoalSetting" title="写作目标" width="320px">
       <el-form label-position="top">
@@ -17,8 +17,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showGoalSetting = false">取消</el-button>
-        <el-button type="primary" @click="saveGoal">确定</el-button>
+        <el-button native-type="button" @click="showGoalSetting = false">取消</el-button>
+        <el-button type="primary" native-type="button" @click="saveGoal">确定</el-button>
       </template>
     </el-dialog>
   </div>

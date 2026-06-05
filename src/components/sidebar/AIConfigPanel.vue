@@ -23,7 +23,7 @@
         <el-form-item>
           <template #label>
             模型
-            <el-button :icon="Refresh" circle size="small" :loading="loadingModels" @click="fetchOllamaModels" style="margin-left: 8px" />
+            <el-button :icon="Refresh" native-type="button" circle size="small" :loading="loadingModels" aria-label="刷新 Ollama 模型" @click="fetchOllamaModels" style="margin-left: 8px" />
           </template>
           <el-select v-model="model" style="width: 100%" :disabled="ollamaModels.length === 0">
             <el-option v-for="m in ollamaModels" :key="m" :label="m" :value="m" />
@@ -49,10 +49,10 @@
       </el-form-item>
 
       <el-form-item>
-        <el-button @click="testConnection" :loading="testing" style="flex: 1">
+        <el-button native-type="button" @click="testConnection" :loading="testing" style="flex: 1">
           测试连接
         </el-button>
-        <el-button type="primary" @click="saveAIConfig" style="flex: 1">
+        <el-button type="primary" native-type="button" @click="saveAIConfig" style="flex: 1">
           保存
         </el-button>
       </el-form-item>
@@ -64,9 +64,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
-import { aiService, FetchAIProvider } from '../../services/ai'
+import { aiService, configureAIProvider } from '../../services/ai'
 import { useSettingsStore } from '@/stores/settings'
 import type { AIConfig } from '@/types'
 
@@ -84,6 +84,12 @@ const testResult = ref<{ type: 'success' | 'error'; message: string } | null>(nu
 const connectionStatus = ref<'idle' | 'connected' | 'error'>('idle')
 const ollamaModels = ref<string[]>([])
 const loadingModels = ref(false)
+let configSavedTimer: ReturnType<typeof setTimeout> | null = null
+let isDisposed = false
+let modelLoadVersion = 0
+let connectionTestVersion = 0
+let modelAbortController: AbortController | null = null
+let connectionAbortController: AbortController | null = null
 
 const connectionStatusText = computed(() => {
   const map = { idle: '未连接', connected: '已连接', error: '连接失败' }
@@ -105,16 +111,28 @@ const onProviderChange = () => {
 }
 
 const fetchOllamaModels = async () => {
+  const loadVersion = ++modelLoadVersion
+  modelAbortController?.abort()
+  modelAbortController = new AbortController()
   loadingModels.value = true
   try {
-    ollamaModels.value = await aiService.listOllamaModels(ollamaBaseURL.value || 'http://localhost:11434')
-    if (ollamaModels.value.length > 0 && !ollamaModels.value.includes(model.value)) {
-      model.value = ollamaModels.value[0]
+    const models = await aiService.listOllamaModels(
+      ollamaBaseURL.value || 'http://localhost:11434',
+      modelAbortController.signal
+    )
+    if (isDisposed || loadVersion !== modelLoadVersion) return
+    ollamaModels.value = models
+    if (models.length > 0 && !models.includes(model.value)) {
+      model.value = models[0]
     }
   } catch {
+    if (isDisposed || loadVersion !== modelLoadVersion) return
     ollamaModels.value = []
   } finally {
-    loadingModels.value = false
+    if (!isDisposed && loadVersion === modelLoadVersion) {
+      loadingModels.value = false
+      modelAbortController = null
+    }
   }
 }
 
@@ -133,21 +151,25 @@ const buildAIConfig = (): AIConfig => {
 
 const applyAIConfig = () => {
   const config = buildAIConfig()
-  aiService.registerProvider(new FetchAIProvider(config))
-  aiService.setActiveProvider(selectedProvider.value)
+  configureAIProvider(config)
 }
 
 const testConnection = async () => {
+  const testVersion = ++connectionTestVersion
+  connectionAbortController?.abort()
+  connectionAbortController = new AbortController()
   testing.value = true
   testResult.value = null
   try {
     applyAIConfig()
     const provider = aiService.getProvider(selectedProvider.value)
     if (!provider) {
-      testResult.value = { type: 'error', message: 'Provider 未注册' }
+      if (isDisposed || testVersion !== connectionTestVersion) return
+      testResult.value = { type: 'error', message: '当前 AI Provider 不可用，请重新保存配置后再试。' }
       return
     }
-    const result = await provider.testConnection()
+    const result = await provider.testConnection(connectionAbortController.signal)
+    if (isDisposed || testVersion !== connectionTestVersion) return
     if (result.ok) {
       connectionStatus.value = 'connected'
       testResult.value = { type: 'success', message: result.error ? `连接成功（${result.error}）` : '连接成功！' }
@@ -156,10 +178,14 @@ const testConnection = async () => {
       testResult.value = { type: 'error', message: result.error || '连接失败' }
     }
   } catch (e: any) {
+    if (isDisposed || testVersion !== connectionTestVersion) return
     connectionStatus.value = 'error'
     testResult.value = { type: 'error', message: e?.message || String(e) }
   } finally {
-    testing.value = false
+    if (!isDisposed && testVersion === connectionTestVersion) {
+      testing.value = false
+      connectionAbortController = null
+    }
   }
 }
 
@@ -167,7 +193,11 @@ const saveAIConfig = () => {
   applyAIConfig()
   settingsStore.updateAIConfig(buildAIConfig())
   configSaved.value = true
-  setTimeout(() => { configSaved.value = false }, 2500)
+  if (configSavedTimer) clearTimeout(configSavedTimer)
+  configSavedTimer = setTimeout(() => {
+    configSaved.value = false
+    configSavedTimer = null
+  }, 2500)
 }
 
 onMounted(() => {
@@ -185,6 +215,15 @@ onMounted(() => {
   }
   applyAIConfig()
   if (selectedProvider.value === 'ollama') fetchOllamaModels()
+})
+
+onUnmounted(() => {
+  isDisposed = true
+  modelLoadVersion += 1
+  connectionTestVersion += 1
+  modelAbortController?.abort()
+  connectionAbortController?.abort()
+  if (configSavedTimer) clearTimeout(configSavedTimer)
 })
 </script>
 

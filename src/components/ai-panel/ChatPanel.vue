@@ -9,6 +9,7 @@
       </div>
       <el-button
         :icon="Delete"
+        native-type="button"
         circle
         size="small"
         aria-label="清空对话"
@@ -35,6 +36,7 @@
           <div class="message-actions" v-if="msg.role === 'assistant'">
             <el-button
               :icon="CopyDocument"
+              native-type="button"
               size="small"
               circle
               aria-label="复制"
@@ -43,6 +45,7 @@
             />
             <el-button
               :icon="Plus"
+              native-type="button"
               size="small"
               circle
               aria-label="插入到编辑器"
@@ -51,6 +54,7 @@
             />
             <el-button
               :icon="Refresh"
+              native-type="button"
               size="small"
               circle
               aria-label="重新生成"
@@ -91,6 +95,7 @@
           v-if="streaming"
           type="danger"
           :icon="VideoPause"
+          native-type="button"
           circle
           aria-label="停止"
           @click="stopStreaming"
@@ -101,6 +106,7 @@
         <el-button
           type="primary"
           :icon="Promotion"
+          native-type="button"
           circle
           aria-label="发送"
           @click="sendMessage"
@@ -113,11 +119,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue'
+import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
 import { aiService } from '@/services/ai'
 import { ragService } from '@/services/rag'
 import type { AIMessage } from '@/types'
-import { useSettingsStore } from '@/stores'
+import { useEditorStore, useSettingsStore } from '@/stores'
 import { throttle } from '@/composables/useDebounce'
 import { ElMessage } from 'element-plus'
 import { sanitizeMarkdown, safeCopyToClipboard, safeStorage } from '@/utils/security'
@@ -178,9 +184,25 @@ const messages = ref<AIMessage[]>(loadChatHistory())
 const inputText = ref('')
 const streaming = ref(false)
 let currentAbortController: AbortController | null = null
+let userStoppedStreaming = false
+let currentStreamingMessage: AIMessage | null = null
+let isDisposed = false
 const messagesRef = ref<HTMLDivElement>()
 
 const settingsStore = useSettingsStore()
+const editorStore = useEditorStore()
+
+async function ensureCurrentDocumentIndexedForRAG(): Promise<void> {
+  if (!settingsStore.enableRAG) return
+  const filePath = editorStore.currentFile
+  const content = editorStore.content
+  if (!filePath || !content.trim()) return
+  try {
+    await ragService.indexDocument(filePath, content)
+  } catch (error) {
+    console.warn('RAG current document indexing failed; continuing chat without fresh index.', error)
+  }
+}
 
 const activeModel = computed(() => {
   const provider = aiService.getActiveProvider()
@@ -229,6 +251,8 @@ const addCopyButtons = () => {
       if (pre && !pre.querySelector('.copy-btn')) {
         const btn = document.createElement('button')
         btn.className = 'copy-btn'
+        btn.type = 'button'
+        btn.setAttribute('aria-label', '复制代码块')
         btn.textContent = '复制'
         btn.onclick = async () => {
           const copied = await safeCopyToClipboard(block.textContent || '')
@@ -244,32 +268,35 @@ const addCopyButtons = () => {
 
 const sendMessage = async () => {
   const text = inputText.value.trim()
-  if (!text || streaming.value) return
+  if (!text || streaming.value || isDisposed) return
 
   const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const userMsg: AIMessage = {
-      id: uid(),
-      role: 'user',
-      content: text,
-      timestamp: Date.now()
-    }
-    messages.value.push(userMsg)
-    inputText.value = ''
-    await scrollToBottom()
+  const userMsg: AIMessage = {
+    id: uid(),
+    role: 'user',
+    content: text,
+    timestamp: Date.now()
+  }
+  messages.value.push(userMsg)
+  inputText.value = ''
+  await scrollToBottom()
 
-    const assistantMsg: AIMessage = {
-      id: uid(),
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now()
-    }
+  const assistantMsg: AIMessage = {
+    id: uid(),
+    role: 'assistant',
+    content: '',
+    timestamp: Date.now()
+  }
   messages.value.push(assistantMsg)
   streaming.value = true
+  userStoppedStreaming = false
+  currentStreamingMessage = assistantMsg
 
   try {
     const provider = aiService.getActiveProvider()
     if (!provider) {
-      assistantMsg.content = '请先配置 AI Provider'
+      if (isDisposed) return
+      assistantMsg.content = 'AI Provider 未就绪，请在 AI 配置中检查模型和连接。'
       streaming.value = false
       return
     }
@@ -282,7 +309,10 @@ const sendMessage = async () => {
     let ragContext = ''
     if (settingsStore.enableRAG) {
       try {
+        await ensureCurrentDocumentIndexedForRAG()
+        if (isDisposed) return
         ragContext = await ragService.buildContext(text, 2000)
+        if (isDisposed) return
       } catch {
         ragContext = ''
       }
@@ -293,17 +323,27 @@ const sendMessage = async () => {
       content: buildSystemContent(settingsStore.aiConfig.systemPrompt, props.context, ragContext),
     })
 
-    currentAbortController = new AbortController()
-    for await (const chunk of provider.streamChat(chatMessages, { signal: currentAbortController.signal })) {
+    const streamController = new AbortController()
+    currentAbortController = streamController
+    for await (const chunk of provider.streamChat(chatMessages, { signal: streamController.signal })) {
+      if (isDisposed || streamController.signal.aborted || currentAbortController !== streamController) return
       assistantMsg.content += chunk
       await scrollToBottom()
     }
   } catch (error: any) {
-    assistantMsg.content = `错误: ${error.message || String(error)}`
-    ElMessage.error('AI 请求失败')
+    if (isDisposed) return
+    const aborted = userStoppedStreaming || currentAbortController?.signal.aborted || error?.name === 'AbortError'
+    if (aborted) {
+      if (!assistantMsg.content.trim()) assistantMsg.content = '已停止生成'
+    } else {
+      assistantMsg.content = `错误: ${error.message || String(error)}`
+      ElMessage.error('AI 请求失败')
+    }
   } finally {
-    streaming.value = false
+    if (!isDisposed) streaming.value = false
     currentAbortController = null
+    userStoppedStreaming = false
+    currentStreamingMessage = null
   }
 }
 
@@ -325,6 +365,10 @@ const copyMessage = async (content: string) => {
 }
 
 const stopStreaming = () => {
+  userStoppedStreaming = true
+  if (currentStreamingMessage && !currentStreamingMessage.content.trim()) {
+    currentStreamingMessage.content = '已停止生成'
+  }
   if (currentAbortController) {
     currentAbortController.abort()
     currentAbortController = null
@@ -346,6 +390,18 @@ const handleVoiceResult = (text: string) => {
 }
 
 watch(messages, () => { scrollToBottom(); addCopyButtons(); saveChatHistory(messages.value) }, { deep: true })
+
+onUnmounted(() => {
+  isDisposed = true
+  userStoppedStreaming = true
+  currentAbortController?.abort()
+  currentAbortController = null
+  currentStreamingMessage = null
+})
+
+defineExpose({
+  clearMessages,
+})
 </script>
 
 <style scoped>

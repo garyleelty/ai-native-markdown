@@ -1,12 +1,24 @@
 import { createWorker } from 'tesseract.js'
 
 let worker: Tesseract.Worker | null = null
+let workerPromise: Promise<Tesseract.Worker> | null = null
 
 async function getWorker() {
-  if (!worker) {
-    worker = await createWorker('chi_sim+eng')
+  if (worker) return worker
+
+  if (!workerPromise) {
+    workerPromise = createWorker('chi_sim+eng')
+      .then((createdWorker) => {
+        worker = createdWorker
+        return createdWorker
+      })
+      .catch((error) => {
+        workerPromise = null
+        throw error
+      })
   }
-  return worker
+
+  return workerPromise
 }
 
 export async function extractTextFromImage(imageSource: string | File): Promise<string> {
@@ -25,8 +37,8 @@ export async function imageToBase64(file: File): Promise<string> {
 }
 
 export async function terminateOCR() {
-  if (worker) {
-    await worker.terminate()
-    worker = null
-  }
+  const activeWorker = worker ?? (workerPromise ? await workerPromise.catch(() => null) : null)
+  worker = null
+  workerPromise = null
+  await activeWorker?.terminate()
 }

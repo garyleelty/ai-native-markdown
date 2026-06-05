@@ -9,7 +9,7 @@ const ghostTextTrigger = StateEffect.define<void>()
 // 模块级状态
 let currentGhostText = ''
 let currentGhostPos = -1
-let currentRequestId = ''
+let currentRequestId = 0
 let activeConfig: GhostTextConfig | null = null
 
 /** 由 Editor.vue 调用，同步配置 */

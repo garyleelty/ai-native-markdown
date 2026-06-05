@@ -19,11 +19,14 @@ app.config.errorHandler = (err, instance, info) => {
 }
 
 window.addEventListener('unhandledrejection', (event) => {
-  console.error('[Unhandled Rejection]', event.reason)
   const message = event.reason instanceof Error ? event.reason.message : String(event.reason)
-  if (!message.includes('AbortError') && !message.includes('NetworkError')) {
+  const name = event.reason instanceof Error ? event.reason.name : ''
+  if (name === 'AbortError' || message.includes('AbortError') || message.includes('NetworkError')) {
+    console.debug('[Ignored Rejection]', event.reason)
     event.preventDefault()
+    return
   }
+  console.error('[Unhandled Rejection]', event.reason)
 })
 
 app.mount('#app')

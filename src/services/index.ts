@@ -1,5 +1,5 @@
 export { fileSystem } from './fileSystem'
-export { aiService, FetchAIProvider, ensureDefaultProvider } from './ai'
+export { aiService, FetchAIProvider, configureAIProvider, ensureDefaultProvider } from './ai'
 export type { AIProvider, AIOptions } from './ai'
 export type { ChatMessage, AIConfig } from '@/types'
 export { extractTextFromImage, imageToBase64, terminateOCR } from './ocr'

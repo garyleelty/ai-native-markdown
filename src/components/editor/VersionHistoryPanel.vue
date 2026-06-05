@@ -15,8 +15,8 @@
             <div class="history-label">{{ snap.label }}</div>
             <div class="history-meta">{{ snap.charCount }} 字符</div>
             <div class="history-actions">
-              <el-button size="small" type="primary" text @click.stop="restoreSnapshot(snap)">恢复</el-button>
-              <el-button size="small" type="danger" text @click.stop="deleteSnapshot(snap)">删除</el-button>
+              <el-button size="small" type="primary" native-type="button" text @click.stop="restoreSnapshot(snap)">恢复</el-button>
+              <el-button size="small" type="danger" native-type="button" text @click.stop="deleteSnapshot(snap)">删除</el-button>
             </div>
           </el-card>
         </el-timeline-item>
@@ -26,15 +26,15 @@
     <el-dialog v-model="showPreview" title="版本预览" width="500px" append-to-body>
       <div class="preview-content">{{ previewContent }}</div>
       <template #footer>
-        <el-button @click="showPreview = false">关闭</el-button>
-        <el-button type="primary" @click="restoreFromPreview">恢复此版本</el-button>
+        <el-button native-type="button" @click="showPreview = false">关闭</el-button>
+        <el-button type="primary" native-type="button" @click="restoreFromPreview">恢复此版本</el-button>
       </template>
     </el-dialog>
   </el-drawer>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { versionHistory, type Snapshot } from '@/services/versionHistory'
 
@@ -53,12 +53,39 @@ const snapshots = ref<Snapshot[]>([])
 const showPreview = ref(false)
 const previewContent = ref('')
 const previewSnapshotId = ref(0)
+const previewSnapshotPath = ref('')
+let isDisposed = false
+let loadVersion = 0
 
-watch(() => props.modelValue, async (val) => {
-  if (val && props.filePath) {
-    snapshots.value = await versionHistory.getSnapshots(props.filePath)
+const resetPreview = () => {
+  showPreview.value = false
+  previewContent.value = ''
+  previewSnapshotId.value = 0
+  previewSnapshotPath.value = ''
+}
+
+const isMessageBoxCancel = (error: unknown) => {
+  return error === 'cancel' || error === 'close'
+}
+
+const loadSnapshots = async () => {
+  const version = ++loadVersion
+  const activeFilePath = props.filePath
+  if (!props.modelValue || !activeFilePath) {
+    snapshots.value = []
+    return
   }
-})
+
+  const nextSnapshots = await versionHistory.getSnapshots(activeFilePath)
+  if (isDisposed || version !== loadVersion || props.filePath !== activeFilePath || !props.modelValue) return
+  snapshots.value = nextSnapshots
+}
+
+watch([() => props.modelValue, () => props.filePath], ([isVisible, filePath], previous = [false, '']) => {
+  const [, previousFilePath] = previous
+  if (!isVisible || filePath !== previousFilePath) resetPreview()
+  void loadSnapshots()
+}, { immediate: true })
 
 const formatTime = (ts: number) => {
   return new Date(ts).toLocaleString('zh-CN', {
@@ -68,39 +95,74 @@ const formatTime = (ts: number) => {
 }
 
 const previewSnapshot = async (snap: Snapshot) => {
+  if (!snap.id) return
   previewContent.value = snap.content
-  previewSnapshotId.value = snap.id!
+  previewSnapshotId.value = snap.id
+  previewSnapshotPath.value = snap.filePath
   showPreview.value = true
 }
 
 const restoreSnapshot = async (snap: Snapshot) => {
+  if (!snap.id) return
+  const activeFilePath = props.filePath
+  if (snap.filePath !== activeFilePath) {
+    ElMessage.warning('此历史版本不属于当前文件')
+    return
+  }
   try {
     await ElMessageBox.confirm('恢复此版本将覆盖当前内容，确定继续？', '恢复确认', { type: 'warning' })
-    const content = await versionHistory.restoreSnapshot(snap.id!)
+    if (isDisposed || props.filePath !== activeFilePath) return
+    const content = await versionHistory.restoreSnapshot(snap.id)
     if (content) {
       emit('restore', content)
       ElMessage.success('已恢复')
+    } else {
+      ElMessage.error('历史版本不存在或已被删除')
     }
-  } catch {}
+  } catch (error) {
+    if (!isMessageBoxCancel(error)) ElMessage.error('恢复历史版本失败')
+  }
 }
 
 const deleteSnapshot = async (snap: Snapshot) => {
+  if (!snap.id) return
+  const activeFilePath = props.filePath
+  if (snap.filePath !== activeFilePath) {
+    ElMessage.warning('此历史版本不属于当前文件')
+    return
+  }
   try {
     await ElMessageBox.confirm('确定删除此历史版本？', '删除确认', { type: 'warning' })
-    await versionHistory.deleteSnapshot(snap.id!)
-    snapshots.value = await versionHistory.getSnapshots(props.filePath)
+    if (isDisposed || props.filePath !== activeFilePath) return
+    await versionHistory.deleteSnapshot(snap.id)
+    await loadSnapshots()
     ElMessage.success('已删除')
-  } catch {}
+  } catch (error) {
+    if (!isMessageBoxCancel(error)) ElMessage.error('删除历史版本失败')
+  }
 }
 
 const restoreFromPreview = async () => {
+  const activeFilePath = props.filePath
+  if (!previewSnapshotId.value || previewSnapshotPath.value !== activeFilePath) {
+    resetPreview()
+    ElMessage.warning('此历史版本不属于当前文件')
+    return
+  }
   const content = await versionHistory.restoreSnapshot(previewSnapshotId.value)
   if (content) {
     emit('restore', content)
     showPreview.value = false
     ElMessage.success('已恢复')
+  } else {
+    ElMessage.error('历史版本不存在或已被删除')
   }
 }
+
+onUnmounted(() => {
+  isDisposed = true
+  loadVersion += 1
+})
 </script>
 
 <style scoped>

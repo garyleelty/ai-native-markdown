@@ -26,6 +26,10 @@ class RAGDatabase extends Dexie {
       chunks: '++id, filePath, chunkIndex, [filePath+chunkIndex]',
       meta: 'filePath'
     })
+    this.version(2).stores({
+      chunks: '++id, filePath, chunkIndex, [filePath+chunkIndex]',
+      meta: 'filePath,lastIndexed'
+    })
   }
 }
 
@@ -47,8 +51,9 @@ function splitIntoChunks(text: string, chunkSize = 500, overlap = 50): string[] 
       }
     }
     chunks.push(chunk.trim())
-    start = end - overlap
     if (start >= text.length) break
+    if (end >= text.length) break
+    start = Math.max(end - overlap, start + 1)
   }
   return chunks.filter(c => c.length > 0)
 }
@@ -59,6 +64,59 @@ function titleFromPath(filePath: string): string {
 
 function pathMatchesPrefix(filePath: string, prefix: string): boolean {
   return filePath === prefix || filePath.startsWith(`${prefix}/`)
+}
+
+function uniqueValues(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)))
+}
+
+function tokenizeQuery(query: string): string[] {
+  const normalized = query.toLowerCase()
+  const latinTokens = normalized.match(/[\p{L}\p{N}_-]{2,}/gu) || []
+  const cjkTokens = (normalized.match(/[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]{2,}/gu) || [])
+    .flatMap(token => {
+      const grams = []
+      for (let i = 0; i < token.length - 1; i += 1) {
+        grams.push(token.slice(i, i + 2))
+      }
+      return [token, ...grams]
+    })
+  return uniqueValues([...latinTokens, ...cjkTokens])
+}
+
+function countOccurrences(text: string, token: string): number {
+  if (!token) return 0
+  let count = 0
+  let index = text.indexOf(token)
+  while (index !== -1) {
+    count += 1
+    index = text.indexOf(token, index + token.length)
+  }
+  return count
+}
+
+function scoreChunk(chunk: ChunkRecord, query: string, tokens: string[]): number {
+  const content = chunk.content.toLowerCase()
+  const title = titleFromPath(chunk.filePath).toLowerCase()
+  const path = chunk.filePath.toLowerCase()
+  const phrase = query.trim().toLowerCase()
+  let score = 0
+
+  if (phrase.length > 1) {
+    if (title.includes(phrase)) score += 4
+    if (path.includes(phrase)) score += 2
+    if (content.includes(phrase)) score += 3
+  }
+
+  for (const token of tokens) {
+    const contentHits = countOccurrences(content, token)
+    if (contentHits > 0) score += Math.min(contentHits, 6)
+    if (title.includes(token)) score += 3
+    if (path.includes(token)) score += 1
+  }
+
+  if (score > 0 && chunk.chunkIndex === 0) score += 0.15
+  return score
 }
 
 export const ragService = {
@@ -90,8 +148,9 @@ export const ragService = {
   },
 
   async search(query: string, topK = 5, fileFilter?: string): Promise<Array<{ filePath: string; chunkIndex: number; content: string; relevance: number }>> {
-    const queryLower = query.toLowerCase()
-    const queryWords = queryLower.split(/\s+/).filter(w => w.length > 1)
+    const queryTokens = tokenizeQuery(query)
+    const queryText = query.trim()
+    if (!queryText || queryTokens.length === 0) return []
 
     let chunks: ChunkRecord[]
     if (fileFilter) {
@@ -102,10 +161,7 @@ export const ragService = {
 
     const results = chunks
       .map(chunk => {
-        const contentLower = chunk.content.toLowerCase()
-        const relevance = queryWords.reduce((sum, word) => {
-          return sum + (contentLower.includes(word) ? 1 : 0)
-        }, 0) / Math.max(queryWords.length, 1)
+        const relevance = scoreChunk(chunk, queryText, queryTokens)
 
         return {
           filePath: chunk.filePath,

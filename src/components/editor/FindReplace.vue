@@ -14,10 +14,10 @@
           <el-icon><Search /></el-icon>
         </template>
       </el-input>
-      <el-button size="small" :icon="Top" circle @click="findPrev" :disabled="!findText" title="上一个" />
-      <el-button size="small" :icon="Bottom" circle @click="findNext" :disabled="!findText" title="下一个" />
+      <el-button size="small" :icon="Top" native-type="button" circle aria-label="上一个匹配" @click="findPrev" :disabled="!findText" title="上一个" />
+      <el-button size="small" :icon="Bottom" native-type="button" circle aria-label="下一个匹配" @click="findNext" :disabled="!findText" title="下一个" />
       <el-tag size="small" type="info" v-if="matchCount >= 0">{{ currentMatch }}/{{ matchCount }}</el-tag>
-      <el-button size="small" :icon="Close" circle @click="close" title="关闭" />
+      <el-button size="small" :icon="Close" native-type="button" circle aria-label="关闭查找替换" @click="close" title="关闭" />
     </div>
     <div class="replace-row" v-if="showReplace">
       <el-input
@@ -27,16 +27,17 @@
         clearable
         @keydown.enter.prevent="replaceNext"
       />
-      <el-button size="small" @click="replaceNext" :disabled="!findText">替换</el-button>
-      <el-button size="small" @click="replaceAll" :disabled="!findText">全部替换</el-button>
+      <el-button size="small" native-type="button" @click="replaceNext" :disabled="!findText">替换</el-button>
+      <el-button size="small" native-type="button" @click="replaceAll" :disabled="!findText">全部替换</el-button>
     </div>
     <div class="options-row">
       <el-checkbox v-model="caseSensitive" size="small">区分大小写</el-checkbox>
       <el-checkbox v-model="useRegex" size="small">正则表达式</el-checkbox>
-      <el-button size="small" text @click="showReplace = !showReplace">
+      <el-button size="small" text native-type="button" @click="showReplace = !showReplace">
         {{ showReplace ? '隐藏替换' : '替换' }}
       </el-button>
     </div>
+    <div v-if="searchError" class="search-error" role="alert">{{ searchError }}</div>
   </div>
 </template>
 
@@ -60,12 +61,17 @@ const useRegex = ref(false)
 const showReplace = ref(false)
 const matchCount = ref(-1)
 const currentMatch = ref(0)
+const searchError = ref('')
 const findInputRef = ref()
 
 watch(() => props.visible, (val) => {
   if (val) {
     nextTick(() => findInputRef.value?.focus())
   }
+})
+
+watch([findText, replaceText, useRegex, caseSensitive], () => {
+  searchError.value = ''
 })
 
 const findNext = () => {
@@ -92,15 +98,22 @@ const close = () => {
 }
 
 const setMatchInfo = (current: number, total: number) => {
+  searchError.value = ''
   currentMatch.value = current
   matchCount.value = total
+}
+
+const setSearchError = (message: string) => {
+  searchError.value = message
+  currentMatch.value = 0
+  matchCount.value = 0
 }
 
 const openReplace = () => {
   showReplace.value = true
 }
 
-defineExpose({ setMatchInfo, findText, openReplace })
+defineExpose({ setMatchInfo, setSearchError, findText, openReplace })
 </script>
 
 <style scoped>
@@ -127,6 +140,12 @@ defineExpose({ setMatchInfo, findText, openReplace })
   display: flex;
   align-items: center;
   gap: 12px;
+  padding-left: 4px;
+}
+
+.search-error {
+  font-size: 12px;
+  color: var(--el-color-danger);
   padding-left: 4px;
 }
 </style>

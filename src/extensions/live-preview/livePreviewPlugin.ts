@@ -1,5 +1,5 @@
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view'
-import { RangeSetBuilder } from '@codemirror/state'
+import type { Range } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
 
 class HeaderMarkWidget extends WidgetType {
@@ -77,7 +77,7 @@ class HrWidget extends WidgetType {
 }
 
 function buildDecorations(view: EditorView): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>()
+  const decorations: Range<Decoration>[] = []
   const doc = view.state.doc
 
   for (let i = 1; i <= doc.lines; i++) {
@@ -90,21 +90,15 @@ function buildDecorations(view: EditorView): DecorationSet {
       const content = headingMatch[2]
       const markEnd = line.from + headingMatch[1].length + 1
 
-      builder.add(
-        line.from,
-        markEnd,
-        Decoration.replace({ widget: new HeaderMarkWidget(level, content) })
-      )
-      builder.add(
-        markEnd,
-        line.to,
-        Decoration.replace({})
+      decorations.push(
+        Decoration.replace({ widget: new HeaderMarkWidget(level, content) }).range(line.from, markEnd),
+        Decoration.replace({}).range(markEnd, line.to),
       )
       continue
     }
 
     if (text.match(/^---+\s*$/)) {
-      builder.add(line.from, line.to, Decoration.replace({ widget: new HrWidget() }))
+      decorations.push(Decoration.replace({ widget: new HrWidget() }).range(line.from, line.to))
       continue
     }
 
@@ -113,10 +107,9 @@ function buildDecorations(view: EditorView): DecorationSet {
       const checked = checkboxMatch[2] !== ' '
       const bracketStart = line.from + checkboxMatch[1].length
       const bracketEnd = bracketStart + 3
-      builder.add(
-        bracketStart,
-        bracketEnd,
+      decorations.push(
         Decoration.replace({ widget: new CheckboxWidget(checked, bracketStart, bracketEnd) })
+          .range(bracketStart, bracketEnd)
       )
     }
 
@@ -126,7 +119,7 @@ function buildDecorations(view: EditorView): DecorationSet {
       if (idx >= 0) {
         const start = line.from + idx
         const end = start + imageMatch[0].length
-        builder.add(start, end, Decoration.replace({ widget: new ImageWidget(imageMatch[1], imageMatch[2]) }))
+        decorations.push(Decoration.replace({ widget: new ImageWidget(imageMatch[1], imageMatch[2]) }).range(start, end))
       }
     }
   }
@@ -143,20 +136,20 @@ function buildDecorations(view: EditorView): DecorationSet {
       const to = node.to
 
       if (node.name === 'Emphasis') {
-        builder.add(from, to, italicDeco)
+        decorations.push(italicDeco.range(from, to))
       } else if (node.name === 'StrongEmphasis') {
-        builder.add(from, to, boldDeco)
+        decorations.push(boldDeco.range(from, to))
       } else if (node.name === 'Strikethrough') {
-        builder.add(from, to, strikethroughDeco)
+        decorations.push(strikethroughDeco.range(from, to))
       } else if (node.name === 'InlineCode') {
-        builder.add(from, to, codeDeco)
+        decorations.push(codeDeco.range(from, to))
       } else if (node.name === 'Link') {
-        builder.add(from, to, linkDeco)
+        decorations.push(linkDeco.range(from, to))
       }
     }
   })
 
-  return builder.finish()
+  return Decoration.set(decorations, true)
 }
 
 export const livePreviewPlugin = ViewPlugin.fromClass(class {
