@@ -432,7 +432,7 @@ defineExpose({
 .chat-title {
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.3px;
+  letter-spacing: 0;
   color: var(--obsidian-text-normal);
 }
 

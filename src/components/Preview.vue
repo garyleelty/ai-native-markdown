@@ -16,6 +16,7 @@ import hljs from 'highlight.js/lib/common'
 import taskLists from 'markdown-it-task-lists'
 import anchor from 'markdown-it-anchor'
 import katex from '@traptitech/markdown-it-katex'
+import 'katex/dist/katex.min.css'
 import { sanitizeMarkdown, sanitizeSvg } from '@/utils/security'
 import { resolveWikiLinkTarget } from '@/utils/wikiLinks'
 
@@ -323,7 +324,7 @@ defineExpose({
   color: var(--obsidian-text-normal);
   font-size: 15px;
   line-height: 1.8;
-  letter-spacing: 0.008em;
+  letter-spacing: 0;
   font-weight: 400;
 }
 
@@ -334,7 +335,7 @@ defineExpose({
   font-weight: 600;
   line-height: 1.35;
   color: var(--obsidian-text-normal);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   position: relative;
 }
 

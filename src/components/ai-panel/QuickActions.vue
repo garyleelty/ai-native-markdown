@@ -44,7 +44,7 @@ const actions = [
   font-weight: 600;
   color: var(--el-text-color-placeholder);
   margin-bottom: 6px;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
 }
 
 .quick-actions-group {

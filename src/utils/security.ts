@@ -75,33 +75,80 @@ export function sanitizeMarkdown(content: string): string {
 export function sanitizeSvg(svgContent: string): string {
   return DOMPurify.sanitize(svgContent, {
     USE_PROFILES: { svg: true, svgFilters: true },
-    ADD_TAGS: ['foreignobject'],
+    ADD_TAGS: ['foreignobject', 'style'],
     ALLOW_DATA_ATTR: false,
     FORBID_ATTR: DANGEROUS_ATTRS,
-    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form'],
   })
 }
 
-const ENC_PREFIX = 'enc:v1:'
-const CRYPTO_KEY = 'ai-native-md-obf-2024'
+const ENC_PREFIX = 'enc:v2:'
 
-export function obfuscateValue(plaintext: string): string {
-  if (!plaintext) return ''
-  const encoded = btoa(unescape(encodeURIComponent(plaintext)))
-  let result = ''
-  for (let i = 0; i < encoded.length; i++) {
-    result += String.fromCharCode(encoded.charCodeAt(i) ^ CRYPTO_KEY.charCodeAt(i % CRYPTO_KEY.length))
-  }
-  return ENC_PREFIX + btoa(result)
+async function getDerivationKey(): Promise<CryptoKey> {
+  const encoder = new TextEncoder()
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode('ai-native-md-key-2024'),
+    'PBKDF2',
+    false,
+    ['deriveKey']
+  )
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: encoder.encode('ai-native-md-salt'), iterations: 100000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  )
 }
 
-export function deobfuscateValue(ciphertext: string): string {
-  if (!ciphertext || !ciphertext.startsWith(ENC_PREFIX)) return ciphertext
+export async function obfuscateValue(plaintext: string): Promise<string> {
+  if (!plaintext) return ''
+  const encoder = new TextEncoder()
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const key = await getDerivationKey()
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    encoder.encode(plaintext)
+  )
+  const payload = new Uint8Array(iv.length + encrypted.byteLength)
+  payload.set(iv, 0)
+  payload.set(new Uint8Array(encrypted), iv.length)
+  return ENC_PREFIX + btoa(String.fromCharCode(...payload))
+}
+
+export async function deobfuscateValue(ciphertext: string): Promise<string> {
+  if (!ciphertext) return ''
+  if (!ciphertext.startsWith(ENC_PREFIX)) {
+    // Fallback: try legacy v1 XOR deobfuscation
+    return legacyDeobfuscateV1(ciphertext)
+  }
   try {
-    const decoded = atob(ciphertext.slice(ENC_PREFIX.length))
+    const raw = atob(ciphertext.slice(ENC_PREFIX.length))
+    const payload = new Uint8Array(raw.length)
+    for (let i = 0; i < raw.length; i++) payload[i] = raw.charCodeAt(i)
+    const iv = payload.slice(0, 12)
+    const data = payload.slice(12)
+    const key = await getDerivationKey()
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data)
+    return new TextDecoder().decode(decrypted)
+  } catch {
+    return ''
+  }
+}
+
+// Legacy v1 XOR deobfuscation for backward compatibility
+const V1_PREFIX = 'enc:v1:'
+const V1_CRYPTO_KEY = 'ai-native-md-obf-2024'
+
+function legacyDeobfuscateV1(ciphertext: string): string {
+  if (!ciphertext.startsWith(V1_PREFIX)) return ciphertext
+  try {
+    const decoded = atob(ciphertext.slice(V1_PREFIX.length))
     let result = ''
     for (let i = 0; i < decoded.length; i++) {
-      result += String.fromCharCode(decoded.charCodeAt(i) ^ CRYPTO_KEY.charCodeAt(i % CRYPTO_KEY.length))
+      result += String.fromCharCode(decoded.charCodeAt(i) ^ V1_CRYPTO_KEY.charCodeAt(i % V1_CRYPTO_KEY.length))
     }
     return decodeURIComponent(escape(atob(result)))
   } catch {

@@ -1,6 +1,6 @@
 <template>
-  <el-dialog v-model="visible" title="从模板创建" width="600px" @close="$emit('update:modelValue', false)">
-    <el-input v-model="searchQuery" placeholder="搜索模板..." clearable :prefix-icon="Search" style="margin-bottom: 16px" />
+  <el-dialog v-model="visible" title="从模板创建" width="600px" class="responsive-dialog" @close="$emit('update:modelValue', false)">
+    <el-input v-model="searchQuery" placeholder="搜索模板..." aria-label="搜索模板" clearable :prefix-icon="Search" style="margin-bottom: 16px" />
     <div class="template-grid">
       <el-card
         v-for="t in filteredTemplates"
@@ -72,7 +72,7 @@ const templates = [
   },
   {
     id: 'chat-export', name: '对话导出', desc: 'AI 对话记录模板', icon: ChatDotRound,
-    content: `# 对话记录\n\n**日期**: {{date}}\n**模型**: \n\n---\n\n## 👤 用户\n\n\n\n## 🤖 助手\n\n\n\n---\n\n## 👤 用户\n\n\n\n## 🤖 助手\n\n`
+    content: `# 对话记录\n\n**日期**: {{date}}\n**模型**: \n\n---\n\n## 用户\n\n\n\n## 助手\n\n\n\n---\n\n## 用户\n\n\n\n## 助手\n\n`
   }
 ]
 
@@ -92,7 +92,7 @@ const selectTemplate = (t: typeof templates[0]) => {
 <style scoped>
 .template-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 12px;
 }
 
@@ -113,7 +113,11 @@ const selectTemplate = (t: typeof templates[0]) => {
 }
 
 .template-card :deep(.el-card__body) {
+  min-height: 112px;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .template-icon {
@@ -131,5 +135,6 @@ const selectTemplate = (t: typeof templates[0]) => {
 .template-desc {
   font-size: 11px;
   color: var(--obsidian-text-faint);
+  line-height: 1.4;
 }
 </style>

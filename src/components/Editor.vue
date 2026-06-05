@@ -155,14 +155,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount, onUnmounted, watch, shallowRef, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, onUnmounted, watch, shallowRef, nextTick } from 'vue'
 import { EditorView, keymap, placeholder } from '@codemirror/view'
-import { EditorState, Compartment, Prec } from '@codemirror/state'
+import { EditorState, Compartment } from '@codemirror/state'
 import { markdown } from '@codemirror/lang-markdown'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { basicSetup } from 'codemirror'
 import { indentWithTab } from '@codemirror/commands'
-import { SearchCursor } from '@codemirror/search'
 import { useSettingsStore } from '@/stores/settings'
 import { ghostTextPlugin, updateGhostTextConfig, ghostTextKeymap } from '@/extensions/ghost-text/ghostTextPlugin'
 import { inlineEditPlugin, inlineEditKeymap } from '@/extensions/inline-edit/inlineEditPlugin'
@@ -172,8 +171,8 @@ import '@/extensions/ai-actions/styles.css'
 import { livePreviewPlugin } from '@/extensions/live-preview/livePreviewPlugin'
 import '@/extensions/live-preview/styles.css'
 import { smartPasteExtension } from '@/extensions/smart-paste/pasteHandler'
-import { aiService } from '@/services/ai'
-import { extractMarkdownHeadings, resolveWikiLinkTarget } from '@/utils/wikiLinks'
+import { useWikiLinkCompletion } from '@/composables/useWikiLinkCompletion'
+import { useFindReplace } from '@/composables/useFindReplace'
 import FindReplace from './editor/FindReplace.vue'
 import VoiceInputButton from '@/components/ui/VoiceInputButton.vue'
 import {
@@ -230,369 +229,31 @@ const wordWrap = ref(true)
 const aiActionCompartment = new Compartment()
 const activeHeadingFrom = ref(-1)
 
-interface WikiLinkCompletionContext {
-  from: number
-  to: number
-  query: string
-  mode: 'note' | 'current-heading' | 'cross-heading'
-  fileTarget?: string
-  headingQuery?: string
-  targetPath?: string | null
-}
-
-interface WikiLinkSuggestion {
-  id: string
-  kind: 'note' | 'heading'
-  title: string
-  insertText: string
-  meta: string
-  sortKey: string
-}
-
-interface MarkdownHeadingSuggestion {
-  title: string
-  level: number
-  slug: string
-  lineNumber: number
-}
-
-const completionContext = ref<WikiLinkCompletionContext | null>(null)
-const selectedCompletionIndex = ref(0)
-const crossDocumentHeadingState = ref<{
-  requestKey: string
-  path: string
-  headings: MarkdownHeadingSuggestion[]
-  loading: boolean
-  error: boolean
-} | null>(null)
-let crossDocumentHeadingRequestId = 0
-
-const stripMarkdownExtension = (path: string): string => path.replace(/\.(md|markdown)$/i, '')
-
-const getWikiLinkTitle = (path: string): string => {
-  const fileName = path.split('/').pop() || path
-  return stripMarkdownExtension(fileName)
-}
-
-const getWorkspaceRelativePath = (path: string): string => path.replace(/^\/workspace\/?/, '')
-
-const getMarkdownHeadings = (content: string): MarkdownHeadingSuggestion[] => {
-  return extractMarkdownHeadings(content).map(heading => ({
-    title: heading.text,
-    level: heading.level,
-    slug: heading.slug,
-    lineNumber: heading.lineNumber,
-  }))
-}
-
-const getCurrentMarkdownHeadings = (): MarkdownHeadingSuggestion[] => {
-  const view = editorView.value
-  if (!view) return []
-  return getMarkdownHeadings(view.state.doc.toString())
-}
-
-const getHeadingSuggestions = (rawQuery: string): WikiLinkSuggestion[] => {
-  const query = rawQuery.replace(/^#/, '').trim().toLowerCase()
-  return getCurrentMarkdownHeadings()
-    .filter(heading => {
-      if (!query) return true
-      return heading.title.toLowerCase().includes(query) || heading.slug.includes(query)
-    })
-    .map(heading => ({
-      id: `heading:${heading.lineNumber}:${heading.title}`,
-      kind: 'heading' as const,
-      title: heading.title,
-      insertText: `#${heading.title}`,
-      meta: `当前文档 · H${heading.level}`,
-      sortKey: `${String(heading.lineNumber).padStart(5, '0')}:${heading.title}`,
-    }))
-    .slice(0, 6)
-}
-
-const getCrossDocumentHeadingSuggestions = (context: WikiLinkCompletionContext): WikiLinkSuggestion[] => {
-  if (context.mode !== 'cross-heading' || !context.targetPath || !context.fileTarget) return []
-  const state = crossDocumentHeadingState.value
-  if (!state || state.path !== context.targetPath || state.loading || state.error) return []
-
-  const query = (context.headingQuery || '').trim().toLowerCase()
-  const fileTarget = context.fileTarget.trim()
-  const noteTitle = getWikiLinkTitle(context.targetPath)
-
-  return state.headings
-    .filter(heading => {
-      if (!query) return true
-      return heading.title.toLowerCase().includes(query) || heading.slug.includes(query)
-    })
-    .map(heading => ({
-      id: `cross-heading:${context.targetPath}:${heading.lineNumber}:${heading.title}`,
-      kind: 'heading' as const,
-      title: heading.title,
-      insertText: `${fileTarget}#${heading.title}`,
-      meta: `${noteTitle} · H${heading.level}`,
-      sortKey: `${String(heading.lineNumber).padStart(5, '0')}:${heading.title}`,
-    }))
-    .slice(0, 6)
-}
-
-const getNoteSuggestions = (rawQuery: string): WikiLinkSuggestion[] => {
-  const query = rawQuery.trim().toLowerCase()
-  return props.markdownPaths
-    .filter(path => /\.(md|markdown)$/i.test(path))
-    .map(path => {
-      const title = getWikiLinkTitle(path)
-      const relativePath = getWorkspaceRelativePath(path)
-      return {
-        id: `note:${path}`,
-        kind: 'note' as const,
-        title,
-        insertText: title,
-        meta: relativePath,
-        sortKey: relativePath,
-      }
-    })
-    .filter(suggestion => {
-      if (!query) return true
-      return suggestion.title.toLowerCase().includes(query) ||
-        suggestion.meta.toLowerCase().includes(query)
-    })
-    .sort((a, b) => {
-      const aTitle = a.title.toLowerCase()
-      const bTitle = b.title.toLowerCase()
-      const aStarts = query && aTitle.startsWith(query)
-      const bStarts = query && bTitle.startsWith(query)
-      if (aStarts !== bStarts) return aStarts ? -1 : 1
-      return a.sortKey.localeCompare(b.sortKey)
-    })
-    .slice(0, 6)
-}
-
-const isHeadingCompletion = computed(() => completionContext.value?.mode === 'current-heading' || completionContext.value?.mode === 'cross-heading')
-
-const completionEmptyText = computed(() => {
-  const context = completionContext.value
-  if (context?.mode === 'cross-heading' && !context.targetPath) return '没有找到目标笔记，继续输入可创建链接'
-  if (isHeadingCompletion.value) return '没有匹配标题，继续输入可创建标题链接'
-  return '没有匹配笔记，继续输入可创建新链接'
+const {
+  completionContext,
+  selectedCompletionIndex,
+  wikiLinkSuggestions,
+  completionEmptyText,
+  wikiLinkCompletionKeymap,
+  refreshWikiLinkCompletion,
+  closeWikiLinkCompletion,
+  handleWikiLinkCompletionKeydown,
+  applyWikiLinkSuggestion,
+} = useWikiLinkCompletion({
+  editorView: () => editorView.value,
+  markdownPaths: () => props.markdownPaths,
+  currentFile: () => props.currentFile,
+  readMarkdownFile: props.readMarkdownFile,
 })
 
-const wikiLinkSuggestions = computed<WikiLinkSuggestion[]>(() => {
-  const context = completionContext.value
-  if (!context) return []
-
-  if (context.mode === 'current-heading') return getHeadingSuggestions(context.query)
-  if (context.mode === 'cross-heading') return getCrossDocumentHeadingSuggestions(context)
-  return getNoteSuggestions(context.query)
+const {
+  handleFind,
+  handleReplace,
+  handleReplaceAll,
+} = useFindReplace({
+  editorView: () => editorView.value,
+  findReplaceRef: () => findReplaceRef.value,
 })
-
-watch(wikiLinkSuggestions, (suggestions) => {
-  if (selectedCompletionIndex.value >= suggestions.length) {
-    selectedCompletionIndex.value = Math.max(0, suggestions.length - 1)
-  }
-})
-
-watch(completionContext, async (context) => {
-  if (context?.mode !== 'cross-heading' || !context.targetPath || !props.readMarkdownFile) {
-    crossDocumentHeadingRequestId++
-    crossDocumentHeadingState.value = null
-    return
-  }
-
-  if (
-    crossDocumentHeadingState.value?.path === context.targetPath &&
-    !crossDocumentHeadingState.value.error
-  ) {
-    return
-  }
-
-  const requestId = ++crossDocumentHeadingRequestId
-  const requestKey = `${context.targetPath}:${context.fileTarget || ''}`
-  crossDocumentHeadingState.value = {
-    requestKey,
-    path: context.targetPath,
-    headings: [],
-    loading: true,
-    error: false,
-  }
-
-  try {
-    const content = await props.readMarkdownFile(context.targetPath)
-    if (requestId !== crossDocumentHeadingRequestId) return
-    crossDocumentHeadingState.value = {
-      requestKey,
-      path: context.targetPath,
-      headings: getMarkdownHeadings(content),
-      loading: false,
-      error: false,
-    }
-  } catch {
-    if (requestId !== crossDocumentHeadingRequestId) return
-    crossDocumentHeadingState.value = {
-      requestKey,
-      path: context.targetPath,
-      headings: [],
-      loading: false,
-      error: true,
-    }
-  }
-})
-
-const detectWikiLinkCompletion = (view: EditorView): WikiLinkCompletionContext | null => {
-  const selection = view.state.selection.main
-  if (!selection.empty) return null
-
-  const position = selection.head
-  const line = view.state.doc.lineAt(position)
-  const textBeforeCursor = line.text.slice(0, position - line.from)
-  const openIndex = textBeforeCursor.lastIndexOf('[[')
-  if (openIndex === -1) return null
-
-  const closeIndex = textBeforeCursor.lastIndexOf(']]')
-  if (closeIndex > openIndex) return null
-
-  const query = textBeforeCursor.slice(openIndex + 2)
-  if (query.includes(']') || query.includes('|')) return null
-
-  if (query.trim().startsWith('#')) {
-    return {
-      from: line.from + openIndex,
-      to: position,
-      query,
-      mode: 'current-heading',
-      headingQuery: query.replace(/^#/, ''),
-    }
-  }
-
-  const hashIndex = query.indexOf('#')
-  if (hashIndex > 0) {
-    const fileTarget = query.slice(0, hashIndex).trim()
-    const headingQuery = query.slice(hashIndex + 1)
-    const targetPath = fileTarget
-      ? resolveWikiLinkTarget(fileTarget, props.currentFile || '', props.markdownPaths)
-      : null
-
-    return {
-      from: line.from + openIndex,
-      to: position,
-      query,
-      mode: 'cross-heading',
-      fileTarget,
-      headingQuery,
-      targetPath,
-    }
-  }
-
-  return {
-    from: line.from + openIndex,
-    to: position,
-    query,
-    mode: 'note',
-  }
-}
-
-const refreshWikiLinkCompletion = (view: EditorView) => {
-  const nextContext = detectWikiLinkCompletion(view)
-  if (!nextContext) {
-    completionContext.value = null
-    selectedCompletionIndex.value = 0
-    return
-  }
-
-  const previousQuery = completionContext.value?.query
-  completionContext.value = nextContext
-  if (previousQuery !== nextContext.query) {
-    selectedCompletionIndex.value = 0
-  }
-}
-
-const closeWikiLinkCompletion = () => {
-  completionContext.value = null
-  selectedCompletionIndex.value = 0
-}
-
-const moveWikiLinkCompletionSelection = (delta: number): boolean => {
-  const suggestions = wikiLinkSuggestions.value
-  if (!completionContext.value || suggestions.length === 0) return false
-  selectedCompletionIndex.value = (selectedCompletionIndex.value + delta + suggestions.length) % suggestions.length
-  return true
-}
-
-const applyWikiLinkSuggestion = (suggestion: WikiLinkSuggestion) => {
-  const view = editorView.value
-  const context = completionContext.value
-  if (!view || !context) return
-
-  const insert = `[[${suggestion.insertText}]]`
-  view.dispatch({
-    changes: { from: context.from, to: context.to, insert },
-    selection: { anchor: context.from + insert.length },
-    scrollIntoView: true
-  })
-  closeWikiLinkCompletion()
-  view.focus()
-}
-
-const acceptSelectedWikiLinkCompletion = (): boolean => {
-  if (!completionContext.value) return false
-  const suggestions = wikiLinkSuggestions.value
-  const suggestion = suggestions[selectedCompletionIndex.value] || suggestions[0]
-  if (!suggestion) return false
-  applyWikiLinkSuggestion(suggestion)
-  return true
-}
-
-const wikiLinkCompletionKeymap = Prec.highest(keymap.of([
-  {
-    key: 'ArrowDown',
-    run: () => moveWikiLinkCompletionSelection(1),
-  },
-  {
-    key: 'ArrowUp',
-    run: () => moveWikiLinkCompletionSelection(-1),
-  },
-  {
-    key: 'Enter',
-    run: () => acceptSelectedWikiLinkCompletion(),
-  },
-  {
-    key: 'Tab',
-    run: () => acceptSelectedWikiLinkCompletion(),
-  },
-  {
-    key: 'Escape',
-    run: () => {
-      if (!completionContext.value) return false
-      closeWikiLinkCompletion()
-      return true
-    },
-  },
-]))
-
-const handleWikiLinkCompletionKeydown = (event: KeyboardEvent, view: EditorView): boolean => {
-  if (!completionContext.value) return false
-
-  if (event.key === 'Escape') {
-    event.preventDefault()
-    closeWikiLinkCompletion()
-    return true
-  }
-
-  const suggestions = wikiLinkSuggestions.value
-  if (event.key === 'ArrowDown' && suggestions.length > 0) {
-    event.preventDefault()
-    return moveWikiLinkCompletionSelection(1)
-  }
-  if (event.key === 'ArrowUp' && suggestions.length > 0) {
-    event.preventDefault()
-    return moveWikiLinkCompletionSelection(-1)
-  }
-  if ((event.key === 'Enter' || event.key === 'Tab') && suggestions.length > 0) {
-    event.preventDefault()
-    return acceptSelectedWikiLinkCompletion()
-  }
-
-  refreshWikiLinkCompletion(view)
-  return false
-}
 
 const createEditor = () => {
   if (!editorContainer.value) return
@@ -871,121 +532,6 @@ const toggleGhostText = () => {
   }
 }
 
-interface SearchOptions {
-  caseSensitive: boolean
-  useRegex: boolean
-}
-
-const getSearchSource = (text: string, options: SearchOptions): string =>
-  options.useRegex ? text : text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-const buildSearchRegExp = (text: string, options: SearchOptions): RegExp | null => {
-  try {
-    const source = getSearchSource(text, options)
-    return new RegExp(source, options.caseSensitive ? 'g' : 'gi')
-  } catch {
-    return null
-  }
-}
-
-const buildExactSearchRegExp = (text: string, options: SearchOptions): RegExp | null => {
-  try {
-    const source = getSearchSource(text, options)
-    return new RegExp(`^(?:${source})$`, options.caseSensitive ? '' : 'i')
-  } catch {
-    return null
-  }
-}
-
-const reportInvalidSearch = () => {
-  findReplaceRef.value?.setSearchError?.('正则表达式无效')
-}
-
-const getAllMatches = (text: string, query: RegExp): { from: number; to: number }[] => {
-  const matches: { from: number; to: number }[] = []
-  query.lastIndex = 0
-  let m: RegExpExecArray | null
-  while ((m = query.exec(text)) !== null) {
-    if (m[0].length === 0) { query.lastIndex++; continue }
-    matches.push({ from: m.index, to: m.index + m[0].length })
-  }
-  return matches
-}
-
-const handleFind = (text: string, options: { caseSensitive: boolean; useRegex: boolean; direction: 'next' | 'prev' }) => {
-  const view = editorView.value
-  if (!view || !text) return
-  const re = buildSearchRegExp(text, options)
-  if (!re) {
-    reportInvalidSearch()
-    return
-  }
-  const docText = view.state.doc.toString()
-  const matches = getAllMatches(docText, re)
-  if (matches.length === 0) {
-    findReplaceRef.value?.setMatchInfo(0, 0)
-    return
-  }
-  const currentPos = view.state.selection.main.head
-  let targetIdx = 0
-  if (options.direction === 'next') {
-    targetIdx = matches.findIndex(m => m.from >= currentPos)
-    if (targetIdx === -1) targetIdx = 0
-  } else {
-    targetIdx = matches.findIndex(m => m.to > currentPos)
-    if (targetIdx === -1) targetIdx = matches.length - 1
-    else targetIdx = Math.max(0, targetIdx - 1)
-  }
-  const target = matches[targetIdx]
-  view.dispatch({
-    selection: { anchor: target.from, head: target.to },
-    scrollIntoView: true
-  })
-  findReplaceRef.value?.setMatchInfo(targetIdx + 1, matches.length)
-}
-
-const handleReplace = (findText: string, replaceText: string, options: { caseSensitive: boolean; useRegex: boolean }) => {
-  const view = editorView.value
-  if (!view || !findText) return
-  const { from, to } = view.state.selection.main
-  const selectedText = view.state.sliceDoc(from, to)
-  const re = buildSearchRegExp(findText, options)
-  const exactRe = buildExactSearchRegExp(findText, options)
-  if (!re || !exactRe) {
-    reportInvalidSearch()
-    return
-  }
-  re.lastIndex = 0
-  const isSelectedMatch = exactRe.test(selectedText)
-  if (isSelectedMatch) {
-    const nextText = options.useRegex ? selectedText.replace(re, replaceText) : replaceText
-    view.dispatch({
-      changes: { from, to, insert: nextText },
-      selection: { anchor: from + nextText.length }
-    })
-  }
-  handleFind(findText, { ...options, direction: 'next' })
-}
-
-const handleReplaceAll = (findText: string, replaceText: string, options: { caseSensitive: boolean; useRegex: boolean }) => {
-  const view = editorView.value
-  if (!view || !findText) return
-  const re = buildSearchRegExp(findText, options)
-  if (!re) {
-    reportInvalidSearch()
-    return
-  }
-  const docText = view.state.doc.toString()
-  const matches = getAllMatches(docText, re)
-  if (matches.length === 0) return
-  re.lastIndex = 0
-  const nextText = docText.replace(re, replaceText)
-  view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: nextText }
-  })
-  findReplaceRef.value?.setMatchInfo(0, 0)
-}
-
 const scrollToLine = (lineNumber: number) => {
   const view = editorView.value
   if (!view) return
@@ -1066,11 +612,20 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 4px;
   flex: 1;
-  overflow: hidden;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.toolbar-inner::-webkit-scrollbar {
+  display: none;
 }
 
 .toolbar-inner :deep(.el-button-group) {
   display: inline-flex;
+  flex: 0 0 auto;
 }
 
 .toolbar-inner :deep(.el-button) {
@@ -1242,5 +797,19 @@ onBeforeUnmount(() => {
   color: var(--obsidian-text-muted);
   font-size: 13px;
   line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .editor-toolbar {
+    padding: 0 6px;
+  }
+
+  .editor-container :deep(.cm-content) {
+    padding: 0 var(--space-4);
+  }
+
+  .editor-container :deep(.cm-scroller) {
+    font-size: 14px;
+  }
 }
 </style>

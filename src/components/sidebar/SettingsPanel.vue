@@ -127,7 +127,7 @@ const settingsStore = useSettingsStore()
   font-size: 11px;
   font-weight: 600;
   color: var(--obsidian-text-muted, #999);
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -170,7 +170,7 @@ const settingsStore = useSettingsStore()
   font-size: 10px;
   font-weight: 600;
   color: var(--obsidian-text-faint, #666);
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   text-transform: uppercase;
   padding: 10px 12px 6px;
 }

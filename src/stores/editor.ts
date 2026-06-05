@@ -148,6 +148,35 @@ export const useEditorStore = defineStore('editor', () => {
       return ''
     }
 
+    const restoredTabs: Tab[] = []
+    for (const tab of openTabs.value) {
+      if (tab.isModified) {
+        restoredTabs.push(tab)
+        continue
+      }
+
+      try {
+        const fileContent = await fileSystem.readFile(tab.filePath)
+        restoredTabs.push({
+          ...tab,
+          content: fileContent,
+          isModified: false,
+        })
+      } catch {
+        // Saved tabs can be dropped if their backing file disappeared while the app was closed.
+      }
+    }
+
+    openTabs.value = restoredTabs
+
+    if (openTabs.value.length === 0) {
+      activeTabId.value = null
+      content.value = ''
+      currentFile.value = ''
+      isModified.value = false
+      return ''
+    }
+
     if (!activeTabId.value || !openTabs.value.some(t => t.id === activeTabId.value)) {
       activeTabId.value = openTabs.value[0].id
     }
@@ -157,27 +186,9 @@ export const useEditorStore = defineStore('editor', () => {
 
     activeTabId.value = tab.id
     currentFile.value = tab.filePath
-
-    if (tab.isModified && tab.content) {
-      content.value = tab.content
-      isModified.value = true
-      return tab.content
-    }
-
-    try {
-      const fileContent = await fileSystem.readFile(tab.filePath)
-      tab.content = fileContent
-      tab.isModified = false
-      content.value = fileContent
-      isModified.value = false
-      return fileContent
-    } catch {
-      tab.content = ''
-      tab.isModified = false
-      content.value = ''
-      isModified.value = false
-      return ''
-    }
+    content.value = tab.content
+    isModified.value = tab.isModified
+    return tab.content
   }
 
   const markTabSaved = (tabId: string) => {

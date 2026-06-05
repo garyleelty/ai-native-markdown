@@ -1,5 +1,5 @@
 <template>
-  <el-drawer v-model="visible" title="版本历史" direction="rtl" size="360px">
+  <el-drawer v-model="visible" title="版本历史" direction="rtl" size="360px" class="responsive-drawer">
     <div v-if="snapshots.length === 0" class="empty-history">
       <el-empty description="暂无历史记录" :image-size="48" />
     </div>
@@ -23,7 +23,7 @@
       </el-timeline>
     </div>
 
-    <el-dialog v-model="showPreview" title="版本预览" width="500px" append-to-body>
+    <el-dialog v-model="showPreview" title="版本预览" width="500px" class="responsive-dialog" append-to-body>
       <div class="preview-content">{{ previewContent }}</div>
       <template #footer>
         <el-button native-type="button" @click="showPreview = false">关闭</el-button>

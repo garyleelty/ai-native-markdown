@@ -69,7 +69,6 @@ declare module 'vue' {
     Sidebar: typeof import('./src/components/Sidebar.vue')['default']
     StatusBar: typeof import('./src/components/editor/StatusBar.vue')['default']
     TagBadge: typeof import('./src/components/knowledge/TagBadge.vue')['default']
-    TaskScheduler: typeof import('./src/components/task-scheduler/TaskScheduler.vue')['default']
     TemplateGallery: typeof import('./src/components/TemplateGallery.vue')['default']
     VersionHistoryPanel: typeof import('./src/components/editor/VersionHistoryPanel.vue')['default']
     VoiceInputButton: typeof import('./src/components/ui/VoiceInputButton.vue')['default']

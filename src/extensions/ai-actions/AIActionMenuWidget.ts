@@ -28,9 +28,12 @@ export class AIActionMenuWidget extends WidgetType {
     for (const action of AI_ACTIONS) {
       const btn = document.createElement('button')
       btn.className = 'cm-ai-action-btn'
+      btn.type = 'button'
       btn.title = action.label
+      btn.setAttribute('aria-label', action.label)
       const icon = document.createElement('span')
       icon.className = 'cm-ai-action-icon'
+      icon.setAttribute('aria-hidden', 'true')
       icon.textContent = action.icon
       const label = document.createElement('span')
       label.className = 'cm-ai-action-label'
@@ -105,8 +108,10 @@ export class AIActionMenuWidget extends WidgetType {
     status.textContent = 'AI 处理中...'
     const close = document.createElement('button')
     close.className = 'cm-ai-result-close'
+    close.type = 'button'
     close.title = '关闭'
-    close.textContent = 'x'
+    close.setAttribute('aria-label', '关闭 AI 结果')
+    close.textContent = '×'
     close.addEventListener('click', () => {
       this.destroyResult()
     })
@@ -148,16 +153,20 @@ export class AIActionMenuWidget extends WidgetType {
 
     const acceptBtn = document.createElement('button')
     acceptBtn.className = 'cm-ai-result-btn accept'
+    acceptBtn.type = 'button'
     acceptBtn.title = '替换原文'
     acceptBtn.textContent = '替换'
     const insertBtn = document.createElement('button')
     insertBtn.className = 'cm-ai-result-btn insert'
+    insertBtn.type = 'button'
     insertBtn.title = '插入到原文之后'
     insertBtn.textContent = '插入'
     const closeBtn = document.createElement('button')
     closeBtn.className = 'cm-ai-result-close'
+    closeBtn.type = 'button'
     closeBtn.title = '关闭'
-    closeBtn.textContent = 'x'
+    closeBtn.setAttribute('aria-label', '关闭 AI 结果')
+    closeBtn.textContent = '×'
     for (const button of [acceptBtn, insertBtn, closeBtn]) {
       button.addEventListener('pointerdown', (e) => {
         e.preventDefault()

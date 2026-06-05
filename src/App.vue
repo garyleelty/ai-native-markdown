@@ -211,7 +211,7 @@ import { fileSystem } from './services/fileSystem'
 import type { KnowledgeReference } from './services/knowledgeIndex'
 import { useFileOperations } from './composables/useFileOperations'
 import { useExport } from './composables/useExport'
-import type { SidebarTab } from './types'
+import type { SidebarTab, ViewMode } from './types'
 import './styles/app.css'
 import Sidebar from './components/Sidebar.vue'
 import Editor from './components/Editor.vue'
@@ -299,9 +299,15 @@ const closeMobileSidebar = () => {
   mobileSidebarOpen.value = false
 }
 
-const preferReadableMobileView = () => {
-  if (isNarrowViewport.value && editorStore.openTabs.length > 0 && editorStore.viewMode === 'split') {
-    editorStore.setViewMode('source')
+type MobileReadableViewMode = Exclude<ViewMode, 'split'>
+
+const preferReadableMobileView = (
+  mode: MobileReadableViewMode = 'source',
+  options: { force?: boolean } = {}
+) => {
+  if (!isNarrowViewport.value || editorStore.openTabs.length === 0) return
+  if (options.force || editorStore.viewMode === 'split') {
+    editorStore.setViewMode(mode)
   }
 }
 
@@ -365,9 +371,12 @@ const readMarkdownFileForCompletion = async (path: string): Promise<string> => {
   if (openTab) return openTab.content
   return fileSystem.readFile(path)
 }
-const handleFileSelect = async (filePath: string) => {
+const handleFileSelect = async (
+  filePath: string,
+  options: { mobileViewMode?: MobileReadableViewMode; forceMobileViewMode?: boolean } = {}
+) => {
   await selectFileFromOperations(filePath)
-  preferReadableMobileView()
+  preferReadableMobileView(options.mobileViewMode, { force: options.forceMobileViewMode })
   await refreshMarkdownPaths()
   closeMobileSidebar()
 }
@@ -579,6 +588,7 @@ const handleDrop = async (e: DragEvent) => {
   const files = e.dataTransfer?.files
   if (!files || files.length === 0) return
 
+  let importedCount = 0
   for (const file of Array.from(files)) {
     if (file.name.endsWith('.md') || file.name.endsWith('.markdown')) {
       try {
@@ -591,13 +601,18 @@ const handleDrop = async (e: DragEvent) => {
           editorRef.value.setContent(content)
         }
         preferReadableMobileView()
+        importedCount++
       } catch (e: any) {
         ElMessage.error(`导入 ${file.name} 失败`)
       }
     }
   }
   await refreshMarkdownPaths()
-  ElMessage.success(`已导入 ${files.length} 个文件`)
+  if (importedCount > 0) {
+    ElMessage.success(`已导入 ${importedCount} 个 Markdown 文件`)
+  } else {
+    ElMessage.warning('未导入文件：仅支持 Markdown 文件')
+  }
 }
 
 const handleNewFileFromWelcome = () => {
@@ -618,7 +633,10 @@ const handleDemoFromWelcome = async () => {
   await sidebarRef.value?.initDemoWorkspace?.()
   await refreshMarkdownPaths()
   try {
-    await handleFileSelect('/workspace/README.md')
+    await handleFileSelect('/workspace/README.md', {
+      mobileViewMode: 'preview',
+      forceMobileViewMode: true,
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     ElMessage.warning(`示例工作区已加载，但打开 README 失败: ${message}`)
@@ -711,8 +729,17 @@ const openSidebarTab = async (tab: SidebarTab) => {
 }
 
 const refreshKnowledgeIndexFromCommand = async () => {
-  await ensureMobileSidebar()
-  await sidebarRef.value?.refreshKnowledgeIndex?.()
+  try {
+    await ensureMobileSidebar()
+    const sidebar = sidebarRef.value
+    if (!sidebar?.refreshKnowledgeIndex) {
+      throw new Error('知识面板未就绪')
+    }
+    await sidebar.refreshKnowledgeIndex()
+    ElMessage.success('知识索引已刷新')
+  } catch {
+    ElMessage.error('刷新知识索引失败')
+  }
 }
 
 const focusFileSearchFromCommand = async (mode: 'name' | 'content') => {

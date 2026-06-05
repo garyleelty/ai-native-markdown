@@ -38,12 +38,13 @@ export function wrapAsync<T extends (...args: any[]) => Promise<any>>(
   fn: T,
   fallbackMessage?: string,
   level?: ErrorLevel
-): T {
+): (...args: Parameters<T>) => Promise<Awaited<ReturnType<T>> | undefined> {
   return (async (...args: any[]) => {
     try {
       return await fn(...args)
     } catch (e) {
       handleError(e, fallbackMessage, level)
+      return undefined
     }
-  }) as T
+  }) as any
 }

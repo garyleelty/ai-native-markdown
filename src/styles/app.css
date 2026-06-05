@@ -47,7 +47,7 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--obsidian-text-muted);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .brand-text {
@@ -472,6 +472,14 @@
 
 .el-tooltip__trigger {
   outline: none;
+}
+
+.responsive-dialog.el-dialog {
+  max-width: calc(100vw - 32px);
+}
+
+.responsive-drawer.el-drawer {
+  max-width: 100vw;
 }
 
 /* ── 响应式 ── */

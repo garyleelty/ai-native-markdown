@@ -1,5 +1,5 @@
 <template>
-  <el-popover placement="top" :width="240" trigger="click">
+  <el-popover placement="top" :width="240" trigger="click" popper-class="doc-stats-popper">
     <template #reference>
       <slot />
     </template>
@@ -89,5 +89,9 @@ const readTime = computed(() => {
 .stat-value {
   font-weight: 600;
   color: var(--obsidian-text-normal);
+}
+
+:global(.doc-stats-popper) {
+  max-width: calc(100vw - 24px);
 }
 </style>

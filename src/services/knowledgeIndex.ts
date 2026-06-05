@@ -3,6 +3,7 @@ import type { KnowledgeGraphData, GraphEdge, GraphNode } from '@/types'
 import { normalizeNoteName, parseMarkdownMetadata, type FrontmatterValue } from '@/utils/metadata'
 import { parseWikiLinkTarget } from '@/utils/wikiLinks'
 import { safeStorage } from '@/utils/security'
+import { fileSystem } from './fileSystem'
 
 export interface KnowledgeIndexRecord {
   id?: number
@@ -16,7 +17,6 @@ export interface KnowledgeIndexRecord {
   normalizedLinks: string[]
   frontmatter: Record<string, FrontmatterValue>
   searchableText: string
-  content: string
   updatedAt: number
 }
 
@@ -162,7 +162,6 @@ export const knowledgeIndex = {
       normalizedLinks: metadata.links.map(normalizeNoteName),
       frontmatter: metadata.frontmatter,
       searchableText: metadata.searchableText,
-      content,
       updatedAt: Date.now(),
     }
 
@@ -231,16 +230,28 @@ export const knowledgeIndex = {
     const current = await this.getByPath(filePath)
     if (!current) return []
     const names = getRecordNames(current)
-    const records = await db.records.toArray()
 
-    return records
-      .filter(record => record.filePath !== filePath && record.normalizedLinks.some(link => names.includes(link)))
-      .map(record => ({
-        filePath: record.filePath,
-        title: record.title,
-        excerpt: makeExcerpt(record.searchableText, current.title),
-        lineNumber: findWikiLinkLine(record.content || '', names),
-      }))
+    // Use indexed query on normalizedLinks instead of loading all records
+    const results: KnowledgeReference[] = []
+    for (const name of names) {
+      const matchingRecords = await db.records
+        .where('normalizedLinks').equals(name)
+        .toArray()
+      for (const record of matchingRecords) {
+        if (record.filePath === filePath) continue
+        if (results.some(r => r.filePath === record.filePath)) continue
+        // Read content from fileSystem on demand instead of storing it
+        const content = await fileSystem.readFileOrEmpty(record.filePath)
+        results.push({
+          filePath: record.filePath,
+          title: record.title,
+          excerpt: makeExcerpt(record.searchableText, current.title),
+          lineNumber: findWikiLinkLine(content, names),
+        })
+      }
+    }
+
+    return results
   },
 
   async getUnlinkedMentions(filePath: string): Promise<KnowledgeReference[]> {
@@ -248,12 +259,25 @@ export const knowledgeIndex = {
     if (!current) return []
     const names = [current.title, ...current.aliases].filter(name => name.trim().length >= 2)
     const normalizedNames = getRecordNames(current)
-    const records = await db.records.toArray()
 
-    return records
-      .filter(record => record.filePath !== filePath)
-      .filter(record => !record.normalizedLinks.some(link => normalizedNames.includes(link)))
-      .filter(record => names.some(name => {
+    // Only load records that have links (to exclude them), then check for text mentions
+    const linkedFilePaths = new Set<string>()
+    for (const name of normalizedNames) {
+      const matching = await db.records
+        .where('normalizedLinks').equals(name)
+        .toArray()
+      for (const record of matching) {
+        if (record.filePath !== filePath) linkedFilePaths.add(record.filePath)
+      }
+    }
+
+    // For unlinked mentions, we still need to scan records that DON'T link to this file
+    // Use a targeted approach: scan records not in linkedFilePaths
+    const results: KnowledgeReference[] = []
+    await db.records.each(record => {
+      if (record.filePath === filePath) return
+      if (linkedFilePaths.has(record.filePath)) return
+      const hasMention = names.some(name => {
         const trimmed = name.trim()
         if (!trimmed) return false
         if (/^[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]+$/.test(trimmed)) {
@@ -261,13 +285,24 @@ export const knowledgeIndex = {
         }
         if (trimmed.length < 3) return false
         return new RegExp(`(^|[^\\p{L}\\p{N}_-])${escapeRegExp(trimmed)}($|[^\\p{L}\\p{N}_-])`, 'iu').test(record.searchableText)
-      }))
-      .map(record => ({
-        filePath: record.filePath,
-        title: record.title,
-        excerpt: makeExcerpt(record.searchableText, names[0]),
-        lineNumber: findMentionLine(record.content || '', names),
-      }))
+      })
+      if (hasMention) {
+        results.push({
+          filePath: record.filePath,
+          title: record.title,
+          excerpt: makeExcerpt(record.searchableText, names[0]),
+          lineNumber: -1, // Will be resolved lazily
+        })
+      }
+    })
+
+    // Resolve line numbers on demand
+    for (const result of results) {
+      const content = await fileSystem.readFileOrEmpty(result.filePath)
+      result.lineNumber = findMentionLine(content, names)
+    }
+
+    return results
   },
 
   async buildGraphData(): Promise<KnowledgeGraphData> {

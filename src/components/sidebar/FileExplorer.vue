@@ -513,7 +513,7 @@ onUnmounted(() => {
   font-size: 11px;
   font-weight: 600;
   color: var(--obsidian-text-muted, #999);
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -585,7 +585,7 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--obsidian-text-faint, #666);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   padding: 4px 8px;
 }
 
@@ -709,7 +709,7 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--obsidian-text-faint, #666);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   padding: 6px 12px 3px;
 }
 

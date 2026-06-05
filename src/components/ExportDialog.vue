@@ -1,8 +1,8 @@
 <template>
-  <el-dialog v-model="visible" title="导出文档" width="480px" @close="$emit('update:modelValue', false)">
+  <el-dialog v-model="visible" title="导出文档" width="480px" class="responsive-dialog" @close="$emit('update:modelValue', false)">
     <el-form label-position="top">
       <el-form-item label="导出格式">
-        <el-radio-group v-model="format">
+        <el-radio-group v-model="format" class="export-format-group">
           <el-radio-button value="markdown">Markdown</el-radio-button>
           <el-radio-button value="html">HTML</el-radio-button>
           <el-radio-button value="plain">纯文本</el-radio-button>
@@ -33,8 +33,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import MarkdownIt from 'markdown-it'
-import { escapeHtml, sanitizeMarkdown } from '@/utils/security'
+import { createExportHtml } from '@/utils/exportHtml'
 
 const props = defineProps<{
   modelValue: boolean
@@ -77,24 +76,11 @@ const handleExport = () => {
     blob = new Blob([props.content], { type: 'text/markdown' })
     name = `${baseName}.md`
   } else if (format.value === 'html') {
-    const md = new MarkdownIt({ html: false, linkify: true, typographer: true })
-    let body = sanitizeMarkdown(md.render(props.content))
-
-    if (includeTOC.value) {
-      const headings = props.content.match(/^#{1,3}\s+.+$/gm) || []
-      if (headings.length > 0) {
-        const toc = headings.map(h => {
-          const level = h.match(/^#+/)?.[0].length || 1
-          const text = h.replace(/^#+\s+/, '')
-          const id = text.toLowerCase().replace(/\s+/g, '-')
-          return `${'  '.repeat(level - 1)}- [${text}](#${id})`
-        }).join('\n')
-        body = sanitizeMarkdown(md.render(toc)) + '<hr>' + body
-      }
-    }
-
-    const styles = includeStyles.value ? `<style>body{max-width:800px;margin:0 auto;padding:20px 40px;font-family:system-ui,-apple-system,sans-serif;line-height:1.7;color:#333}h1,h2,h3{margin-top:1.5em}a{color:#0366d6}code{background:#f6f8fa;padding:2px 6px;border-radius:3px;font-size:85%}pre{background:#f6f8fa;padding:16px;border-radius:6px;overflow-x:auto}pre code{background:none;padding:0}blockquote{border-left:4px solid #dfe2e5;padding:0 16px;color:#666}table{border-collapse:collapse;width:100%}th,td{border:1px solid #dfe2e5;padding:8px 12px}th{background:#f6f8fa}img{max-width:100%}hr{border:none;border-top:1px solid #eee;margin:2em 0}</style>` : ''
-    const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(baseName)}</title>${styles}</head><body>${body}</body></html>`
+    const html = createExportHtml(props.content, {
+      title: baseName,
+      includeStyles: includeStyles.value,
+      includeTOC: includeTOC.value,
+    })
     blob = new Blob([html], { type: 'text/html' })
     name = `${baseName}.html`
   } else {
@@ -122,3 +108,10 @@ const handleExport = () => {
   ElMessage.success(`已导出 ${name}`)
 }
 </script>
+
+<style scoped>
+.export-format-group {
+  display: flex;
+  flex-wrap: wrap;
+}
+</style>

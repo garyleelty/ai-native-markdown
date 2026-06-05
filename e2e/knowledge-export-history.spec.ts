@@ -78,6 +78,41 @@ test.describe('知识整理、导出、模板、版本历史', () => {
     expect(html).toContain('Export Safety')
   })
 
+  test('HTML 导出包含目录时目录链接指向正文标题锚点', async ({ page }) => {
+    await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
+    await setEditorContent(page, [
+      '# Export Heading',
+      '',
+      '## Export Heading',
+      '',
+      '### 标题 特殊字符 & Link',
+      '',
+      '正文内容。',
+    ].join('\n'))
+
+    await page.getByLabel('导出', { exact: true }).click()
+    await page.getByRole('menuitem', { name: '导出...' }).click()
+    await expect(page.getByRole('dialog', { name: '导出文档' })).toBeVisible()
+    await page.locator('.el-radio-button').filter({ hasText: 'HTML' }).click()
+    await page.locator('.el-form-item').filter({ hasText: '包含目录' }).locator('.el-switch').click()
+
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByRole('dialog', { name: '导出文档' }).getByRole('button', { name: '导出' }).click()
+    const download = await downloadPromise
+    const downloadedPath = await download.path()
+    expect(downloadedPath).toBeTruthy()
+    const html = await readFile(downloadedPath!, 'utf8')
+
+    expect(html).toContain('<nav class="export-toc"')
+    expect(html).toContain('href="#export-heading"')
+    expect(html).toContain('id="export-heading"')
+    expect(html).toContain('href="#export-heading-1"')
+    expect(html).toContain('id="export-heading-1"')
+    expect(html).toContain('href="#%E6%A0%87%E9%A2%98-%E7%89%B9%E6%AE%8A%E5%AD%97%E7%AC%A6-%26-link"')
+    expect(html).toContain('id="%E6%A0%87%E9%A2%98-%E7%89%B9%E6%AE%8A%E5%AD%97%E7%AC%A6-%26-link"')
+  })
+
   test('版本历史可以恢复已保存快照', async ({ page }) => {
     await loadDemoWorkspace(page)
     await openFirstMarkdownFile(page)
@@ -503,23 +538,38 @@ test.describe('知识整理、导出、模板、版本历史', () => {
     await expect(page.locator('.reference-item:visible').filter({ hasText: 'Link Source' })).toHaveCount(0)
   })
 
-  test('窄屏下导出弹窗、模板弹窗和 AI 面板不产生横向溢出', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 740 })
+  test('窄屏下导出弹窗、模板弹窗、语法参考和 AI 面板不产生横向溢出', async ({ page }) => {
     await loadDemoWorkspace(page)
     await openFirstMarkdownFile(page)
+    await page.setViewportSize({ width: 390, height: 740 })
+
+    const expectNoOverflow = async () => {
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+      expect(overflow).toBeLessThanOrEqual(1)
+    }
+    const expectDialogWithinViewport = async (name: string) => {
+      await expect(page.getByRole('dialog', { name })).toBeVisible()
+      const dialog = page.locator('.el-dialog').filter({ hasText: name }).last()
+      const box = await dialog.boundingBox()
+      expect(box).not.toBeNull()
+      expect(box!.x).toBeGreaterThanOrEqual(0)
+      expect(box!.x + box!.width).toBeLessThanOrEqual(390)
+      await expectNoOverflow()
+    }
 
     await page.getByRole('button', { name: 'AI 助手' }).click()
     await expect(page.locator('.ai-panel-section')).toBeVisible()
     await page.getByRole('button', { name: '导出' }).click()
     await page.getByRole('menuitem', { name: '导出...' }).click()
-    await expect(page.getByRole('dialog', { name: '导出文档' })).toBeVisible()
+    await expectDialogWithinViewport('导出文档')
     await page.keyboard.press('Escape')
 
     await runCommand(page, '从模板新建')
-    await expect(page.getByRole('dialog', { name: '从模板创建' })).toBeVisible()
+    await expectDialogWithinViewport('从模板创建')
+    await page.keyboard.press('Escape')
 
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
-    expect(overflow).toBeLessThanOrEqual(1)
+    await runCommand(page, 'Markdown 速查表')
+    await expectDialogWithinViewport('Markdown 语法参考')
   })
 
   test('模板创建后的内容可以保存到工作区', async ({ page }) => {

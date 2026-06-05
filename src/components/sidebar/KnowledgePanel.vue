@@ -130,6 +130,10 @@ const currentRecord = ref<KnowledgeIndexRecord | null>(null)
 const backlinks = ref<KnowledgeReference[]>([])
 const unlinkedMentions = ref<KnowledgeReference[]>([])
 
+interface RefreshIndexOptions {
+  notify?: boolean
+}
+
 const propertyRows = computed(() => {
   if (!currentRecord.value) return []
   return Object.entries(currentRecord.value.frontmatter).map(([key, value]) => ({
@@ -189,13 +193,15 @@ const loadGraphData = async () => {
   }
 }
 
-const refreshIndex = async () => {
+const refreshIndex = async (options: RefreshIndexOptions = {}) => {
+  const notify = options.notify ?? true
   try {
     await rebuildIndex()
     if (isDisposed) return
     await Promise.all([loadCurrentFileKnowledge(), loadGraphData()])
-    if (!isDisposed) ElMessage.success('知识索引已刷新')
-  } catch {
+    if (!isDisposed && notify) ElMessage.success('知识索引已刷新')
+  } catch (error) {
+    if (!notify) throw error
     if (!isDisposed) ElMessage.error('刷新知识索引失败')
   }
 }
@@ -276,7 +282,7 @@ defineExpose({ refreshIndex })
   font-size: 11px;
   font-weight: 600;
   color: var(--obsidian-text-muted, #999);
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -389,7 +395,7 @@ defineExpose({ refreshIndex })
   font-weight: 650;
   color: var(--obsidian-text-faint, #666);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
 }
 
 .property-row {

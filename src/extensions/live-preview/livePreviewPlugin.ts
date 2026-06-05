@@ -23,7 +23,7 @@ class CheckboxWidget extends WidgetType {
     input.type = 'checkbox'
     input.checked = this.checked
     input.className = 'cm-live-preview-checkbox'
-    input.setAttribute('aria-label', this.checked ? 'checked' : 'unchecked')
+    input.setAttribute('aria-label', this.checked ? '标记任务为未完成' : '标记任务为已完成')
     input.dataset.from = String(this.from)
     input.dataset.to = String(this.to)
     input.addEventListener('mousedown', (event) => {

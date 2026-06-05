@@ -25,6 +25,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 32px;
   padding: 5px 10px;
   border: none;
   border-radius: var(--radius-sm);
@@ -44,8 +45,11 @@
 }
 
 .cm-ai-action-icon {
-  font-size: 13px;
+  min-width: 16px;
+  font-size: 12px;
+  font-weight: 700;
   line-height: 1;
+  text-align: center;
 }
 
 .cm-ai-action-label {
@@ -168,4 +172,19 @@
 
 .cm-ai-action-result.error .cm-ai-result-body {
   color: var(--accent-red);
+}
+
+@media (pointer: coarse) {
+  .cm-ai-action-btn {
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-ai-action-menu,
+  .cm-ai-action-result,
+  .cm-ai-typing-indicator span {
+    animation: none;
+  }
 }

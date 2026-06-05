@@ -524,11 +524,12 @@ test.describe('侧边栏行为', () => {
     await expect(page.locator('.sidebar')).toHaveCount(0)
     await page.getByRole('button', { name: '试用示例', exact: true }).click()
 
-    await expect(page.locator('.cm-content')).toBeVisible()
     await expect(page.locator('.tabs-bar')).toContainText('README.md')
-    await expect(page.locator('.cm-content')).toContainText('AI Markdown 示例工作区')
-    await expect(page.locator('.preview-pane')).toHaveCount(0)
-    await expect(page.locator('.status-bar')).toContainText('源码')
+    await expect(page.locator('.preview-pane')).toBeVisible()
+    await expect(page.locator('.preview-content')).toContainText('AI Markdown 示例工作区')
+    await expect(page.locator('.preview-content')).toContainText('工作流图')
+    await expect(page.locator('.cm-content')).toHaveCount(0)
+    await expect(page.locator('.status-bar')).toContainText('预览')
     await expect(page.locator('.status-bar .status-stats')).toBeHidden()
     await expect(page.locator('.status-bar .status-duration')).toBeHidden()
     await expect(page.locator('.sidebar')).toHaveCount(0)
@@ -544,6 +545,11 @@ test.describe('侧边栏行为', () => {
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
     expect(overflow).toBeLessThanOrEqual(1)
+
+    await page.getByRole('button', { name: '切换视图模式' }).click()
+    await expect(page.locator('.cm-content')).toBeVisible()
+    await expect(page.locator('.preview-pane')).toHaveCount(0)
+    await expect(page.locator('.status-bar')).toContainText('源码')
 
     await page.getByRole('button', { name: '切换视图模式' }).click()
     await expect(page.locator('.editor-preview-view.split-mode')).toBeVisible()

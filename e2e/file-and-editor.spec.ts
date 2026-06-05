@@ -123,6 +123,36 @@ test.describe('文件与编辑器主流程', () => {
     await expect(page.locator('.status-bar')).toContainText('行 2')
   })
 
+  test('应用级拖拽只按实际导入的 Markdown 文件提示', async ({ page }) => {
+    await loadDemoWorkspace(page)
+
+    const markdownDropResult = await page.evaluate(() => {
+      const file = new File(['# Dropped Note\n\nfrom markdown drop'], 'dropped-note.md', { type: 'text/markdown' })
+      const dataTransfer = new DataTransfer()
+      dataTransfer.items.add(file)
+      const event = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer })
+      return document.querySelector('.app-container')?.dispatchEvent(event)
+    })
+
+    expect(markdownDropResult).toBe(false)
+    await expect(page.locator('.tabs-bar')).toContainText('dropped-note.md')
+    await expect(page.locator('.cm-content')).toContainText('Dropped Note')
+    await expect(page.getByText('已导入 1 个 Markdown 文件')).toBeVisible()
+
+    const tabCountBeforeUnsupportedDrop = await page.locator('.tab-label').count()
+    await page.evaluate(() => {
+      const file = new File(['zip-bytes'], 'archive.zip', { type: 'application/zip' })
+      const dataTransfer = new DataTransfer()
+      dataTransfer.items.add(file)
+      const event = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer })
+      document.querySelector('.app-container')?.dispatchEvent(event)
+    })
+
+    await expect(page.getByText('未导入文件：仅支持 Markdown 文件')).toBeVisible()
+    await expect(page.getByText('已导入 1 个文件')).toHaveCount(0)
+    expect(await page.locator('.tab-label').count()).toBe(tabCountBeforeUnsupportedDrop)
+  })
+
   test('按路径标记保存不会错误清除其他标签的未保存状态', async ({ page }) => {
     const firstPath = '/workspace/async-save-a.md'
     const secondPath = '/workspace/async-save-b.md'
@@ -268,6 +298,51 @@ test.describe('文件与编辑器主流程', () => {
     } finally {
       await page.evaluate(() => (window as any).__fileOperationsSelectRegression?.cleanup())
     }
+  })
+
+  test('恢复会话会重载已保存标签内容并移除缺失文件标签', async ({ page }) => {
+    const tabState = {
+      activeTabId: 'missing-tab',
+      viewMode: 'source',
+      tabs: [
+        {
+          id: 'missing-tab',
+          filePath: '/workspace/restore-missing.md',
+          fileName: 'restore-missing.md',
+          content: '',
+          isModified: false,
+        },
+        {
+          id: 'restore-a',
+          filePath: '/workspace/restore-a.md',
+          fileName: 'restore-a.md',
+          content: '',
+          isModified: false,
+        },
+        {
+          id: 'restore-b',
+          filePath: '/workspace/restore-b.md',
+          fileName: 'restore-b.md',
+          content: '',
+          isModified: false,
+        },
+      ],
+    }
+
+    await createWorkspaceFile(page, '/workspace/restore-a.md', '# Restored A\n\nactive fallback')
+    await createWorkspaceFile(page, '/workspace/restore-b.md', '# Restored B\n\ninactive reload token')
+    await page.evaluate((state) => {
+      localStorage.setItem('editor_tab_state', JSON.stringify(state))
+    }, tabState)
+    await page.reload({ waitUntil: 'domcontentloaded' })
+
+    await expect(page.locator('.app-container')).toBeVisible()
+    await expect(page.locator('.tabs-bar')).not.toContainText('restore-missing.md')
+    await expect(page.locator('.tabs-bar')).toContainText('restore-a.md')
+    await expect(page.locator('.cm-content')).toContainText('Restored A')
+
+    await page.locator('.tab-label').filter({ hasText: 'restore-b.md' }).click()
+    await expect(page.locator('.cm-content')).toContainText('inactive reload token')
   })
 
   test('版本历史打开时切换文件会忽略旧文件慢加载结果', async ({ page }) => {

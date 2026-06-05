@@ -249,7 +249,7 @@ onUnmounted(() => {
   font-size: 11px;
   font-weight: 600;
   color: var(--obsidian-text-muted, #999);
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 

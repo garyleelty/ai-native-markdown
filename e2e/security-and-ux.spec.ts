@@ -148,6 +148,23 @@ test.describe('UX修复验证', () => {
     expect(parsed.length).toBeGreaterThanOrEqual(1)
   })
 
+  test('写作目标入口默认可见并可保存目标', async ({ page }) => {
+    await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
+    await page.evaluate(() => localStorage.removeItem('writing_goal'))
+
+    await expect(page.getByRole('button', { name: '设置写作目标' })).toBeVisible()
+    await page.getByRole('button', { name: '设置写作目标' }).click()
+
+    const dialog = page.getByRole('dialog', { name: '写作目标' })
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('spinbutton').fill('800')
+    await dialog.getByRole('button', { name: '确定' }).click()
+
+    await expect(page.getByRole('button', { name: /写作目标 .*\/800/ })).toBeVisible()
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('writing_goal'))).toBe('800')
+  })
+
   test('未保存更改警告 - 关闭标签页时提示', async ({ page }) => {
     await loadDemoWorkspace(page)
     await openFirstMarkdownFile(page)
@@ -279,6 +296,63 @@ test.describe('功能完整性验证', () => {
 
     await page.keyboard.press('Enter')
     await expect(page.locator('.command-palette')).toHaveCount(0)
+  })
+
+  test('窄屏命令面板不溢出且命令项满足触控尺寸', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await expect(page.locator('.app-container')).toBeVisible()
+
+    await page.locator('.app-container').click({ position: { x: 20, y: 20 } })
+    await page.keyboard.press('Control+P')
+
+    const dialog = page.locator('.command-palette-dialog')
+    await expect(dialog).toBeVisible()
+    const box = await dialog.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.x).toBeGreaterThanOrEqual(0)
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390)
+
+    const itemHeights = await page.locator('.command-item').evaluateAll(items =>
+      items.slice(0, 8).map(item => item.getBoundingClientRect().height)
+    )
+    expect(itemHeights.length).toBeGreaterThan(0)
+    for (const height of itemHeights) {
+      expect(height).toBeGreaterThanOrEqual(43.5)
+    }
+
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+    expect(overflow).toBeLessThanOrEqual(1)
+  })
+
+  test('窄屏编辑器工具栏可滚动访问完整工具且页面不横向溢出', async ({ page }) => {
+    await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
+    await page.setViewportSize({ width: 390, height: 844 })
+
+    const toolbar = page.locator('.toolbar-inner')
+    await expect(toolbar).toBeVisible()
+
+    const metrics = await toolbar.evaluate((el) => {
+      const before = el.scrollLeft
+      el.scrollLeft = el.scrollWidth
+      return {
+        before,
+        after: el.scrollLeft,
+        clientWidth: el.clientWidth,
+        scrollWidth: el.scrollWidth,
+      }
+    })
+    expect(metrics.scrollWidth).toBeGreaterThan(metrics.clientWidth)
+    expect(metrics.after).toBeGreaterThan(metrics.before)
+
+    const ghostButton = page.getByRole('button', { name: '智能补全' })
+    const box = await ghostButton.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390)
+
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+    expect(overflow).toBeLessThanOrEqual(1)
   })
 
   test('专注模式可切换', async ({ page }) => {

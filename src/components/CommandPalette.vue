@@ -4,8 +4,9 @@
     @update:model-value="$emit('update:modelValue', $event)"
     :show-close="false"
     width="480px"
-    top="15vh"
-    class="command-palette-dialog"
+    top="clamp(24px, 12vh, 96px)"
+    class="command-palette-dialog responsive-dialog"
+    aria-label="命令面板"
     :append-to-body="true"
     destroy-on-close
   >
@@ -16,6 +17,7 @@
         placeholder="输入命令..."
         size="large"
         clearable
+        aria-label="搜索命令"
         @keydown.down.prevent="navigateDown"
         @keydown.up.prevent="navigateUp"
         @keydown.enter.prevent="executeSelected"
@@ -32,28 +34,28 @@
 
       <el-scrollbar max-height="360px" class="command-list-scroll">
         <div id="command-palette-list" role="listbox" aria-label="命令列表">
-        <div v-for="category in filteredCategories" :key="category.label" class="command-category">
-          <div class="category-label">{{ category.label }}</div>
-          <button
-            v-for="cmd in category.commands"
-            :key="cmd.id"
-            :id="`command-${safeCommandId(cmd.id)}`"
-            type="button"
-            role="option"
-            :aria-selected="cmd.id === selectedCommandId"
-            class="command-item"
-            :class="{ active: cmd.id === selectedCommandId }"
-            @click="executeCommand(cmd.id)"
-            @mouseenter="selectedCommandId = cmd.id"
-          >
-            <el-icon><component :is="cmd.icon" /></el-icon>
-            <span class="command-label-group">
-              <span class="command-label">{{ cmd.label }}</span>
-              <span v-if="cmd.description" class="command-description">{{ cmd.description }}</span>
-            </span>
-            <span v-if="cmd.shortcut" class="command-shortcut">{{ cmd.shortcut }}</span>
-          </button>
-        </div>
+          <div v-for="category in filteredCategories" :key="category.label" class="command-category">
+            <div class="category-label">{{ category.label }}</div>
+            <button
+              v-for="cmd in category.commands"
+              :key="cmd.id"
+              :id="`command-${safeCommandId(cmd.id)}`"
+              type="button"
+              role="option"
+              :aria-selected="cmd.id === selectedCommandId"
+              class="command-item"
+              :class="{ active: cmd.id === selectedCommandId }"
+              @click="executeCommand(cmd.id)"
+              @mouseenter="selectedCommandId = cmd.id"
+            >
+              <el-icon><component :is="cmd.icon" /></el-icon>
+              <span class="command-label-group">
+                <span class="command-label">{{ cmd.label }}</span>
+                <span v-if="cmd.description" class="command-description">{{ cmd.description }}</span>
+              </span>
+              <span v-if="cmd.shortcut" class="command-shortcut">{{ cmd.shortcut }}</span>
+            </button>
+          </div>
         </div>
         <div v-if="flatFilteredCommands.length === 0" class="command-empty">
           未找到匹配的命令
@@ -176,13 +178,24 @@ const noteCommands = computed<Command[]>(() => {
 
 const searchableCommands = computed(() => [...commands, ...noteCommands.value])
 
+const commandMatches = (cmd: Command, query: string) => {
+  if (query === '') return true
+
+  return [
+    cmd.label,
+    cmd.id,
+    cmd.description || '',
+    cmd.shortcut || '',
+  ].some(value => value.toLowerCase().includes(query))
+}
+
 const filteredCategories = computed(() => {
-  const q = searchQuery.value.toLowerCase()
+  const q = searchQuery.value.trim().toLowerCase()
   return categoryOrder
     .map(cat => ({
       ...cat,
       commands: searchableCommands.value.filter(
-        cmd => cmd.category === cat.key && (q === '' || cmd.label.toLowerCase().includes(q) || cmd.id.includes(q))
+        cmd => cmd.category === cat.key && commandMatches(cmd, q)
       )
     }))
     .filter(cat => cat.commands.length > 0)
@@ -228,10 +241,20 @@ const executeCommand = (id: string) => {
 watch(() => props.modelValue, (val) => {
   if (val) {
     searchQuery.value = ''
+    selectedCommandId.value = flatFilteredCommands.value[0]?.id || ''
     nextTick(() => {
       inputRef.value?.focus()
     })
   }
+})
+
+watch(selectedCommandId, async (id) => {
+  if (!props.modelValue || !id) return
+
+  await nextTick()
+  document
+    .getElementById(`command-${safeCommandId(id)}`)
+    ?.scrollIntoView({ block: 'nearest' })
 })
 
 const inputRef = ref()
@@ -245,6 +268,7 @@ const safeCommandId = (id: string) =>
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .command-palette :deep(.el-input__wrapper) {
@@ -264,13 +288,15 @@ const safeCommandId = (id: string) =>
   font-size: 11px;
   font-weight: 700;
   color: var(--obsidian-text-muted);
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   text-transform: uppercase;
-  padding: 8px 12px 4px;
+  line-height: 1.2;
+  padding: 10px 12px 6px;
 }
 
 .command-item {
   width: 100%;
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -282,22 +308,28 @@ const safeCommandId = (id: string) =>
   transition: background 0.15s ease;
   text-align: left;
   font: inherit;
+  touch-action: manipulation;
 }
 
 .command-item:hover,
-.command-item.active,
-.command-item:focus-visible {
+.command-item.active {
   background: var(--obsidian-bg-hover);
-  outline: none;
 }
 
 .command-item.active {
   background: var(--obsidian-accent-soft);
 }
 
+.command-item:focus-visible {
+  background: var(--obsidian-accent-soft);
+  outline: 2px solid var(--obsidian-accent);
+  outline-offset: -2px;
+}
+
 .command-item .el-icon {
   color: var(--obsidian-text-muted);
   flex-shrink: 0;
+  font-size: 18px;
 }
 
 .command-item.active .el-icon {
@@ -313,7 +345,8 @@ const safeCommandId = (id: string) =>
 }
 
 .command-label {
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.35;
   color: var(--obsidian-text-normal);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -321,7 +354,8 @@ const safeCommandId = (id: string) =>
 }
 
 .command-description {
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1.35;
   color: var(--obsidian-text-faint);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -329,7 +363,12 @@ const safeCommandId = (id: string) =>
 }
 
 .command-shortcut {
-  font-size: 11px;
+  flex-shrink: 0;
+  max-width: 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
   color: var(--obsidian-text-faint);
   background: var(--obsidian-bg-tertiary);
   padding: 2px 6px;
@@ -343,6 +382,17 @@ const safeCommandId = (id: string) =>
   color: var(--obsidian-text-faint);
   font-size: 13px;
 }
+
+@media (max-width: 480px) {
+  .command-list-scroll {
+    margin: 0 -8px;
+    padding: 0 8px;
+  }
+
+  .command-shortcut {
+    display: none;
+  }
+}
 </style>
 
 <style>
@@ -354,8 +404,10 @@ const safeCommandId = (id: string) =>
   padding: 16px 20px;
 }
 
-.command-palette-dialog .el-dialog {
+.command-palette-dialog.el-dialog {
+  max-width: calc(100vw - 32px);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
+  overflow: hidden;
 }
 </style>

@@ -3,6 +3,7 @@
     v-model="visible"
     title="Markdown 语法参考"
     width="560px"
+    class="responsive-dialog"
     :close-on-click-modal="true"
     destroy-on-close
   >
@@ -106,7 +107,7 @@ const sections = [
   font-weight: 700;
   color: var(--obsidian-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   margin: 0 0 8px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--obsidian-border);
@@ -114,7 +115,7 @@ const sections = [
 
 .cheatsheet-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 6px 0;
   gap: 12px;
@@ -126,7 +127,8 @@ const sections = [
   border-radius: var(--radius-xs);
   font-size: 13px;
   font-family: var(--font-mono, monospace);
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--obsidian-accent);
 }
 
@@ -134,5 +136,16 @@ const sections = [
   font-size: 13px;
   color: var(--obsidian-text-muted);
   flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .cheatsheet-item {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .description {
+    flex-shrink: 1;
+  }
 }
 </style>

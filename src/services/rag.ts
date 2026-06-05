@@ -156,7 +156,18 @@ export const ragService = {
     if (fileFilter) {
       chunks = await ragDb.chunks.where('filePath').equals(fileFilter).toArray()
     } else {
-      chunks = await ragDb.chunks.toArray()
+      // Use filter with early termination to avoid loading all chunks at once
+      chunks = []
+      const lowerQuery = queryText.toLowerCase()
+      await ragDb.chunks.filter(chunk => {
+        const content = chunk.content.toLowerCase()
+        const title = titleFromPath(chunk.filePath).toLowerCase()
+        // Quick pre-filter: only include chunks that have at least one token match
+        return content.includes(lowerQuery) || title.includes(lowerQuery) ||
+          queryTokens.some(token => content.includes(token) || title.includes(token))
+      }).until(() => chunks.length >= topK * 10).each(chunk => {
+        chunks.push(chunk)
+      })
     }
 
     const results = chunks

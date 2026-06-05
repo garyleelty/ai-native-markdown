@@ -1,4 +1,5 @@
 import { EditorView } from '@codemirror/view'
+import { ElMessage } from 'element-plus'
 import { extractTextFromImage, extractTextFromPDF } from './ocrService'
 
 const SUPPORTED_IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']
@@ -24,6 +25,7 @@ function getFileExt(filename: string): string {
 export const dropHandlerExtension = EditorView.domEventHandlers({
   drop(event, view) {
     event.preventDefault()
+    event.stopPropagation()
 
     const files = event.dataTransfer?.files
     if (!files || files.length === 0) return false
@@ -38,6 +40,7 @@ export const dropHandlerExtension = EditorView.domEventHandlers({
 
   dragover(event) {
     event.preventDefault()
+    event.stopPropagation()
     return true
   }
 })
@@ -80,7 +83,7 @@ export async function insertDroppedFiles(
           insertPos = advancePosition(insertPos, ocrMarkdown)
         }
       } catch (e) {
-        console.error('OCR 提取失败:', e)
+        ElMessage.error('OCR 提取失败，请检查图片内容后重试')
       }
     } else if (ext === PDF_EXT) {
       const pdfSource = getFileSource(file)
@@ -95,7 +98,7 @@ export async function insertDroppedFiles(
           insertPos = advancePosition(insertPos, pdfMarkdown)
         }
       } catch (e) {
-        console.error('PDF 提取失败:', e)
+        ElMessage.error('PDF 提取失败，请检查文件内容后重试')
       }
     }
   }

@@ -1,6 +1,6 @@
 .cm-live-preview-header {
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--obsidian-text-normal);
 }
 

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { onScopeDispose, ref, watch } from 'vue'
 import type { AIConfig, ThemeMode, SidebarTab, GhostTextConfig } from '@/types'
-import { obfuscateValue, deobfuscateValue, safeStorage } from '@/utils/security'
+import { obfuscateValue, safeStorage } from '@/utils/security'
 
 const sidebarTabs: SidebarTab[] = ['files', 'graph', 'ai', 'outline', 'settings']
 
@@ -37,8 +37,12 @@ function loadEncryptedConfig(key: string, defaultValue: AIConfig): AIConfig {
   try {
     const parsed = safeStorage.get<AIConfig | null>(key, null)
     if (!parsed) return defaultValue
+    if (parsed.apiKey && parsed.apiKey.startsWith('enc:v2:')) {
+      // v2 async decryption will be handled by migrateEncryptedConfig
+      return parsed
+    }
     if (parsed.apiKey) {
-      parsed.apiKey = deobfuscateValue(parsed.apiKey)
+      parsed.apiKey = legacyDeobfuscateV1(parsed.apiKey)
     }
     return parsed
   } catch {
@@ -46,11 +50,29 @@ function loadEncryptedConfig(key: string, defaultValue: AIConfig): AIConfig {
   }
 }
 
-function saveEncryptedConfig(key: string, value: AIConfig): void {
+function legacyDeobfuscateV1(ciphertext: string): string {
+  if (!ciphertext || !ciphertext.startsWith('enc:v1:')) return ciphertext
+  try {
+    const V1_CRYPTO_KEY = 'ai-native-md-obf-2024'
+    const decoded = atob(ciphertext.slice('enc:v1:'.length))
+    let result = ''
+    for (let i = 0; i < decoded.length; i++) {
+      result += String.fromCharCode(decoded.charCodeAt(i) ^ V1_CRYPTO_KEY.charCodeAt(i % V1_CRYPTO_KEY.length))
+    }
+    return decodeURIComponent(escape(atob(result)))
+  } catch {
+    return ''
+  }
+}
+
+async function saveEncryptedConfig(key: string, value: AIConfig): Promise<void> {
   try {
     const toStore = { ...value }
     if (toStore.apiKey) {
-      toStore.apiKey = obfuscateValue(toStore.apiKey)
+      // Write non-encrypted fields synchronously first so they're immediately available,
+      // then update with encrypted apiKey asynchronously
+      safeStorage.set(key, { ...toStore, apiKey: '' })
+      toStore.apiKey = await obfuscateValue(toStore.apiKey)
     }
     safeStorage.set(key, toStore)
   } catch {
@@ -126,7 +148,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const setTheme = (mode: ThemeMode) => {
     theme.value = mode
     applyTheme()
-    saveToStorage('theme', mode)
   }
 
   const toggleTheme = () => {
@@ -137,50 +158,42 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const updateAIConfig = (config: Partial<AIConfig>) => {
     aiConfig.value = { ...aiConfig.value, ...config }
-    saveEncryptedConfig('ai_config', aiConfig.value)
   }
 
   const setSidebarVisible = (visible: boolean) => {
     showSidebar.value = visible
-    saveToStorage('show_sidebar', visible)
   }
   const setAIPanelVisible = (visible: boolean) => {
     showAIPanel.value = visible
-    saveToStorage('show_ai_panel', visible)
   }
   const toggleSidebar = () => { setSidebarVisible(!showSidebar.value) }
   const toggleAIPanel = () => { setAIPanelVisible(!showAIPanel.value) }
   const toggleLivePreview = () => {
     livePreview.value = !livePreview.value
-    saveToStorage('live_preview', livePreview.value)
   }
   const setEnableRAG = (enabled: boolean) => { enableRAG.value = enabled }
   const setEnableAIActions = (enabled: boolean) => {
     enableAIActions.value = enabled
-    saveToStorage('enable_ai_actions', enabled)
   }
   const setEnableSmartPaste = (enabled: boolean) => {
     enableSmartPaste.value = enabled
-    saveToStorage('enable_smart_paste', enabled)
   }
   const setEnableInlineEdit = (enabled: boolean) => {
     enableInlineEdit.value = enabled
-    saveToStorage('enable_inline_edit', enabled)
   }
   const setActiveTab = (tab: SidebarTab) => {
     if (!sidebarTabs.includes(tab)) return
     activeSidebarTab.value = tab
-    saveToStorage('active_sidebar_tab', tab)
   }
   const setSidebarWidth = (width: number) => {
     sidebarWidth.value = width
-    saveToStorage('sidebar_width', width)
   }
   const setAIPanelHeight = (height: number) => {
     aiPanelHeight.value = height
-    saveToStorage('ai_panel_height', height)
   }
 
+  // Unified persistence via watchers — no duplicate writes
+  watch(theme, (val) => { saveToStorage('theme', val) })
   watch(aiConfig, (val) => { saveEncryptedConfig('ai_config', val) }, { deep: true })
   watch(showSidebar, (val) => { saveToStorage('show_sidebar', val) })
   watch(showAIPanel, (val) => { saveToStorage('show_ai_panel', val) })
@@ -189,6 +202,10 @@ export const useSettingsStore = defineStore('settings', () => {
   watch(enableSmartPaste, (val) => { saveToStorage('enable_smart_paste', val) })
   watch(ghostTextConfig, (val) => { saveToStorage('ghost_text_config', val) }, { deep: true })
   watch(enableInlineEdit, (val) => { saveToStorage('enable_inline_edit', val) })
+  watch(activeSidebarTab, (val) => { saveToStorage('active_sidebar_tab', val) })
+  watch(sidebarWidth, (val) => { saveToStorage('sidebar_width', val) })
+  watch(aiPanelHeight, (val) => { saveToStorage('ai_panel_height', val) })
+  watch(livePreview, (val) => { saveToStorage('live_preview', val) })
 
   applyTheme()
 

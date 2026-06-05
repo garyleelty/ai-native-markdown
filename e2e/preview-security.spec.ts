@@ -95,6 +95,34 @@ test.describe('预览渲染与安全补充', () => {
     }).toBeTruthy()
   })
 
+  test('Mermaid 和 KaTeX 预览保留正确排版样式', async ({ page }) => {
+    await setEditorContent(page, [
+      '# Styled Preview',
+      '',
+      '```mermaid',
+      'flowchart LR',
+      '  A[Start] --> B[Done]',
+      '```',
+      '',
+      '行内公式：$E = mc^2$',
+      '',
+      '$$',
+      '\\int_0^1 x^2 dx = \\frac{1}{3}',
+      '$$',
+    ].join('\n'))
+    await runCommand(page, '预览模式')
+
+    const mermaid = page.locator('.preview-content .mermaid').first()
+    await expect(mermaid).toBeVisible()
+    await expect.poll(async () => mermaid.locator('svg style').count()).toBeGreaterThan(0)
+
+    const katexMath = page.locator('.preview-content .katex').first()
+    await expect(katexMath).toBeVisible()
+    await expect.poll(async () => {
+      return page.locator('.preview-content .katex-mathml').first().evaluate((el) => getComputedStyle(el).position)
+    }).toBe('absolute')
+  })
+
   test('快速替换 Mermaid 内容后预览只保留最新 Markdown', async ({ page }) => {
     await setEditorContent(page, '```mermaid\ngraph TD\n  Old[Old diagram] --> Done[Done]\n```')
     await runCommand(page, '分屏模式')

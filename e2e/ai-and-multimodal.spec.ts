@@ -834,4 +834,36 @@ test.describe('AI 与多模态回归', () => {
     expect(result[1].insert).toContain('OCR line two')
     expect(result[2].insert).toContain('PDF extracted text')
   })
+
+  test('OCR/PDF 拖拽提取失败时会给出用户可见提示', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.locator('.app-container')).toBeVisible()
+
+    const result = await page.evaluate(async () => {
+      const { insertDroppedFiles } = await import('/src/extensions/multimodal/dropHandler.ts')
+      const dispatched: Array<{ from: number, insert: string }> = []
+      const mockView = {
+        dispatch(update: { changes: { from: number, insert: string } }) {
+          dispatched.push(update.changes)
+        },
+      }
+      const image = new File(['bad-image'], 'broken.png', { type: 'image/png' })
+      const pdf = new File(['bad-pdf'], 'broken.pdf', { type: 'application/pdf' })
+
+      await insertDroppedFiles([image, pdf], 0, mockView as any, {
+        image: async () => {
+          throw new Error('ocr failed')
+        },
+        pdf: async () => {
+          throw new Error('pdf failed')
+        },
+      })
+
+      return dispatched
+    })
+
+    expect(result).toEqual([{ from: 0, insert: '\n![broken.png](broken.png)\n' }])
+    await expect(page.locator('.el-message').filter({ hasText: 'OCR 提取失败' })).toBeVisible()
+    await expect(page.locator('.el-message').filter({ hasText: 'PDF 提取失败' })).toBeVisible()
+  })
 })
