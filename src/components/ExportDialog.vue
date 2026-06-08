@@ -33,12 +33,13 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { createExportHtml } from '@/utils/exportHtml'
+import { createExportHtmlWithEmbeds } from '@/utils/exportHtml'
 
 const props = defineProps<{
   modelValue: boolean
   content: string
   defaultFileName?: string
+  currentFile?: string
 }>()
 
 const emit = defineEmits<{
@@ -67,7 +68,7 @@ watch(() => props.defaultFileName, (newName) => {
   if (newName) fileName.value = normalizeBaseName(newName)
 })
 
-const handleExport = () => {
+const handleExport = async () => {
   let blob: Blob
   let name: string
   const baseName = normalizeBaseName(fileName.value)
@@ -76,10 +77,11 @@ const handleExport = () => {
     blob = new Blob([props.content], { type: 'text/markdown' })
     name = `${baseName}.md`
   } else if (format.value === 'html') {
-    const html = createExportHtml(props.content, {
+    const html = await createExportHtmlWithEmbeds(props.content, {
       title: baseName,
       includeStyles: includeStyles.value,
       includeTOC: includeTOC.value,
+      currentFile: props.currentFile,
     })
     blob = new Blob([html], { type: 'text/html' })
     name = `${baseName}.html`

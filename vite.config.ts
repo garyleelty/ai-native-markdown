@@ -16,10 +16,18 @@ export default defineConfig({
       resolvers: [ElementPlusResolver()],
     }),
   ],
+
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src')
     }
+  },
+  optimizeDeps: {
+    include: [
+      'dayjs',
+      'dayjs/locale/zh-cn',
+      'mermaid',
+    ],
   },
   server: {
     host: '0.0.0.0',
@@ -43,5 +51,10 @@ export default defineConfig({
       }
     },
     chunkSizeWarningLimit: 1100,
-  }
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    exclude: ['e2e/**', 'node_modules/**'],
+  },
 })

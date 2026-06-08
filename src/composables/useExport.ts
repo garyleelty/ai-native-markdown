@@ -1,6 +1,6 @@
 import { ElMessage } from 'element-plus'
 import { useEditorStore } from '@/stores/editor'
-import { createExportHtml } from '@/utils/exportHtml'
+import { createExportHtmlWithEmbeds } from '@/utils/exportHtml'
 
 export function useExport() {
   const editorStore = useEditorStore()
@@ -20,13 +20,14 @@ export function useExport() {
     ElMessage.success('已导出 Markdown')
   }
 
-  const exportAsHTML = () => {
+  const exportAsHTML = async () => {
     const content = editorStore.content
     const fileName = editorStore.currentFile ? editorStore.currentFile.split('/').pop()?.replace(/\.md$/i, '.html') || 'document.html' : 'document.html'
-    const htmlContent = createExportHtml(content, {
+    const htmlContent = await createExportHtmlWithEmbeds(content, {
       title: fileName.replace(/\.html$/i, ''),
       includeStyles: true,
       includeTOC: false,
+      currentFile: editorStore.currentFile,
     })
     const blob = new Blob([htmlContent], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
@@ -42,7 +43,7 @@ export function useExport() {
 
   const handleExport = (command: string) => {
     if (command === 'markdown') exportAsMarkdown()
-    else if (command === 'html') exportAsHTML()
+    else if (command === 'html') void exportAsHTML()
   }
 
   return {

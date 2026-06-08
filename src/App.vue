@@ -7,8 +7,24 @@
     />
     <TemplateGallery v-model="showTemplateGallery" @select="handleTemplateSelect" />
     <VersionHistoryPanel v-model="showVersionHistory" :file-path="editorStore.currentFile" @restore="handleVersionRestore" />
-    <ExportDialog v-model="showExportDialog" :content="editorContent" :default-file-name="currentFileName" />
+    <ExportDialog v-model="showExportDialog" :content="editorContent" :default-file-name="currentFileName" :current-file="editorStore.currentFile" />
     <MarkdownCheatsheet v-model="showCheatsheet" />
+    <MigrationAuditDialog
+      v-model="showMigrationAudit"
+      :report="migrationAuditReport"
+      :running="migrationAuditRunning"
+      :asset-repair-preview="migrationAssetRepairPreview"
+      :asset-repair-result="migrationAssetRepairResult"
+      @rerun="openMigrationAudit"
+      @create-missing-notes="createMigrationAuditMissingNotes"
+      @create-missing-sections="createMigrationAuditMissingSections"
+      @preview-missing-assets="previewMigrationAuditMissingAssets"
+      @preview-missing-asset="previewMigrationAuditMissingAsset"
+      @confirm-asset-repair="confirmMigrationAuditAssetRepair"
+      @cancel-asset-repair-preview="cancelMigrationAuditAssetRepairPreview"
+      @open-asset-repair-history="openMigrationAuditAssetRepairHistory"
+      @navigate="handleMigrationAuditNavigate"
+    />
     <FocusMode :active="focusMode" :file-name="currentFileName" :word-count="wordCount" @exit="focusMode = false" />
     <el-header class="app-header" height="48px">
       <div class="header-left">
@@ -16,7 +32,7 @@
           <el-button :icon="Operation" native-type="button" circle size="small" aria-label="切换侧边栏" @click="toggleSidebar" />
         </el-tooltip>
         <div class="app-brand">
-          <el-icon :size="20" color="var(--el-color-primary)"><Document /></el-icon>
+          <span class="brand-emoji">✦</span>
           <span class="brand-text">AI Markdown</span>
         </div>
       </div>
@@ -30,7 +46,7 @@
           <el-button :icon="ChatDotRound" native-type="button" circle size="small" aria-label="AI 助手" :type="settingsStore.showAIPanel ? 'primary' : 'default'" @click="toggleAIPanel" />
         </el-tooltip>
         <el-tooltip :content="viewModeTooltip" placement="bottom">
-          <el-button :icon="editorStore.viewMode === 'preview' ? EditPen : View" native-type="button" circle size="small" aria-label="切换视图模式" @click="cycleViewMode" />
+          <el-button :icon="editorStore.viewMode === 'preview' ? View : EditPen" native-type="button" circle size="small" aria-label="切换视图模式" @click="cycleViewMode" />
         </el-tooltip>
         <el-tooltip content="版本历史" placement="bottom" v-if="editorStore.currentFile">
           <el-button :icon="Clock" native-type="button" circle size="small" aria-label="版本历史" @click="showVersionHistory = true" />
@@ -119,31 +135,123 @@
             @new-file="handleNewFileFromWelcome"
             @open-folder="handleOpenFolderFromWelcome"
             @demo="handleDemoFromWelcome"
+            @open-file="handleFileSelect"
           />
-          <div v-else class="editor-preview-view" :class="{ 'split-mode': editorStore.viewMode === 'split' }">
-            <Editor
-              v-if="editorStore.viewMode !== 'preview'"
-              ref="editorRef"
-              v-model="editorContent"
-              :current-file="editorStore.currentFile"
-              :markdown-paths="markdownPaths"
-              :read-markdown-file="readMarkdownFileForCompletion"
-              @update="handleEditorUpdate"
-              @cursor-change="handleCursorChange"
-              @selection-change="handleSelectionChange"
-              class="editor-pane"
-            />
-            <Preview
-              v-if="editorStore.viewMode !== 'source'"
-              ref="previewRef"
-              :content="editorContent"
-              :cursor-line="editorStore.cursorLine"
-              :current-file="editorStore.currentFile"
-              :markdown-paths="markdownPaths"
-              class="preview-pane"
-              @heading-click="handleOutlineNavigate"
-              @navigate="handleWikiNavigate"
-            />
+          <div v-else class="editor-workspace">
+            <div
+              v-if="externalConflicts.length > 0 && !currentExternalConflict"
+              class="vault-conflict-overview"
+              role="status"
+            >
+              <div class="vault-conflict-overview-message">
+                <el-icon><WarningFilled /></el-icon>
+                <span>{{ formatExternalConflictOverviewMessage() }}</span>
+              </div>
+              <div class="vault-conflict-file-list" aria-label="冲突文件列表">
+                <button
+                  v-for="conflict in externalConflicts"
+                  :key="conflict.path"
+                  class="vault-conflict-chip"
+                  type="button"
+                  :title="conflict.path"
+                  :aria-label="`查看冲突 ${formatConflictFileName(conflict.path)}`"
+                  @click="focusExternalConflict(conflict.path)"
+                >
+                  {{ formatConflictFileName(conflict.path) }}
+                </button>
+              </div>
+            </div>
+            <div
+              v-if="currentExternalConflict"
+              class="vault-conflict-banner"
+              :class="{
+                'is-missing': currentExternalConflict.diskState === 'missing',
+                'is-unreadable': currentExternalConflict.diskState === 'unreadable'
+              }"
+              role="status"
+            >
+              <div class="vault-conflict-topline">
+                <div class="vault-conflict-message">
+                  <el-icon><WarningFilled /></el-icon>
+                  <span>{{ formatExternalConflictMessage(currentExternalConflict) }}</span>
+                </div>
+                <div class="vault-conflict-actions">
+                  <el-button
+                    v-if="isExternalConflictReloadable(currentExternalConflict)"
+                    size="small"
+                    :icon="RefreshLeft"
+                    native-type="button"
+                    @click="reloadCurrentConflictFromDisk"
+                  >重新载入磁盘版本</el-button>
+                  <el-button size="small" :icon="Select" native-type="button" @click="keepCurrentConflictLocal">保留本地版本</el-button>
+                </div>
+              </div>
+              <div
+                v-if="otherExternalConflicts.length > 0"
+                class="vault-conflict-related"
+                aria-label="其它冲突文件"
+              >
+                <span>另有 {{ otherExternalConflicts.length }} 个冲突</span>
+                <div class="vault-conflict-file-list">
+                  <button
+                    v-for="conflict in otherExternalConflicts"
+                    :key="conflict.path"
+                    class="vault-conflict-chip"
+                    type="button"
+                    :title="conflict.path"
+                    :aria-label="`查看冲突 ${formatConflictFileName(conflict.path)}`"
+                    @click="focusExternalConflict(conflict.path)"
+                  >
+                    {{ formatConflictFileName(conflict.path) }}
+                  </button>
+                </div>
+              </div>
+              <div class="vault-conflict-diff" aria-label="冲突差异预览">
+                <div class="vault-conflict-summary">{{ formatExternalConflictSummary(currentExternalConflict) }}</div>
+                <div class="vault-conflict-lines">
+                  <div
+                    v-for="(line, index) in buildExternalConflictPreview(currentExternalConflict)"
+                    :key="`${line.type}-${line.lineNumber}-${index}`"
+                    class="vault-conflict-line"
+                    :class="line.type"
+                  >
+                    <span class="vault-conflict-marker">{{ formatConflictLineMarker(line.type) }}</span>
+                    <span class="vault-conflict-line-number">{{ line.lineNumber ? `L${line.lineNumber}` : '' }}</span>
+                    <span class="vault-conflict-line-content">{{ line.content || ' ' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="editor-preview-view" :class="{ 'split-mode': false }">
+              <Editor
+                v-if="editorStore.viewMode !== 'preview'"
+                ref="editorRef"
+                v-model="editorContent"
+                :current-file="editorStore.currentFile"
+                :markdown-paths="markdownPaths"
+                :read-markdown-file="readMarkdownFileForCompletion"
+                :embed-refresh-key="embedRefreshKey"
+                :live-preview="editorStore.viewMode === 'live-preview'"
+                @update="handleEditorUpdate"
+                @cursor-change="handleCursorChange"
+                @selection-change="handleSelectionChange"
+                @embed-navigate="handleWikiNavigate"
+                @toggle-live-preview="handleToggleLivePreview"
+                class="editor-pane"
+              />
+              <Preview
+                v-if="editorStore.viewMode === 'preview'"
+                ref="previewRef"
+                :content="editorContent"
+                :cursor-line="editorStore.cursorLine"
+                :current-file="editorStore.currentFile"
+                :markdown-paths="markdownPaths"
+                :embed-refresh-key="embedRefreshKey"
+                class="preview-pane"
+                @heading-click="handleOutlineNavigate"
+                @navigate="handleWikiNavigate"
+              />
+            </div>
           </div>
         </el-main>
 
@@ -154,6 +262,7 @@
               ref="chatPanelRef"
               :context="selectedText || editorContent.slice(0, 2000)"
               @insert="handleAIInsert"
+              @open-source="handleAIRAGSourceOpen"
             />
           </div>
         </Transition>
@@ -203,11 +312,14 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Operation, Document, ChatDotRound, View, EditPen, Download, Moon, Sunny, Clock, Upload, FullScreen } from '@element-plus/icons-vue'
+import { Operation, Document, ChatDotRound, View, EditPen, Download, Moon, Sunny, Clock, Upload, FullScreen, WarningFilled, RefreshLeft, Select } from '@element-plus/icons-vue'
 import { useSettingsStore } from './stores/settings'
 import { useEditorStore } from './stores/editor'
 import { aiService, configureAIProvider } from './services/ai'
-import { fileSystem } from './services/fileSystem'
+import { vaultService } from './services/vault'
+import { embedSyncService } from './services/embedSyncService'
+import { createMissingHeadingsAndBlocksFromAuditReport, createMissingNotesFromAuditReport, previewMissingAssetLinksFromAuditReport, repairMissingAssetLinksFromAuditReport, runMigrationAudit, type MigrationAuditAssetRepairResult, type MigrationAuditIssue, type MigrationAuditReport } from './services/migrationAudit'
+import type { VaultChangeEvent } from './services/vault'
 import type { KnowledgeReference } from './services/knowledgeIndex'
 import { useFileOperations } from './composables/useFileOperations'
 import { useExport } from './composables/useExport'
@@ -218,12 +330,13 @@ import Editor from './components/Editor.vue'
 import Preview from './components/Preview.vue'
 import ChatPanel from './components/ai-panel/ChatPanel.vue'
 import CommandPalette from './components/CommandPalette.vue'
+import MigrationAuditDialog from './components/MigrationAuditDialog.vue'
 import WelcomePage from './components/WelcomePage.vue'
 import DocumentStats from './components/editor/DocumentStats.vue'
 import FocusMode from './components/editor/FocusMode.vue'
 import WritingGoal from './components/editor/WritingGoal.vue'
 import { safeStorage } from './utils/security'
-import { createWikiLinkInitialContent, findMarkdownHeadingLine, getCreatableWikiLinkPath, linkFirstUnlinkedMention, parseWikiLinkTarget, resolveWikiLinkTarget, updateWikiLinksForRename } from './utils/wikiLinks'
+import { createWikiLinkInitialContent, findMarkdownBlockLine, findMarkdownHeadingLine, getCreatableWikiLinkPath, linkFirstUnlinkedMention, parseWikiLinkTarget, resolveWikiLinkTarget, updateWikiLinksForRename } from './utils/wikiLinks'
 import { getActiveSession, updateSession, getSessionDuration } from './utils/writingSession'
 
 const TemplateGallery = defineAsyncComponent(() => import('./components/TemplateGallery.vue'))
@@ -246,11 +359,36 @@ const dragCounter = ref(0)
 const focusMode = ref(false)
 const showExportDialog = ref(false)
 const showCheatsheet = ref(false)
+const showMigrationAudit = ref(false)
+const migrationAuditRunning = ref(false)
+const migrationAuditReport = ref<MigrationAuditReport | null>(null)
+const migrationAssetRepairPreview = ref<MigrationAuditAssetRepairResult | null>(null)
+const migrationAssetRepairPreviewIssues = ref<MigrationAuditIssue[]>([])
+const migrationAssetRepairResult = ref<MigrationAuditAssetRepairResult | null>(null)
 const sessionDuration = ref('')
 const markdownPaths = ref<string[]>([])
+const embedRefreshKey = ref(0)
 const narrowViewportBreakpoint = 768
 const viewportWidth = ref(typeof window === 'undefined' ? 1024 : window.innerWidth)
 const mobileSidebarOpen = ref(false)
+
+type ExternalConflictDiskState = 'changed' | 'missing' | 'unreadable'
+
+interface ExternalConflictRecord {
+  path: string
+  localContent: string
+  diskContent: string
+  diskState: ExternalConflictDiskState
+  changedAt: number
+}
+
+interface ExternalConflictPreviewLine {
+  type: 'local' | 'disk'
+  lineNumber: number
+  content: string
+}
+
+const externalConflicts = ref<ExternalConflictRecord[]>([])
 
 const {
   saveStatusMessage,
@@ -289,6 +427,16 @@ const sidebarAsideWidth = computed(() => {
 })
 
 const currentFileName = computed(() => editorStore.currentFile?.split('/').pop()?.replace(/\.md$/i, '') || 'document')
+const currentExternalConflict = computed(() => (
+  editorStore.currentFile
+    ? externalConflicts.value.find(conflict => conflict.path === editorStore.currentFile) || null
+    : null
+))
+const otherExternalConflicts = computed(() => (
+  editorStore.currentFile
+    ? externalConflicts.value.filter(conflict => conflict.path !== editorStore.currentFile)
+    : externalConflicts.value
+))
 
 const activeTabModel = computed({
   get: () => editorStore.activeTabId || '',
@@ -306,7 +454,7 @@ const preferReadableMobileView = (
   options: { force?: boolean } = {}
 ) => {
   if (!isNarrowViewport.value || editorStore.openTabs.length === 0) return
-  if (options.force || editorStore.viewMode === 'split') {
+  if (options.force || editorStore.viewMode === 'live-preview') {
     editorStore.setViewMode(mode)
   }
 }
@@ -330,18 +478,18 @@ const toggleSidebar = () => {
 const toggleAIPanel = () => settingsStore.toggleAIPanel()
 
 const cycleViewMode = () => {
-  const modes: ('source' | 'preview' | 'split')[] = ['source', 'split', 'preview']
+  const modes: ViewMode[] = ['source', 'live-preview', 'preview']
   const idx = modes.indexOf(editorStore.viewMode)
   editorStore.setViewMode(modes[(idx + 1) % modes.length])
 }
 
 const viewModeTooltip = computed(() => {
-  const map: Record<string, string> = { source: '分屏模式', split: '预览模式', preview: '源码模式' }
+  const map: Record<string, string> = { source: '源码模式', 'live-preview': '实时预览', preview: '阅读模式' }
   return map[editorStore.viewMode] || '切换视图'
 })
 
 const viewModeLabel = computed(() => {
-  const map: Record<string, string> = { source: '源码', split: '分屏', preview: '预览' }
+  const map: Record<string, string> = { source: '源码', 'live-preview': '实时预览', preview: '阅读' }
   return map[editorStore.viewMode] || '源码'
 })
 
@@ -357,11 +505,20 @@ const wordCount = computed(() => {
 })
 
 const handleEditorUpdate = (content: string) => editorStore.setContent(content)
+const handleToggleLivePreview = () => {
+  if (editorStore.viewMode === 'source') {
+    editorStore.setViewMode('live-preview')
+  } else if (editorStore.viewMode === 'live-preview') {
+    editorStore.setViewMode('source')
+  } else if (editorStore.viewMode === 'preview') {
+    editorStore.setViewMode('live-preview')
+  }
+}
 const handleCursorChange = (line: number) => editorStore.setCursor(line, 0)
 const handleSelectionChange = (text: string) => { selectedText.value = text }
 const refreshMarkdownPaths = async () => {
   try {
-    markdownPaths.value = (await fileSystem.getAllMarkdownFiles()).map(file => file.path)
+    markdownPaths.value = (await vaultService.getAllMarkdownFiles()).map(file => file.path)
   } catch {
     markdownPaths.value = []
   }
@@ -369,16 +526,200 @@ const refreshMarkdownPaths = async () => {
 const readMarkdownFileForCompletion = async (path: string): Promise<string> => {
   const openTab = editorStore.openTabs.find(tab => tab.filePath === path)
   if (openTab) return openTab.content
-  return fileSystem.readFile(path)
+  return vaultService.readFile(path)
+}
+const clearExternalConflict = (path: string) => {
+  externalConflicts.value = externalConflicts.value.filter(item => item.path !== path)
+}
+const markExternalConflict = (
+  path: string,
+  localContent: string,
+  diskContent: string,
+  diskState: ExternalConflictDiskState = 'changed'
+) => {
+  const record: ExternalConflictRecord = {
+    path,
+    localContent,
+    diskContent,
+    diskState,
+    changedAt: Date.now(),
+  }
+  const index = externalConflicts.value.findIndex(item => item.path === path)
+  if (index === -1) {
+    externalConflicts.value = [...externalConflicts.value, record]
+    return
+  }
+  externalConflicts.value = externalConflicts.value.map((item, itemIndex) => itemIndex === index ? record : item)
+}
+const changeTouchesFile = (event: VaultChangeEvent | undefined, filePath: string): boolean => {
+  const changedPath = event?.path
+  if (!changedPath || changedPath === '/workspace') return true
+  return filePath === changedPath ||
+    filePath.startsWith(`${changedPath}/`) ||
+    changedPath.startsWith(`${filePath}/`)
+}
+
+function splitConflictLines(content: string): string[] {
+  return content.split(/\r?\n/)
+}
+
+function countContentLines(content: string): number {
+  if (!content) return 0
+  return splitConflictLines(content).length
+}
+
+function countChangedLines(conflict: ExternalConflictRecord): { local: number; disk: number } {
+  const localLines = splitConflictLines(conflict.localContent)
+  const diskLines = splitConflictLines(conflict.diskContent)
+  const maxLines = Math.max(localLines.length, diskLines.length)
+  let local = 0
+  let disk = 0
+  for (let index = 0; index < maxLines; index += 1) {
+    if ((localLines[index] ?? '') === (diskLines[index] ?? '')) continue
+    if (localLines[index] !== undefined) local += 1
+    if (diskLines[index] !== undefined) disk += 1
+  }
+  return { local, disk }
+}
+
+function formatConflictFileName(path: string): string {
+  return path.split('/').pop() || path
+}
+
+function formatExternalConflictOverviewMessage(): string {
+  return `${externalConflicts.value.length} 个文件存在外部冲突，本地未保存内容已保留。`
+}
+
+function formatExternalConflictMessage(conflict: ExternalConflictRecord): string {
+  if (conflict.diskState === 'missing') {
+    return '磁盘上的文件已被删除，本地未保存内容已保留。保存会重新创建该文件。'
+  }
+  if (conflict.diskState === 'unreadable') {
+    return '磁盘版本暂时无法读取，本地未保存内容已保留。'
+  }
+  return '磁盘上的文件已更新，本地未保存内容已保留。'
+}
+
+function formatExternalConflictSummary(conflict: ExternalConflictRecord): string {
+  const changedTime = new Date(conflict.changedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  if (conflict.diskState === 'missing') {
+    return `删除预览：磁盘文件缺失，本地 ${countContentLines(conflict.localContent)} 行已保留 · ${changedTime}`
+  }
+  if (conflict.diskState === 'unreadable') {
+    return `读取失败：暂时无法生成磁盘差异，本地 ${countContentLines(conflict.localContent)} 行已保留 · ${changedTime}`
+  }
+  const stats = countChangedLines(conflict)
+  return `差异预览：本地 ${stats.local} 行，磁盘 ${stats.disk} 行不同 · ${changedTime}`
+}
+
+function buildUnavailableExternalConflictPreview(
+  conflict: ExternalConflictRecord,
+  diskMessage: string,
+  maxRows: number
+): ExternalConflictPreviewLine[] {
+  const preview: ExternalConflictPreviewLine[] = [{ type: 'disk', lineNumber: 0, content: diskMessage }]
+  const localLines = splitConflictLines(conflict.localContent)
+  for (let index = 0; index < localLines.length && preview.length < maxRows; index += 1) {
+    preview.push({ type: 'local', lineNumber: index + 1, content: localLines[index] })
+  }
+  return preview
+}
+
+function buildExternalConflictPreview(conflict: ExternalConflictRecord, maxRows = 8): ExternalConflictPreviewLine[] {
+  if (conflict.diskState === 'missing') {
+    return buildUnavailableExternalConflictPreview(conflict, '磁盘文件缺失', maxRows)
+  }
+  if (conflict.diskState === 'unreadable') {
+    return buildUnavailableExternalConflictPreview(conflict, '磁盘版本暂时不可读取', maxRows)
+  }
+
+  const localLines = splitConflictLines(conflict.localContent)
+  const diskLines = splitConflictLines(conflict.diskContent)
+  const maxLines = Math.max(localLines.length, diskLines.length)
+  const preview: ExternalConflictPreviewLine[] = []
+
+  for (let index = 0; index < maxLines && preview.length < maxRows; index += 1) {
+    const localLine = localLines[index]
+    const diskLine = diskLines[index]
+    if ((localLine ?? '') === (diskLine ?? '')) continue
+    if (localLine !== undefined && preview.length < maxRows) {
+      preview.push({ type: 'local', lineNumber: index + 1, content: localLine })
+    }
+    if (diskLine !== undefined && preview.length < maxRows) {
+      preview.push({ type: 'disk', lineNumber: index + 1, content: diskLine })
+    }
+  }
+
+  return preview
+}
+
+function formatConflictLineMarker(type: ExternalConflictPreviewLine['type']): string {
+  return type === 'local' ? '本地' : '磁盘'
+}
+
+function isExternalConflictReloadable(conflict: ExternalConflictRecord): boolean {
+  return conflict.diskState === 'changed'
+}
+
+async function resolveUnavailableConflictDiskState(
+  filePath: string,
+  event?: VaultChangeEvent
+): Promise<ExternalConflictDiskState> {
+  if (event?.reason?.toLowerCase() === 'delete') return 'missing'
+  try {
+    const files = await vaultService.getAllMarkdownFiles()
+    return files.some(file => file.path === filePath) ? 'unreadable' : 'missing'
+  } catch {
+    return event?.reason?.toLowerCase() === 'rename' ? 'missing' : 'unreadable'
+  }
+}
+
+const reloadCurrentConflictFromDisk = async () => {
+  const path = editorStore.currentFile
+  if (!path) return
+  try {
+    const diskContent = await vaultService.readFile(path)
+    const activeTab = editorStore.getActiveTab()
+    if (activeTab?.filePath === path) {
+      activeTab.content = diskContent
+      activeTab.isModified = false
+    }
+    editorStore.setContentSilent(diskContent)
+    editorRef.value?.setContent(diskContent)
+    editorStore.setContentSilent(diskContent)
+    clearExternalConflict(path)
+    ElMessage.success('已重新载入磁盘版本')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    ElMessage.error(`重新载入失败: ${message}`)
+  }
+}
+const keepCurrentConflictLocal = () => {
+  const path = editorStore.currentFile
+  if (!path) return
+  clearExternalConflict(path)
+  ElMessage.success('已保留本地未保存内容')
 }
 const handleFileSelect = async (
   filePath: string,
   options: { mobileViewMode?: MobileReadableViewMode; forceMobileViewMode?: boolean } = {}
 ) => {
   await selectFileFromOperations(filePath)
+  if (!editorStore.getActiveTab()?.isModified) clearExternalConflict(filePath)
   preferReadableMobileView(options.mobileViewMode, { force: options.forceMobileViewMode })
   await refreshMarkdownPaths()
   closeMobileSidebar()
+}
+const focusExternalConflict = async (path: string) => {
+  const tab = editorStore.openTabs.find(item => item.filePath === path)
+  if (!tab) {
+    await handleFileSelect(path)
+    return
+  }
+
+  editorStore.switchTab(tab.id)
+  await nextTick()
+  editorRef.value?.setContent(tab.content)
 }
 const handleSearchResultSelect = async (payload: { path: string; lineNumber?: number }) => {
   await handleFileSelect(payload.path)
@@ -395,7 +736,7 @@ const handleOutlineNavigate = async (lineNumber: number) => {
 }
 const handleWikiNavigate = async (target: string) => {
   try {
-    const markdownFiles = await fileSystem.getAllMarkdownFiles()
+    const markdownFiles = await vaultService.getAllMarkdownFiles()
     markdownPaths.value = markdownFiles.map(file => file.path)
     const parsedTarget = parseWikiLinkTarget(target)
     const currentPath = editorStore.currentFile
@@ -410,7 +751,7 @@ const handleWikiNavigate = async (target: string) => {
         ElMessage.warning(`未找到链接目标: ${target}`)
         return
       }
-      await fileSystem.writeFile(creatablePath, createWikiLinkInitialContent(target))
+      await vaultService.writeFile(creatablePath, createWikiLinkInitialContent(target))
       await refreshMarkdownPaths()
       await sidebarRef.value?.refreshTree?.()
       await handleFileSelect(creatablePath)
@@ -424,7 +765,9 @@ const handleWikiNavigate = async (target: string) => {
       await refreshMarkdownPaths()
     }
     const headingLine = parsedTarget.heading
-      ? findMarkdownHeadingLine(headingContent || '', parsedTarget.heading)
+      ? (parsedTarget.heading.startsWith('^')
+          ? findMarkdownBlockLine(headingContent || '', parsedTarget.heading)
+          : findMarkdownHeadingLine(headingContent || '', parsedTarget.heading))
       : null
     if (headingLine) {
       await handleOutlineNavigate(headingLine)
@@ -444,7 +787,7 @@ const handleKnowledgeReferenceSelect = async (reference: KnowledgeReference) => 
 const handleLinkMention = async (payload: { reference: KnowledgeReference; targetTitle: string; targetNames: string[] }) => {
   try {
     const sourceTab = editorStore.openTabs.find(tab => tab.filePath === payload.reference.filePath)
-    const sourceContent = sourceTab?.content ?? await fileSystem.readFile(payload.reference.filePath)
+    const sourceContent = sourceTab?.content ?? await vaultService.readFile(payload.reference.filePath)
     const updatedContent = linkFirstUnlinkedMention(
       sourceContent,
       payload.targetNames,
@@ -456,7 +799,7 @@ const handleLinkMention = async (payload: { reference: KnowledgeReference; targe
       return
     }
 
-    await fileSystem.writeFile(payload.reference.filePath, updatedContent)
+    await vaultService.writeFile(payload.reference.filePath, updatedContent)
     if (sourceTab) {
       sourceTab.content = updatedContent
       sourceTab.isModified = false
@@ -474,6 +817,15 @@ const handleLinkMention = async (payload: { reference: KnowledgeReference; targe
 }
 const handleAIInsert = (text: string) => {
   if (editorRef.value) editorRef.value.insertText(text)
+}
+
+const handleAIRAGSourceOpen = async (payload: { path: string; lineNumber?: number }) => {
+  try {
+    await handleSearchResultSelect({ path: payload.path, lineNumber: payload.lineNumber })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    ElMessage.error(`打开 RAG 来源失败: ${message}`)
+  }
 }
 
 const handleTemplateSelect = async (content: string, name: string) => {
@@ -594,7 +946,7 @@ const handleDrop = async (e: DragEvent) => {
       try {
         const content = await file.text()
         const path = `/workspace/${file.name}`
-        await fileSystem.writeFile(path, content)
+        await vaultService.writeFile(path, content)
         editorStore.addTab(path, content)
         if (editorRef.value) {
           editorStore.setContentSilent(content)
@@ -667,9 +1019,9 @@ const createDailyNoteContent = (dateStamp: string): string => [
 
 const ensureDailyDirectory = async (): Promise<void> => {
   try {
-    await fileSystem.createDirectory('/workspace/Daily')
+    await vaultService.createDirectory('/workspace/Daily')
   } catch {
-    await fileSystem.readDirectory('/workspace/Daily')
+    await vaultService.readDirectory('/workspace/Daily')
   }
 }
 
@@ -681,9 +1033,9 @@ const handleOpenDailyNote = async () => {
 
     await ensureDailyDirectory()
     try {
-      await fileSystem.readFile(path)
+      await vaultService.readFile(path)
     } catch {
-      await fileSystem.writeFile(path, createDailyNoteContent(dateStamp))
+      await vaultService.writeFile(path, createDailyNoteContent(dateStamp))
       created = true
     }
 
@@ -742,6 +1094,279 @@ const refreshKnowledgeIndexFromCommand = async () => {
   }
 }
 
+const refreshMigrationAuditReport = async (): Promise<MigrationAuditReport> => {
+  await refreshMarkdownPaths()
+  const report = await runMigrationAudit()
+  migrationAuditReport.value = report
+  return report
+}
+
+const openMigrationAudit = async () => {
+  showMigrationAudit.value = true
+  migrationAuditRunning.value = true
+  migrationAssetRepairPreview.value = null
+  migrationAssetRepairPreviewIssues.value = []
+  migrationAssetRepairResult.value = null
+  try {
+    const report = await refreshMigrationAuditReport()
+    if (report.issueCount === 0) {
+      ElMessage.success('迁移校验通过')
+    } else {
+      ElMessage.warning(`发现 ${report.issueCount} 个迁移问题`)
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    ElMessage.error(`迁移校验失败: ${message}`)
+  } finally {
+    migrationAuditRunning.value = false
+  }
+}
+
+const createMigrationAuditMissingNotes = async () => {
+  const report = migrationAuditReport.value
+  if (!report || report.summary['missing-note'] === 0) return
+
+  migrationAuditRunning.value = true
+  try {
+    const result = await createMissingNotesFromAuditReport(report)
+    await refreshMarkdownPaths()
+    await sidebarRef.value?.refreshTree?.()
+    await refreshMigrationAuditReport()
+    if (result.created > 0) {
+      ElMessage.success(`已创建 ${result.created} 个缺失笔记`)
+    } else {
+      ElMessage.info('没有可创建的缺失笔记')
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    ElMessage.error(`创建缺失笔记失败: ${message}`)
+  } finally {
+    migrationAuditRunning.value = false
+  }
+}
+
+const createMigrationAuditMissingSections = async () => {
+  const report = migrationAuditReport.value
+  const missingSectionCount = (report?.summary['missing-heading'] ?? 0) + (report?.summary['missing-block'] ?? 0)
+  if (!report || missingSectionCount === 0) return
+
+  migrationAuditRunning.value = true
+  try {
+    const result = await createMissingHeadingsAndBlocksFromAuditReport(report)
+    await refreshMarkdownPaths()
+    await sidebarRef.value?.refreshTree?.()
+    await refreshMigrationAuditReport()
+    if (result.created > 0) {
+      ElMessage.success(`已补齐 ${result.created} 个标题或块`)
+    } else {
+      ElMessage.info('没有可补齐的标题或块')
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    ElMessage.error(`补齐标题或块失败: ${message}`)
+  } finally {
+    migrationAuditRunning.value = false
+  }
+}
+
+const syncUnmodifiedOpenTabsFromDisk = async (paths: string[]) => {
+  for (const path of paths) {
+    const tab = editorStore.openTabs.find(item => item.filePath === path)
+    if (!tab || tab.isModified) continue
+
+    const updatedContent = await vaultService.readFile(path)
+    tab.content = updatedContent
+    tab.isModified = false
+
+    if (tab.id === editorStore.activeTabId) {
+      editorStore.setContentSilent(updatedContent)
+      editorRef.value?.setContent(updatedContent)
+    }
+
+    clearExternalConflict(path)
+  }
+}
+
+const emptyAssetRepairResult = (skipped = 0): MigrationAuditAssetRepairResult => ({
+  updated: 0,
+  skipped,
+  paths: [],
+  changes: [],
+  snapshots: [],
+})
+
+const modifiedOpenPathSet = () => new Set(
+  editorStore.openTabs
+    .filter(tab => tab.isModified)
+    .map(tab => tab.filePath)
+)
+
+const splitSafeMigrationAssetIssues = (issues: MigrationAuditIssue[]) => {
+  const modifiedPaths = modifiedOpenPathSet()
+  const safeIssues = issues.filter(issue => !modifiedPaths.has(issue.sourcePath))
+  return {
+    safeIssues,
+    skippedOpenTabs: issues.length - safeIssues.length,
+  }
+}
+
+const clearMigrationAuditAssetPreview = () => {
+  migrationAssetRepairPreview.value = null
+  migrationAssetRepairPreviewIssues.value = []
+}
+
+const showAssetRepairCompletionMessage = (result: MigrationAuditAssetRepairResult) => {
+  if (result.updated > 0) {
+    ElMessage.success(result.skipped > 0
+      ? `已修复 ${result.updated} 个附件链接，跳过 ${result.skipped} 个`
+      : `已修复 ${result.updated} 个附件链接`)
+  } else if (result.skipped > 0) {
+    ElMessage.info(`没有可安全修复的附件链接，跳过 ${result.skipped} 个`)
+  } else {
+    ElMessage.info('没有可安全修复的附件链接')
+  }
+}
+
+const cancelMigrationAuditAssetRepairPreview = () => {
+  clearMigrationAuditAssetPreview()
+}
+
+const previewMigrationAuditMissingAssets = async () => {
+  const report = migrationAuditReport.value
+  if (!report) return
+
+  const repairableIssues = report.issues.filter(issue =>
+    issue.type === 'missing-asset' && issue.assetCandidates?.length === 1
+  )
+  if (repairableIssues.length === 0) return
+  clearMigrationAuditAssetPreview()
+  migrationAssetRepairResult.value = null
+
+  const { safeIssues, skippedOpenTabs } = splitSafeMigrationAssetIssues(repairableIssues)
+
+  if (safeIssues.length === 0) {
+    migrationAssetRepairPreview.value = emptyAssetRepairResult(skippedOpenTabs)
+    ElMessage.info(`有 ${skippedOpenTabs} 个附件链接位于未保存标签中，已跳过`)
+    return
+  }
+
+  migrationAuditRunning.value = true
+  try {
+    const result = await previewMissingAssetLinksFromAuditReport({
+      ...report,
+      issues: safeIssues,
+    })
+    const preview = {
+      ...result,
+      skipped: skippedOpenTabs + result.skipped,
+    }
+    migrationAssetRepairPreview.value = preview
+    migrationAssetRepairPreviewIssues.value = safeIssues
+
+    if (preview.updated > 0) {
+      ElMessage.info(`将修复 ${preview.updated} 个附件链接`)
+    } else if (preview.skipped > 0) {
+      ElMessage.info(`没有可预览的附件链接，跳过 ${preview.skipped} 个`)
+    } else {
+      ElMessage.info('没有可预览的附件链接')
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    ElMessage.error(`预览附件修复失败: ${message}`)
+  } finally {
+    migrationAuditRunning.value = false
+  }
+}
+
+const previewMigrationAuditMissingAsset = async (issue: MigrationAuditIssue, candidatePath: string) => {
+  const report = migrationAuditReport.value
+  if (!report || issue.type !== 'missing-asset' || !candidatePath) return
+  clearMigrationAuditAssetPreview()
+  migrationAssetRepairResult.value = null
+
+  const sourceTab = editorStore.openTabs.find(tab => tab.filePath === issue.sourcePath)
+  if (sourceTab?.isModified) {
+    migrationAssetRepairPreview.value = emptyAssetRepairResult(1)
+    ElMessage.info('该附件链接位于未保存标签中，已跳过')
+    return
+  }
+
+  migrationAuditRunning.value = true
+  try {
+    const previewIssue = { ...issue, assetCandidates: [candidatePath] }
+    const result = await previewMissingAssetLinksFromAuditReport({
+      ...report,
+      issues: [previewIssue],
+    })
+    migrationAssetRepairPreview.value = result
+    migrationAssetRepairPreviewIssues.value = [previewIssue]
+
+    if (result.updated > 0) {
+      ElMessage.info(`将修复 ${result.updated} 个附件链接`)
+    } else if (result.skipped > 0) {
+      ElMessage.info(`没有可预览的附件链接，跳过 ${result.skipped} 个`)
+    } else {
+      ElMessage.info('没有可预览的附件链接')
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    ElMessage.error(`预览附件修复失败: ${message}`)
+  } finally {
+    migrationAuditRunning.value = false
+  }
+}
+
+const confirmMigrationAuditAssetRepair = async () => {
+  const report = migrationAuditReport.value
+  const previewIssues = migrationAssetRepairPreviewIssues.value
+  if (!report || previewIssues.length === 0) return
+
+  const { safeIssues, skippedOpenTabs } = splitSafeMigrationAssetIssues(previewIssues)
+  if (safeIssues.length === 0) {
+    clearMigrationAuditAssetPreview()
+    migrationAssetRepairResult.value = emptyAssetRepairResult(skippedOpenTabs)
+    ElMessage.info(`有 ${skippedOpenTabs} 个附件链接位于未保存标签中，已跳过`)
+    return
+  }
+
+  migrationAuditRunning.value = true
+  try {
+    const result = await repairMissingAssetLinksFromAuditReport({
+      ...report,
+      issues: safeIssues,
+    })
+    const repairResult = {
+      ...result,
+      skipped: skippedOpenTabs + result.skipped,
+    }
+    await syncUnmodifiedOpenTabsFromDisk(result.paths)
+    await refreshMarkdownPaths()
+    await sidebarRef.value?.refreshTree?.()
+    await refreshMigrationAuditReport()
+    clearMigrationAuditAssetPreview()
+    migrationAssetRepairResult.value = repairResult
+    showAssetRepairCompletionMessage(repairResult)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    ElMessage.error(`修复附件链接失败: ${message}`)
+  } finally {
+    migrationAuditRunning.value = false
+  }
+}
+
+const handleMigrationAuditNavigate = (issue: MigrationAuditIssue) => {
+  showMigrationAudit.value = false
+  void handleSearchResultSelect({ path: issue.sourcePath, lineNumber: issue.lineNumber })
+}
+
+const openMigrationAuditAssetRepairHistory = async () => {
+  const snapshotPath = migrationAssetRepairResult.value?.snapshots[0]?.sourcePath
+  if (!snapshotPath) return
+  showMigrationAudit.value = false
+  await handleFileSelect(snapshotPath)
+  showVersionHistory.value = true
+}
+
 const focusFileSearchFromCommand = async (mode: 'name' | 'content') => {
   await ensureMobileSidebar()
   await sidebarRef.value?.focusFileSearch?.(mode)
@@ -771,7 +1396,7 @@ const handleCommandExecute = (command: string) => {
     'file.version-history': () => { showVersionHistory.value = true },
     'file.save': () => saveCurrentFile(),
     'file.export-md': () => exportAsMarkdown(),
-    'file.export-html': () => exportAsHTML(),
+    'file.export-html': () => { void exportAsHTML() },
     'search.file-name': () => focusFileSearchFromCommand('name'),
     'search.content': () => focusFileSearchFromCommand('content'),
     'edit.bold': () => editorRef.value?.wrapSelection?.('**', '**'),
@@ -791,7 +1416,7 @@ const handleCommandExecute = (command: string) => {
     'view.outline': () => openSidebarTab('outline'),
     'view.settings': () => openSidebarTab('settings'),
     'view.source': () => editorStore.setViewMode('source'),
-    'view.split': () => editorStore.setViewMode('split'),
+    'view.live-preview': () => editorStore.setViewMode('live-preview'),
     'view.preview': () => editorStore.setViewMode('preview'),
     'view.theme': () => toggleTheme(),
     'view.focus-mode': () => { focusMode.value = !focusMode.value },
@@ -803,6 +1428,7 @@ const handleCommandExecute = (command: string) => {
     'ai.test': () => { void handleTestAIConnection() },
     'ai.test-connection': () => { void handleTestAIConnection() },
     'knowledge.refresh-index': () => refreshKnowledgeIndexFromCommand(),
+    'knowledge.migration-audit': () => openMigrationAudit(),
   }
   void actions[command]?.()
 }
@@ -881,6 +1507,74 @@ const updateViewportWidth = () => {
 
 let sessionTimer: ReturnType<typeof setInterval> | null = null
 let isAppDisposed = false
+let unsubscribeVaultChanges: (() => void) | null = null
+let unsubscribeEmbedSyncChanges: (() => void) | null = null
+let isSyncingVaultChange = false
+let hasPendingVaultChange = false
+
+const syncOpenTabsFromVault = async (event?: VaultChangeEvent) => {
+  for (const tab of [...editorStore.openTabs]) {
+    if (!changeTouchesFile(event, tab.filePath)) continue
+    if (tab.isModified) {
+      try {
+        const latestContent = await vaultService.readFile(tab.filePath)
+        if (latestContent !== tab.content) markExternalConflict(tab.filePath, tab.content, latestContent)
+        else clearExternalConflict(tab.filePath)
+      } catch {
+        const diskState = await resolveUnavailableConflictDiskState(tab.filePath, event)
+        markExternalConflict(tab.filePath, tab.content, '', diskState)
+      }
+      continue
+    }
+    try {
+      const latestContent = await vaultService.readFile(tab.filePath)
+      tab.content = latestContent
+      tab.isModified = false
+      clearExternalConflict(tab.filePath)
+    } catch {
+      editorStore.removeOpenPath(tab.filePath, false)
+      clearExternalConflict(tab.filePath)
+    }
+  }
+
+  const activeTab = editorStore.getActiveTab()
+  if (!activeTab) {
+    editorStore.setContentSilent('')
+    editorRef.value?.setContent('')
+    editorStore.setContentSilent('')
+    return
+  }
+  if (!activeTab.isModified) {
+    editorStore.setContentSilent(activeTab.content)
+    editorRef.value?.setContent(activeTab.content)
+    editorStore.setContentSilent(activeTab.content)
+  }
+}
+
+const syncVaultExternalChanges = async (_event?: VaultChangeEvent) => {
+  if (isAppDisposed || vaultService.kind !== 'electron-fs') return
+  if (isSyncingVaultChange) {
+    hasPendingVaultChange = true
+    return
+  }
+
+  isSyncingVaultChange = true
+  try {
+    do {
+      const eventForSync = hasPendingVaultChange ? undefined : _event
+      hasPendingVaultChange = false
+      await vaultService.refreshFromDisk().catch(() => {})
+      await refreshMarkdownPaths().catch(() => {})
+      await (sidebarRef.value?.refreshTree?.() ?? Promise.resolve()).catch(() => {})
+      await syncOpenTabsFromVault(eventForSync).catch(() => {})
+      embedSyncService.notifyChange(eventForSync?.path || '/workspace')
+    } while (hasPendingVaultChange && !isAppDisposed)
+  } catch {
+    // External filesystem changes can be partial while sync tools are writing.
+  } finally {
+    isSyncingVaultChange = false
+  }
+}
 
 onMounted(async () => {
   configureAIProvider(settingsStore.aiConfig)
@@ -890,8 +1584,16 @@ onMounted(async () => {
   window.addEventListener('beforeunload', handleBeforeUnload)
   document.addEventListener('keydown', handleKeyDown)
   try {
-    await fileSystem.init()
+    await vaultService.init()
     if (isAppDisposed) return
+    unsubscribeVaultChanges = vaultService.onDidChange((event) => {
+      void syncVaultExternalChanges(event)
+    })
+    unsubscribeEmbedSyncChanges = embedSyncService.onDidChange((event) => {
+      if (editorStore.currentFile && event.affectedHostPaths.includes(editorStore.currentFile)) {
+        embedRefreshKey.value += 1
+      }
+    })
     const restoredContent = await editorStore.hydrateRestoredSession()
     if (isAppDisposed) return
     if (editorRef.value) {
@@ -918,6 +1620,10 @@ watch(() => editorStore.content, () => {
   sessionDuration.value = getSessionDuration(session)
 })
 
+watch(() => [editorStore.currentFile, editorStore.isModified] as const, ([filePath, isModified]) => {
+  if (filePath && !isModified) clearExternalConflict(filePath)
+})
+
 watch(() => editorStore.viewMode, (mode) => {
   if (mode !== 'source') void refreshMarkdownPaths()
 })
@@ -932,6 +1638,11 @@ watch(showCommandPalette, (open) => {
 
 onUnmounted(() => {
   isAppDisposed = true
+  unsubscribeVaultChanges?.()
+  unsubscribeVaultChanges = null
+  unsubscribeEmbedSyncChanges?.()
+  unsubscribeEmbedSyncChanges = null
+  embedSyncService.clear()
   stopResize()
   if (sessionTimer !== null) {
     clearInterval(sessionTimer)

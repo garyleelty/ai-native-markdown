@@ -388,22 +388,22 @@ test.describe('侧边栏行为', () => {
 
       const { createApp, h, nextTick, ref } = await import('/node_modules/.vite/deps/vue.js')
       const { default: FileExplorer } = await import('/src/components/sidebar/FileExplorer.vue')
-      const fileSystemModuleUrl = performance
+      const vaultServiceModuleUrl = performance
         .getEntriesByType('resource')
         .map(entry => entry.name)
-        .find(name => name.includes('/src/services/fileSystem.ts'))
-      if (!fileSystemModuleUrl) throw new Error('fileSystem module URL not found')
-      const { fileSystem } = await import(fileSystemModuleUrl)
+        .find(name => name.includes('/src/services/vault/index.ts'))
+      if (!vaultServiceModuleUrl) throw new Error('vaultService module URL not found')
+      const { vaultService } = await import(vaultServiceModuleUrl)
 
-      const originalReadDirectory = fileSystem.readDirectory
-      const originalGetAllMarkdownFiles = fileSystem.getAllMarkdownFiles
+      const originalReadDirectory = vaultService.readDirectory
+      const originalGetAllMarkdownFiles = vaultService.getAllMarkdownFiles
       const pendingSearches: Array<(files: any[]) => void> = []
       const searchPromises: Promise<unknown>[] = []
 
-      fileSystem.readDirectory = async () => []
-      fileSystem.getAllMarkdownFiles = (() => new Promise(resolve => {
+      vaultService.readDirectory = async () => []
+      vaultService.getAllMarkdownFiles = (() => new Promise(resolve => {
         pendingSearches.push(resolve)
-      })) as typeof fileSystem.getAllMarkdownFiles
+      })) as typeof vaultService.getAllMarkdownFiles
 
       const host = document.createElement('div')
       host.id = 'file-explorer-search-regression-host'
@@ -442,8 +442,8 @@ test.describe('侧边栏行为', () => {
         cleanup() {
           app.unmount()
           host.remove()
-          fileSystem.readDirectory = originalReadDirectory
-          fileSystem.getAllMarkdownFiles = originalGetAllMarkdownFiles
+          vaultService.readDirectory = originalReadDirectory
+          vaultService.getAllMarkdownFiles = originalGetAllMarkdownFiles
           localStorage.removeItem('workspace_root_path')
         },
       }

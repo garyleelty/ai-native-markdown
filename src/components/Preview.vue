@@ -11,20 +11,20 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js/lib/common'
-import taskLists from 'markdown-it-task-lists'
-import anchor from 'markdown-it-anchor'
-import katex from '@traptitech/markdown-it-katex'
 import 'katex/dist/katex.min.css'
 import { sanitizeMarkdown, sanitizeSvg } from '@/utils/security'
 import { resolveWikiLinkTarget } from '@/utils/wikiLinks'
+import { createMarkdownRenderer } from '@/utils/exportHtml'
+import { resolveEmbedPlaceholders } from '@/services/embedRenderer'
+import { embedSyncService } from '@/services/embedSyncService'
 
 interface Props {
   content?: string
   cursorLine?: number
   currentFile?: string
   markdownPaths?: string[]
+  embedRefreshKey?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -32,6 +32,7 @@ const props = withDefaults(defineProps<Props>(), {
   cursorLine: 0,
   currentFile: '',
   markdownPaths: () => [],
+  embedRefreshKey: 0,
 })
 const emit = defineEmits<{
   navigate: [filename: string]
@@ -44,18 +45,16 @@ const debouncedContent = ref(props.content)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let mermaidBlockId = 0
 let mermaidRenderVersion = 0
+let embedRenderVersion = 0
 
 watch(() => props.content, () => {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => {
     debouncedContent.value = props.content
-  }, 300)
+  }, 150)
 })
 
-const md: MarkdownIt = new MarkdownIt({
-  html: false,
-  linkify: true,
-  typographer: true,
+const md = createMarkdownRenderer({
   highlight(str: string, lang: string): string {
     if (lang && hljs.getLanguage(lang)) {
       try {
@@ -63,73 +62,41 @@ const md: MarkdownIt = new MarkdownIt({
       } catch {}
     }
     return `<pre class="hljs"><code>${md.utils.escapeHtml(str)}</code></pre>`
-  }
-})
+  },
+  sourceLineAttrs: true,
+  wikiLinkRule: (state: any, silent: boolean) => {
+    const start = state.pos
+    if (state.src.charCodeAt(start) !== 0x5B || state.src.charCodeAt(start + 1) !== 0x5B) return false
 
-const SOURCE_LINE_BLOCK_TOKENS = new Set([
-  'blockquote_open',
-  'bullet_list_open',
-  'code_block',
-  'fence',
-  'heading_open',
-  'hr',
-  'html_block',
-  'list_item_open',
-  'ordered_list_open',
-  'paragraph_open',
-  'table_open',
-])
+    const end = state.src.indexOf(']]', start + 2)
+    if (end === -1) return false
 
-md.core.ruler.push('source_line_attrs', (state: any) => {
-  for (const token of state.tokens) {
-    if (!SOURCE_LINE_BLOCK_TOKENS.has(token.type) || !token.map) continue
-    const [start, end] = token.map
-    token.attrSet('data-line', String(start + 1))
-    token.attrSet('data-line-end', String(Math.max(start + 1, end)))
-  }
-})
+    const raw = state.src.slice(start + 2, end)
+    if (!raw.trim() || raw.includes('\n')) return false
 
-md.use(taskLists, { enabled: true, label: true })
-md.use(anchor, {
-  permalink: anchor.permalink.linkInsideHeader({
-    symbol: '#',
-    placement: 'before',
-    renderAttrs: () => ({ class: 'header-anchor', href: '#' })
-  })
-})
-md.use(katex, { throwOnError: false, errorColor: 'var(--accent-red)' })
+    if (!silent) {
+      const pipeIndex = raw.indexOf('|')
+      const target = (pipeIndex === -1 ? raw : raw.slice(0, pipeIndex)).trim()
+      const text = pipeIndex === -1 ? target : raw.slice(pipeIndex + 1).trim()
+      if (!target) return false
 
-md.inline.ruler.before('emphasis', 'wiki_link', (state: any, silent: boolean) => {
-  const start = state.pos
-  if (state.src.charCodeAt(start) !== 0x5B || state.src.charCodeAt(start + 1) !== 0x5B) return false
+      const exists = resolveWikiLinkTarget(target, props.currentFile, props.markdownPaths) !== null
+      const stateClass = exists ? 'wiki-link-exists' : 'wiki-link-missing'
+      const linkOpen = state.push('link_open', 'a', 1)
+      linkOpen.attrSet('href', '#')
+      linkOpen.attrSet('class', `wiki-link ${stateClass}`)
+      linkOpen.attrSet('data-filename', target)
 
-  const end = state.src.indexOf(']]', start + 2)
-  if (end === -1) return false
+      const textToken = state.push('text', '', 0)
+      textToken.content = text || target
 
-  const raw = state.src.slice(start + 2, end)
-  if (!raw.trim() || raw.includes('\n')) return false
+      state.push('link_close', 'a', -1)
+    }
 
-  if (!silent) {
-    const pipeIndex = raw.indexOf('|')
-    const target = (pipeIndex === -1 ? raw : raw.slice(0, pipeIndex)).trim()
-    const text = pipeIndex === -1 ? target : raw.slice(pipeIndex + 1).trim()
-    if (!target) return false
-
-    const exists = resolveWikiLinkTarget(target, props.currentFile, props.markdownPaths) !== null
-    const stateClass = exists ? 'wiki-link-exists' : 'wiki-link-missing'
-    const linkOpen = state.push('link_open', 'a', 1)
-    linkOpen.attrSet('href', '#')
-    linkOpen.attrSet('class', `wiki-link ${stateClass}`)
-    linkOpen.attrSet('data-filename', target)
-
-    const textToken = state.push('text', '', 0)
-    textToken.content = text || target
-
-    state.push('link_close', 'a', -1)
-  }
-
-  state.pos = end + 2
-  return true
+    state.pos = end + 2
+    return true
+  },
+  anchorPermalink: true,
 })
 
 const defaultFenceRenderer = md.renderer.rules.fence?.bind(md.renderer.rules)
@@ -190,7 +157,8 @@ function findElementForLine(line: number): HTMLElement | undefined {
 
 const renderedContent = computed(() => {
   mermaidBlockId = 0
-  return sanitizeMarkdown(md.render(debouncedContent.value))
+  const html = sanitizeMarkdown(md.render(debouncedContent.value))
+  return `${html}<!--embed-refresh:${props.embedRefreshKey}-->`
 })
 
 let mermaidInstance: any = null
@@ -199,7 +167,7 @@ async function getMermaid() {
   if (!mermaidInstance) {
     const mod = await import('mermaid')
     mermaidInstance = mod.default
-    mermaidInstance.initialize({ startOnLoad: false, theme: 'default' })
+    mermaidInstance.initialize({ startOnLoad: false, theme: 'dark' })
   }
   return mermaidInstance
 }
@@ -213,13 +181,17 @@ async function renderMermaid(): Promise<boolean> {
   if (els.length === 0) return renderVersion === mermaidRenderVersion
   const mermaid = await getMermaid()
   if (renderVersion !== mermaidRenderVersion || previewRef.value !== root) return false
+  const isDarkMode = document.documentElement.classList.contains('dark')
+  const mermaidTheme = isDarkMode ? 'dark' : 'default'
+  try { mermaid.initialize({ startOnLoad: false, theme: mermaidTheme }) } catch {}
   for (const [index, el] of Array.from(els).entries()) {
     const graphDefinition = el.textContent || ''
+    const svgId = `mermaid-svg-${renderVersion}-${index}`
+    // 清理可能残留的同 ID SVG
+    const existing = document.getElementById(svgId)
+    if (existing) existing.remove()
     try {
-      const { svg } = await mermaid.render(
-        `mermaid-svg-${renderVersion}-${index}`,
-        graphDefinition
-      )
+      const { svg } = await mermaid.render(svgId, graphDefinition)
       if (renderVersion !== mermaidRenderVersion || previewRef.value !== root || !root.contains(el)) return false
       el.innerHTML = sanitizeSvg(svg)
     } catch {
@@ -228,6 +200,35 @@ async function renderMermaid(): Promise<boolean> {
     }
   }
   return renderVersion === mermaidRenderVersion
+}
+
+async function renderEmbeds(): Promise<boolean> {
+  const renderVersion = ++embedRenderVersion
+  await nextTick()
+  const root = previewRef.value
+  if (!root) return false
+  const dependencies = new Set<string>()
+  await resolveEmbedPlaceholders(root, {
+    sourcePath: props.currentFile || undefined,
+    currentContent: debouncedContent.value,
+    shouldContinue: () => renderVersion === embedRenderVersion && previewRef.value === root,
+    onDependency: (filePath) => dependencies.add(filePath),
+  })
+  const isCurrentRender = renderVersion === embedRenderVersion && previewRef.value === root
+  if (!isCurrentRender) return false
+  if (props.currentFile) {
+    embedSyncService.replaceOwnerDependencies(`preview:${props.currentFile}`, props.currentFile, dependencies)
+  }
+  return true
+}
+
+async function finalizeRenderedContent(): Promise<void> {
+  const renderedCurrentEmbeds = await renderEmbeds()
+  if (!renderedCurrentEmbeds) return
+  const renderedCurrentContent = await renderMermaid()
+  if (!renderedCurrentContent) return
+  lineMap.value = buildLineMap()
+  highlightCurrentLine()
 }
 
 function highlightCurrentLine() {
@@ -246,17 +247,18 @@ let renderTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(renderedContent, () => {
   if (renderTimer) clearTimeout(renderTimer)
-  renderTimer = setTimeout(async () => {
-    const renderedCurrentContent = await renderMermaid()
-    if (!renderedCurrentContent) return
-    lineMap.value = buildLineMap()
-    highlightCurrentLine()
-  }, 150)
+  renderTimer = setTimeout(() => {
+    void finalizeRenderedContent()
+  }, 80)
 }, { flush: 'post' })
 
 watch(() => props.cursorLine, async () => {
   await nextTick()
   highlightCurrentLine()
+})
+
+watch(() => props.currentFile, (_currentFile, previousFile) => {
+  if (previousFile) embedSyncService.clearOwnerDependencies(`preview:${previousFile}`)
 })
 
 function handleClick(event: MouseEvent) {
@@ -278,17 +280,23 @@ function handleClick(event: MouseEvent) {
     if (filename) emit('navigate', filename)
     return
   }
+  const embedSource = target.closest('.embed-source') as HTMLElement | null
+  if (embedSource) {
+    event.preventDefault()
+    const filename = embedSource.dataset.filename
+    if (filename) emit('navigate', filename)
+    return
+  }
 }
 
 onMounted(() => {
-  renderMermaid().then((renderedCurrentContent) => {
-    if (!renderedCurrentContent) return
-    lineMap.value = buildLineMap()
-  })
+  void finalizeRenderedContent()
 })
 
 onUnmounted(() => {
+  if (props.currentFile) embedSyncService.clearOwnerDependencies(`preview:${props.currentFile}`)
   mermaidRenderVersion += 1
+  embedRenderVersion += 1
   if (renderTimer !== null) { clearTimeout(renderTimer); renderTimer = null }
   if (debounceTimer !== null) { clearTimeout(debounceTimer); debounceTimer = null }
 })
@@ -529,6 +537,82 @@ defineExpose({
   border: none;
   overflow-x: auto;
   text-align: center;
+}
+
+.markdown-body .embed {
+  border-left: 2px solid var(--obsidian-accent);
+  background: var(--obsidian-bg-secondary);
+  padding: 12px 16px;
+  margin: 1.3em 0;
+}
+
+.markdown-body .embed-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--obsidian-text-muted);
+}
+
+.markdown-body .embed-source {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--obsidian-accent);
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.markdown-body .embed-source:hover {
+  text-decoration: underline;
+}
+
+.markdown-body .embed-content > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body .embed-content > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body .embed-image img,
+.markdown-body .embed-video video,
+.markdown-body .embed-audio audio,
+.markdown-body .embed-pdf iframe {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+.markdown-body .embed-image img {
+  height: auto;
+}
+
+.markdown-body .embed-video video {
+  max-height: 420px;
+  background: #000;
+}
+
+.markdown-body .embed-audio audio {
+  min-height: 36px;
+}
+
+.markdown-body .embed-pdf-frame {
+  height: min(70vh, 720px);
+  min-height: 420px;
+  border: 1px solid var(--obsidian-border);
+  background: var(--obsidian-bg-primary);
+}
+
+.markdown-body .embed-not-found {
+  border-left-color: var(--accent-red);
+}
+
+.markdown-body .embed-error {
+  color: var(--accent-red);
 }
 
 .markdown-body .katex {

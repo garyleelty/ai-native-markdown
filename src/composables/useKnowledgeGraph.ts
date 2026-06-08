@@ -109,7 +109,12 @@ export function useKnowledgeGraph(
 
     nodeSelection
       .append('text')
-      .text(d => d.label.length > 12 ? d.label.slice(0, 11) + '…' : d.label)
+      .text(d => {
+        // 优先使用文件名（不含路径和扩展名）
+        const fileName = d.path.split('/').pop()?.replace(/\.(md|markdown)$/i, '') || d.label
+        // 增加长度限制到 20 字符
+        return fileName.length > 20 ? fileName.slice(0, 19) + '…' : fileName
+      })
       .attr('dy', d => getNodeRadius(d.linkCount) + 14)
       .attr('text-anchor', 'middle')
       .attr('fill', 'var(--text-secondary)')

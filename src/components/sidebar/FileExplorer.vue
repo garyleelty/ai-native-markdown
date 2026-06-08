@@ -24,7 +24,7 @@
           <el-button :icon="Document" native-type="button" size="small" :type="searchMode === 'content' ? 'primary' : 'default'" aria-label="切换搜索模式" @click="toggleSearchMode" title="切换搜索模式" />
         </template>
       </el-input>
-      <div class="search-mode-hint">{{ searchMode === 'name' ? '文件名搜索' : '内容搜索' }}</div>
+      <div class="search-mode-hint">{{ searchMode === 'name' ? '文件名搜索' : (contentSearchMode === 'regex' ? '正则搜索' : '内容搜索') }}</div>
     </div>
 
     <div class="recent-section" v-if="!searchQuery && recentFiles.length > 0 && rootPath">
@@ -78,9 +78,9 @@
           <el-dropdown trigger="contextmenu" class="tree-node-menu" @command="(cmd: string) => handleTreeAction(cmd, data)">
             <span class="tree-node" :data-file-path="data.path">
               <el-icon v-if="data.isDirectory" :size="14"><Folder /></el-icon>
-              <el-icon v-else-if="data.name.endsWith('.json')" :size="14" color="var(--el-color-warning)"><Document /></el-icon>
-              <el-icon v-else-if="data.name.endsWith('.png') || data.name.endsWith('.jpg')" :size="14" color="var(--el-color-success)"><Picture /></el-icon>
-              <el-icon v-else :size="14" color="var(--el-color-primary)"><Document /></el-icon>
+              <el-icon v-else-if="data.name.endsWith('.json')" :size="14" color="var(--warning)"><Document /></el-icon>
+              <el-icon v-else-if="data.name.endsWith('.png') || data.name.endsWith('.jpg')" :size="14" color="var(--accent-green)"><Picture /></el-icon>
+              <el-icon v-else :size="14" color="var(--obsidian-accent)"><Document /></el-icon>
               <span class="tree-node-label">{{ node.label }}</span>
             </span>
             <template #dropdown>
@@ -111,7 +111,7 @@
 import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Folder, Document, DocumentAdd, FolderAdd, Search, Picture } from '@element-plus/icons-vue'
-import { fileSystem } from '../../services/fileSystem'
+import { vaultService } from '../../services/vault'
 import { sanitizeFilePath, isValidFileName, safeStorage } from '../../utils/security'
 import type { TreeNode } from '../../types'
 
@@ -161,7 +161,7 @@ const loadTreeFromFS = async () => {
   const activeRootPath = rootPath.value
   if (!activeRootPath) return
   try {
-    const children = await fileSystem.readDirectory(activeRootPath)
+    const children = await vaultService.readDirectory(activeRootPath)
     if (isDisposed || requestId !== treeLoadRequestId || rootPath.value !== activeRootPath) return
     treeData.value = buildTree(children)
     expandedKeys.value = [activeRootPath]
@@ -211,7 +211,7 @@ const handleNodeClick = async (data: TreeNode, node?: any) => {
   if (data.isDirectory) {
     if (!data.children || data.children.length === 0) {
       try {
-        const children = await fileSystem.readDirectory(data.path)
+        const children = await vaultService.readDirectory(data.path)
         if (isDisposed) return
         data.children = buildTree(children)
         data.isExpanded = true
@@ -237,7 +237,7 @@ const handleTreeAction = async (command: string, data: TreeNode) => {
         confirmButtonText: '确定',
         cancelButtonText: '取消'
       })
-      await fileSystem.deleteFile(data.path)
+      await vaultService.deletePath(data.path)
       if (isDisposed) return
       await loadTreeFromFS()
       if (currentFilePath.value === data.path) currentFilePath.value = ''
@@ -256,7 +256,7 @@ const handleTreeAction = async (command: string, data: TreeNode) => {
         }
         const parentPath = data.path.substring(0, data.path.lastIndexOf('/'))
         const newPath = sanitizeFilePath(`${parentPath}/${value}`)
-        const renameResult = await fileSystem.renameFile(data.path, newPath)
+        const renameResult = await vaultService.renamePath(data.path, newPath)
         if (isDisposed) return
         await loadTreeFromFS()
         if (currentFilePath.value === data.path) currentFilePath.value = newPath
@@ -277,7 +277,7 @@ const handleTreeAction = async (command: string, data: TreeNode) => {
 
 const openFolder = async () => {
   try {
-    const count = await fileSystem.importFromPicker()
+    const count = await vaultService.importFromPicker()
     if (isDisposed) return
     if (count > 0) {
       setRootPath('/workspace')
@@ -290,7 +290,7 @@ const openFolder = async () => {
 }
 
 const initDemoWorkspace = async () => {
-  await fileSystem.init()
+  await vaultService.useIndexedDbWorkspace()
   if (isDisposed) return
   setRootPath('/workspace')
   await loadTreeFromFS()
@@ -308,7 +308,7 @@ const handleCreateFile = async () => {
       }
       const name = value.endsWith('.md') ? value : value + '.md'
       const path = sanitizeFilePath(`${rootPath.value}/${name}`)
-      await fileSystem.createFile(path)
+      await vaultService.createFile(path)
       if (isDisposed) return
       await loadTreeFromFS()
       currentFilePath.value = path
@@ -329,7 +329,7 @@ const handleCreateFolder = async () => {
         return
       }
       const path = sanitizeFilePath(`${rootPath.value}/${value}`)
-      await fileSystem.createDirectory(path)
+      await vaultService.createDirectory(path)
       if (isDisposed) return
       await loadTreeFromFS()
       ElMessage.success('文件夹已创建')
@@ -342,6 +342,7 @@ const handleCreateFolder = async () => {
 const searchQuery = ref('')
 const searchInputRef = ref<{ focus: () => void } | null>(null)
 const searchMode = ref<'name' | 'content'>('name')
+const contentSearchMode = ref<'text' | 'regex'>('text')
 type SearchResult = { filePath: string; fileName: string; matches: Array<{ lineNumber?: number; lineContent: string }> }
 const contentSearchResults = ref<SearchResult[]>([])
 const nameSearchResults = ref<SearchResult[]>([])
@@ -379,7 +380,7 @@ const searchFileNames = async () => {
   }
 
   try {
-    const files = await fileSystem.getAllMarkdownFiles()
+    const files = await vaultService.getAllMarkdownFiles()
     if (
       isDisposed ||
       requestId !== nameSearchRequestId ||
@@ -443,8 +444,56 @@ const searchContent = async () => {
     contentSearchResults.value = []
     return
   }
+
+  // Detect regex pattern (e.g., /TODO|FIXME/)
+  const isRegex = query.startsWith('/') && query.endsWith('/') && query.length > 2
+  contentSearchMode.value = isRegex ? 'regex' : 'text'
+
   try {
-    const results = await fileSystem.searchFiles(query)
+    let results: SearchResult[]
+
+    if (isRegex) {
+      // Regex search
+      const pattern = query.slice(1, -1)
+      try {
+        const regex = new RegExp(pattern, 'gi')
+        const allFiles = await vaultService.getAllMarkdownFiles()
+        const matchedFiles = allFiles.filter(f => f.path.startsWith(`${activeRootPath}/`))
+        const searchResults: SearchResult[] = []
+
+        for (const file of matchedFiles) {
+          if (searchResults.length >= 30) break
+          try {
+            const content = await vaultService.readFileOrEmpty(file.path)
+            const lines = content.split('\n')
+            const matches: Array<{ lineNumber: number; lineContent: string }> = []
+
+            for (let i = 0; i < lines.length; i++) {
+              if (matches.length >= 5) break
+              // 每次都创建新的正则实例，避免 lastIndex 状态问题
+              const lineRegex = new RegExp(pattern, 'gi')
+              if (lineRegex.test(lines[i])) {
+                matches.push({ lineNumber: i + 1, lineContent: lines[i].trim().slice(0, 200) })
+              }
+            }
+
+            if (matches.length > 0) {
+              searchResults.push({ filePath: file.path, fileName: file.name, matches })
+            }
+          } catch {
+            // Skip files that can't be read
+          }
+        }
+        results = searchResults
+      } catch {
+        results = []
+      }
+    } else {
+      // Text search
+      results = await vaultService.searchFiles(query)
+      results = results.filter(r => r.filePath.startsWith(`${activeRootPath}/`))
+    }
+
     if (
       isDisposed ||
       requestId !== contentSearchRequestId ||
@@ -466,11 +515,11 @@ const handleSearchResultClick = (result: SearchResult) => {
 }
 
 const readFile = async (filePath: string): Promise<string> => {
-  return fileSystem.readFileOrEmpty(filePath)
+  return vaultService.readFileOrEmpty(filePath)
 }
 
 const saveFile = async (filePath: string, content: string): Promise<boolean> => {
-  try { await fileSystem.writeFile(filePath, content); return true } catch { return false }
+  try { await vaultService.writeFile(filePath, content); return true } catch { return false }
 }
 
 defineExpose({ readFile, saveFile, handleCreateFile, handleCreateFolder, openFolder, initDemoWorkspace, refreshTree: loadTreeFromFS, focusSearch, rootPath })

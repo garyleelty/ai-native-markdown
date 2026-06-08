@@ -55,9 +55,6 @@ function notifyChange() {
   events.dispatchEvent(new Event('change'))
 }
 
-function isMarkdownPath(path: string): boolean {
-  return path.endsWith('.md') || path.endsWith('.markdown')
-}
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -122,6 +119,15 @@ function findMentionLine(content: string, names: string[]): number | undefined {
   return undefined
 }
 
+async function readCurrentFileOrEmpty(filePath: string): Promise<string> {
+  try {
+    const { vaultService } = await import('@/services/vault')
+    return vaultService.readFileOrEmpty(filePath)
+  } catch {
+    return fileSystem.readFileOrEmpty(filePath)
+  }
+}
+
 export const knowledgeIndex = {
   markStale(): void {
     safeStorage.set(STALE_KEY, true)
@@ -175,8 +181,11 @@ export const knowledgeIndex = {
   },
 
   async removeByPrefix(prefix: string, options: IndexOptions = {}): Promise<void> {
-    const records = await db.records.filter(record => record.filePath === prefix || record.filePath.startsWith(`${prefix}/`)).toArray()
-    await db.records.bulkDelete(records.map(record => record.id!).filter(Boolean))
+    const ids: number[] = []
+    await db.records.filter(record => record.filePath === prefix || record.filePath.startsWith(`${prefix}/`)).each(record => {
+      if (record.id) ids.push(record.id)
+    })
+    await db.records.bulkDelete(ids)
     if (!options.silent) notifyChange()
   },
 
@@ -195,14 +204,17 @@ export const knowledgeIndex = {
   },
 
   async renameByPrefix(oldPrefix: string, newPrefix: string, options: IndexOptions = {}): Promise<void> {
-    const records = await db.records.filter(record => record.filePath === oldPrefix || record.filePath.startsWith(`${oldPrefix}/`)).toArray()
-    await Promise.all(records.map(record => {
-      if (!record.id) return Promise.resolve()
+    const updates: Array<{ id: number; nextPath: string }> = []
+    await db.records.filter(record => record.filePath === oldPrefix || record.filePath.startsWith(`${oldPrefix}/`)).each(record => {
+      if (!record.id) return
       const nextPath = record.filePath === oldPrefix
         ? newPrefix
         : `${newPrefix}${record.filePath.slice(oldPrefix.length)}`
-      return db.records.update(record.id, { filePath: nextPath, updatedAt: Date.now() })
-    }))
+      updates.push({ id: record.id, nextPath })
+    })
+    await Promise.all(updates.map(({ id, nextPath }) =>
+      db.records.update(id, { filePath: nextPath, updatedAt: Date.now() })
+    ))
     if (!options.silent) notifyChange()
   },
 
@@ -219,7 +231,9 @@ export const knowledgeIndex = {
   },
 
   async getAll(): Promise<KnowledgeIndexRecord[]> {
-    return db.records.toArray()
+    const records: KnowledgeIndexRecord[] = []
+    await db.records.each(record => { records.push(record) })
+    return records
   },
 
   async getByPath(filePath: string): Promise<KnowledgeIndexRecord | undefined> {
@@ -229,24 +243,38 @@ export const knowledgeIndex = {
   async getBacklinks(filePath: string): Promise<KnowledgeReference[]> {
     const current = await this.getByPath(filePath)
     if (!current) return []
-    const names = getRecordNames(current)
+    
+    // 构建所有可能用于匹配的名称
+    const names = new Set(getRecordNames(current))
+    // 添加文件名
+    const fileName = current.filePath.split('/').pop()?.replace(/\.(md|markdown)$/i, '')
+    if (fileName) {
+      names.add(normalizeNoteName(fileName))
+    }
+    // 添加路径名
+    const filePathWithoutExt = current.filePath.replace(/\.(md|markdown)$/i, '')
+    names.add(normalizeNoteName(filePathWithoutExt))
+    // 添加相对于 workspace 的路径
+    const workspaceRelativePath = filePathWithoutExt.replace(/^\/?workspace\//i, '')
+    names.add(normalizeNoteName(workspaceRelativePath))
 
     // Use indexed query on normalizedLinks instead of loading all records
     const results: KnowledgeReference[] = []
     for (const name of names) {
       const matchingRecords = await db.records
-        .where('normalizedLinks').equals(name)
+        .where('normalizedLinks')
+        .equals(name)
         .toArray()
       for (const record of matchingRecords) {
         if (record.filePath === filePath) continue
         if (results.some(r => r.filePath === record.filePath)) continue
-        // Read content from fileSystem on demand instead of storing it
-        const content = await fileSystem.readFileOrEmpty(record.filePath)
+        // Read content on demand instead of storing it
+        const content = await readCurrentFileOrEmpty(record.filePath)
         results.push({
           filePath: record.filePath,
           title: record.title,
           excerpt: makeExcerpt(record.searchableText, current.title),
-          lineNumber: findWikiLinkLine(content, names),
+          lineNumber: findWikiLinkLine(content, [...names]),
         })
       }
     }
@@ -298,7 +326,7 @@ export const knowledgeIndex = {
 
     // Resolve line numbers on demand
     for (const result of results) {
-      const content = await fileSystem.readFileOrEmpty(result.filePath)
+      const content = await readCurrentFileOrEmpty(result.filePath)
       result.lineNumber = findMentionLine(content, names)
     }
 
@@ -306,11 +334,27 @@ export const knowledgeIndex = {
   },
 
   async buildGraphData(): Promise<KnowledgeGraphData> {
-    const records = await db.records.toArray()
+    const records: KnowledgeIndexRecord[] = []
+    await db.records.each(record => { records.push(record) })
+
     const byName = new Map<string, KnowledgeIndexRecord>()
     records.forEach(record => {
       byName.set(record.normalizedTitle, record)
       record.normalizedAliases.forEach(alias => byName.set(alias, record))
+      // 添加文件名匹配（不含扩展名和路径）
+      const fileName = record.filePath.split('/').pop()?.replace(/\.(md|markdown)$/i, '')
+      if (fileName) {
+        const normalizedFileName = normalizeNoteName(fileName)
+        byName.set(normalizedFileName, record)
+      }
+      // 添加路径匹配（不含扩展名）
+      const filePathWithoutExt = record.filePath.replace(/\.(md|markdown)$/i, '')
+      const normalizedFilePath = normalizeNoteName(filePathWithoutExt)
+      byName.set(normalizedFilePath, record)
+      // 添加相对于 workspace 的路径匹配
+      const workspaceRelativePath = filePathWithoutExt.replace(/^\/?workspace\//i, '')
+      const normalizedWorkspacePath = normalizeNoteName(workspaceRelativePath)
+      byName.set(normalizedWorkspacePath, record)
     })
 
     const nodes: GraphNode[] = records.map(record => ({
@@ -357,3 +401,4 @@ export const knowledgeIndex = {
     }
   }
 }
+import { isMarkdownPath } from '@/utils/pathHelpers'

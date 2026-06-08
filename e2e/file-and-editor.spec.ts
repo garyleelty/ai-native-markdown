@@ -123,6 +123,49 @@ test.describe('文件与编辑器主流程', () => {
     await expect(page.locator('.status-bar')).toContainText('行 2')
   })
 
+  test('内容搜索支持正则表达式', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/regex-test.md', 'TODO: fix bug\nDONE: implement feature\nWIP: refactor code')
+    await loadDemoWorkspace(page)
+
+    const searchInput = page.getByPlaceholder('搜索文件...')
+    await searchInput.fill('regex-test')
+    await expect(page.locator('.search-result-card').filter({ hasText: 'regex-test.md' })).toBeVisible()
+
+    // Switch to content search
+    await page.locator('.search-bar button').click()
+    await expect(page.locator('.search-mode-hint')).toHaveText('内容搜索')
+
+    // Use regex search with /pattern/ syntax
+    await searchInput.fill('/TODO|DONE|WIP/')
+    await page.keyboard.press('Enter')
+
+    // Should show regex mode indicator
+    await expect(page.locator('.search-mode-hint')).toHaveText('正则搜索')
+
+    const result = page.locator('.search-result-card').filter({ hasText: 'regex-test.md' })
+    await expect(result).toBeVisible()
+  })
+
+  test('标签自动补全在输入 # 后显示建议', async ({ page }) => {
+    await createWorkspaceFile(page, '/workspace/tag-test.md', '---\ntags: [work, project]\n---\n\n# Tag Test\n\nThis is a work project')
+    await loadDemoWorkspace(page)
+
+    // Open the file
+    await page.locator('.el-tree-node').filter({ hasText: 'tag-test.md' }).click()
+    await expect(page.locator('.cm-content')).toBeVisible()
+
+    // Type a tag trigger
+    const editor = page.locator('.cm-content')
+    await editor.click()
+    await page.keyboard.press('End')
+    await page.keyboard.press('Enter')
+    await page.keyboard.insertText(' #wo')
+
+    // Should show tag completion popup
+    await expect(page.locator('.tag-completion')).toBeVisible()
+    await expect(page.locator('.tag-completion .completion-title').first()).toContainText('#work')
+  })
+
   test('应用级拖拽只按实际导入的 Markdown 文件提示', async ({ page }) => {
     await loadDemoWorkspace(page)
 
@@ -202,19 +245,19 @@ test.describe('文件与编辑器主流程', () => {
       const { useFileOperations } = await import('/src/composables/useFileOperations.ts')
       const resourceUrls = performance.getEntriesByType('resource').map(entry => entry.name)
       const editorStoreModuleUrl = resourceUrls.find(name => name.includes('/src/stores/editor.ts'))
-      const fileSystemModuleUrl = resourceUrls.find(name => name.includes('/src/services/fileSystem.ts'))
-      if (!editorStoreModuleUrl || !fileSystemModuleUrl) throw new Error('runtime module URL not found')
+      const vaultServiceModuleUrl = resourceUrls.find(name => name.includes('/src/services/vault/index.ts'))
+      if (!editorStoreModuleUrl || !vaultServiceModuleUrl) throw new Error('runtime module URL not found')
       const { useEditorStore } = await import(editorStoreModuleUrl)
-      const { fileSystem } = await import(fileSystemModuleUrl)
+      const { vaultService } = await import(vaultServiceModuleUrl)
 
-      const originalReadFile = fileSystem.readFile
+      const originalReadFile = vaultService.readFile
       const pendingReads: Array<{ path: string; resolve: (content: string) => void }> = []
       const selectPromises: Promise<unknown>[] = []
       const editorSetContents: string[] = []
 
-      fileSystem.readFile = ((path: string) => new Promise(resolve => {
+      vaultService.readFile = ((path: string) => new Promise(resolve => {
         pendingReads.push({ path, resolve })
-      })) as typeof fileSystem.readFile
+      })) as typeof vaultService.readFile
 
       const host = document.createElement('div')
       host.id = 'file-operations-select-regression-host'
@@ -256,7 +299,7 @@ test.describe('文件与编辑器主流程', () => {
             cleanup() {
               app.unmount()
               host.remove()
-              fileSystem.readFile = originalReadFile
+              vaultService.readFile = originalReadFile
             },
           }
 

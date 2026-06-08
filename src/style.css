@@ -102,6 +102,16 @@
   /* ── 字体 ── */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', Consolas, monospace;
+
+  /* ── 年轻化渐变色 ── */
+  --gradient-vivid: linear-gradient(135deg, #7f6df2, #f472b6, #fb923c);
+  --gradient-cool: linear-gradient(135deg, #7f6df2, #38bdf8);
+  --gradient-warm: linear-gradient(135deg, #f472b6, #fb923c);
+  --gradient-fresh: linear-gradient(135deg, #34d399, #38bdf8);
+  --accent-pink: #f472b6;
+  --accent-orange: #fb923c;
+  --accent-cyan: #22d3ee;
+  --accent-lime: #a3e635;
 }
 
 :root.light {
@@ -156,6 +166,16 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
   --shadow-glow: 0 0 20px rgba(127, 109, 242, 0.10);
+
+  /* ── 年轻化渐变色 ── */
+  --gradient-vivid: linear-gradient(135deg, #7f6df2, #f472b6, #fb923c);
+  --gradient-cool: linear-gradient(135deg, #7f6df2, #38bdf8);
+  --gradient-warm: linear-gradient(135deg, #f472b6, #fb923c);
+  --gradient-fresh: linear-gradient(135deg, #34d399, #38bdf8);
+  --accent-pink: #ec4899;
+  --accent-orange: #f97316;
+  --accent-cyan: #06b6d4;
+  --accent-lime: #84cc16;
 }
 
 @media (prefers-color-scheme: light) {
@@ -207,6 +227,16 @@
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
     --shadow-glow: 0 0 20px rgba(127, 109, 242, 0.10);
+
+    /* ── 年轻化渐变色 ── */
+    --gradient-vivid: linear-gradient(135deg, #7f6df2, #f472b6, #fb923c);
+    --gradient-cool: linear-gradient(135deg, #7f6df2, #38bdf8);
+    --gradient-warm: linear-gradient(135deg, #f472b6, #fb923c);
+    --gradient-fresh: linear-gradient(135deg, #34d399, #38bdf8);
+    --accent-pink: #ec4899;
+    --accent-orange: #f97316;
+    --accent-cyan: #06b6d4;
+    --accent-lime: #84cc16;
   }
 }
 
@@ -282,6 +312,86 @@ button {
 .mobile-hidden { display: block; }
 .desktop-hidden { display: none; }
 .touch-target { min-height: 44px; min-width: 44px; }
+
+/* ── 动画效果 ── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bounceIn {
+  0% { opacity: 0; transform: scale(0.3); }
+  50% { opacity: 1; transform: scale(1.05); }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.anim-fade-in-up {
+  animation: fadeInUp 0.35s var(--ease-spring) both;
+}
+
+.anim-fade-in-scale {
+  animation: fadeInScale 0.3s var(--ease-spring) both;
+}
+
+.anim-bounce-in {
+  animation: bounceIn 0.5s var(--ease-default) both;
+}
+
+.anim-slide-in-right {
+  animation: slideInRight 0.3s var(--ease-spring) both;
+}
+
+/* 侧边栏面板切换动画 */
+.sidebar-content .panel {
+  animation: fadeInUp 0.2s var(--ease-spring) both;
+}
+
+/* 按钮悬停微动效 */
+.el-button:not(.is-disabled):not(.is-loading):hover {
+  transform: translateY(-1px);
+  transition: transform 0.15s var(--ease-spring), background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.el-button:not(.is-disabled):not(.is-loading):active {
+  transform: translateY(0) scale(0.97);
+}
+
+/* 弹窗弹跳动画 */
+.el-dialog {
+  animation: bounceIn 0.4s var(--ease-default) both !important;
+}
+
+/* 标签切换渐显 */
+.el-tabs__content {
+  animation: fadeInScale 0.2s var(--ease-spring) both;
+}
+
+/* 卡片悬停效果 */
+.feed-item:hover,
+.article-item:hover,
+.discover-item:hover,
+.capability-item:hover,
+.recent-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  transition: transform 0.2s var(--ease-spring), box-shadow 0.2s ease, border-color 0.15s ease;
+}
 
 @media (max-width: 768px) {
   .mobile-hidden { display: none !important; }

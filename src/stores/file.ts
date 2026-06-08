@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { FileItem, TreeNode } from '@/types'
-import { fileSystem, type FileRecord } from '@/services/fileSystem'
+import { vaultService } from '@/services/vault'
+import type { FileRecord } from '@/services/fileSystem'
 
 function recordToFileItem(record: FileRecord): FileItem {
   return {
-    id: String(record.id),
+    id: record.id ? String(record.id) : record.path,
     name: record.name,
     path: record.path,
     parentPath: record.parentPath,
@@ -42,7 +43,7 @@ export const useFileStore = defineStore('file', () => {
   const loadFiles = async (path: string = '/') => {
     loading.value = true
     try {
-      const records = await fileSystem.readDirectory(path)
+      const records = await vaultService.readDirectory(path)
       files.value = records.map(recordToFileItem)
       tree.value = buildTree(files.value, path)
       currentPath.value = path
@@ -52,37 +53,37 @@ export const useFileStore = defineStore('file', () => {
   }
 
   const refreshTree = async () => {
-    const allRecords = await fileSystem.readDirectory(currentPath.value)
+    const allRecords = await vaultService.readDirectory(currentPath.value)
     files.value = allRecords.map(recordToFileItem)
     tree.value = buildTree(files.value, currentPath.value)
   }
 
   const createFile = async (path: string) => {
-    await fileSystem.createFile(path)
+    await vaultService.createFile(path)
     await refreshTree()
   }
 
   const createDirectory = async (path: string) => {
-    await fileSystem.createDirectory(path)
+    await vaultService.createDirectory(path)
     await refreshTree()
   }
 
   const deleteFile = async (path: string) => {
-    await fileSystem.deleteFile(path)
+    await vaultService.deletePath(path)
     await refreshTree()
   }
 
   const renameFile = async (oldPath: string, newPath: string) => {
-    await fileSystem.renameFile(oldPath, newPath)
+    await vaultService.renamePath(oldPath, newPath)
     await refreshTree()
   }
 
   const readFile = async (path: string): Promise<string> => {
-    return fileSystem.readFile(path)
+    return vaultService.readFile(path)
   }
 
   const writeFile = async (path: string, content: string) => {
-    await fileSystem.writeFile(path, content)
+    await vaultService.writeFile(path, content)
     await refreshTree()
   }
 

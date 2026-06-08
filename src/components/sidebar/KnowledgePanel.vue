@@ -493,17 +493,17 @@ defineExpose({ refreshIndex })
   min-width: 40px;
   height: 24px;
   padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--el-color-primary) 34%, transparent);
+  border: 1px solid color-mix(in srgb, var(--obsidian-accent) 34%, transparent);
   border-radius: 5px;
-  background: color-mix(in srgb, var(--el-color-primary) 12%, transparent);
-  color: var(--el-color-primary);
+  background: color-mix(in srgb, var(--obsidian-accent) 12%, transparent);
+  color: var(--obsidian-accent);
   font-size: 11px;
   font-weight: 650;
   cursor: pointer;
 }
 
 .panel :deep(.reference-action:hover) {
-  background: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+  background: color-mix(in srgb, var(--obsidian-accent) 20%, transparent);
 }
 
 .panel :deep(.reference-title) {
@@ -527,8 +527,8 @@ defineExpose({ refreshIndex })
   flex: 0 0 auto;
   padding: 1px 5px;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--el-color-primary) 16%, transparent);
-  color: var(--el-color-primary);
+  background: color-mix(in srgb, var(--obsidian-accent) 16%, transparent);
+  color: var(--obsidian-accent);
   font-size: 10px;
   font-weight: 650;
   line-height: 1.4;

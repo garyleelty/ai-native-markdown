@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
 import { onScopeDispose, ref, watch } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import type { AIConfig, ThemeMode, SidebarTab, GhostTextConfig } from '@/types'
-import { obfuscateValue, safeStorage } from '@/utils/security'
+import { encryptValue, safeStorage, decryptValue } from '@/utils/security'
 
-const sidebarTabs: SidebarTab[] = ['files', 'graph', 'ai', 'outline', 'settings']
+const sidebarTabs: SidebarTab[] = ['files', 'graph', 'rss', 'ai', 'outline', 'settings']
 
 const defaultAIConfig: AIConfig = {
   provider: 'ollama',
@@ -37,12 +38,15 @@ function loadEncryptedConfig(key: string, defaultValue: AIConfig): AIConfig {
   try {
     const parsed = safeStorage.get<AIConfig | null>(key, null)
     if (!parsed) return defaultValue
+    // v2 encrypted keys (enc:v2:) require async decryption;
+    // return as-is and let migrateEncryptedConfig handle them
     if (parsed.apiKey && parsed.apiKey.startsWith('enc:v2:')) {
-      // v2 async decryption will be handled by migrateEncryptedConfig
       return parsed
     }
-    if (parsed.apiKey) {
-      parsed.apiKey = legacyDeobfuscateV1(parsed.apiKey)
+    // v1 keys use legacy XOR which is synchronous via the fallback path
+    // but decryptValue is async, so we handle v1 sync decode inline
+    if (parsed.apiKey && parsed.apiKey.startsWith('enc:v1:')) {
+      parsed.apiKey = legacyDeobfuscateV1Sync(parsed.apiKey)
     }
     return parsed
   } catch {
@@ -50,11 +54,15 @@ function loadEncryptedConfig(key: string, defaultValue: AIConfig): AIConfig {
   }
 }
 
-function legacyDeobfuscateV1(ciphertext: string): string {
-  if (!ciphertext || !ciphertext.startsWith('enc:v1:')) return ciphertext
+// Synchronous v1 XOR deobfuscation for backward compatibility
+// Mirrors the logic in security.ts legacyDeobfuscateV1
+const V1_PREFIX = 'enc:v1:'
+const V1_CRYPTO_KEY = 'ai-native-md-obf-2024'
+
+function legacyDeobfuscateV1Sync(ciphertext: string): string {
+  if (!ciphertext.startsWith(V1_PREFIX)) return ciphertext
   try {
-    const V1_CRYPTO_KEY = 'ai-native-md-obf-2024'
-    const decoded = atob(ciphertext.slice('enc:v1:'.length))
+    const decoded = atob(ciphertext.slice(V1_PREFIX.length))
     let result = ''
     for (let i = 0; i < decoded.length; i++) {
       result += String.fromCharCode(decoded.charCodeAt(i) ^ V1_CRYPTO_KEY.charCodeAt(i % V1_CRYPTO_KEY.length))
@@ -65,6 +73,7 @@ function legacyDeobfuscateV1(ciphertext: string): string {
   }
 }
 
+
 async function saveEncryptedConfig(key: string, value: AIConfig): Promise<void> {
   try {
     const toStore = { ...value }
@@ -72,7 +81,7 @@ async function saveEncryptedConfig(key: string, value: AIConfig): Promise<void> 
       // Write non-encrypted fields synchronously first so they're immediately available,
       // then update with encrypted apiKey asynchronously
       safeStorage.set(key, { ...toStore, apiKey: '' })
-      toStore.apiKey = await obfuscateValue(toStore.apiKey)
+      toStore.apiKey = await encryptValue(toStore.apiKey)
     }
     safeStorage.set(key, toStore)
   } catch {
@@ -192,19 +201,24 @@ export const useSettingsStore = defineStore('settings', () => {
     aiPanelHeight.value = height
   }
 
-  // Unified persistence via watchers — no duplicate writes
+  // Unified persistence via watchers with debounced writes for rapid-fire settings
+  const debouncedSaveWidth = useDebounceFn((val: number) => { saveToStorage('sidebar_width', val) }, 200)
+  const debouncedSaveHeight = useDebounceFn((val: number) => { saveToStorage('ai_panel_height', val) }, 200)
+  const debouncedSaveGhost = useDebounceFn((val: GhostTextConfig) => { saveToStorage('ghost_text_config', val) }, 300)
+  const debouncedSaveAI = useDebounceFn((val: AIConfig) => { saveEncryptedConfig('ai_config', val) }, 300)
+
   watch(theme, (val) => { saveToStorage('theme', val) })
-  watch(aiConfig, (val) => { saveEncryptedConfig('ai_config', val) }, { deep: true })
+  watch(aiConfig, (val) => { debouncedSaveAI(val) }, { deep: true })
   watch(showSidebar, (val) => { saveToStorage('show_sidebar', val) })
   watch(showAIPanel, (val) => { saveToStorage('show_ai_panel', val) })
   watch(enableRAG, (val) => { saveToStorage('enable_rag', val) })
   watch(enableAIActions, (val) => { saveToStorage('enable_ai_actions', val) })
   watch(enableSmartPaste, (val) => { saveToStorage('enable_smart_paste', val) })
-  watch(ghostTextConfig, (val) => { saveToStorage('ghost_text_config', val) }, { deep: true })
+  watch(ghostTextConfig, (val) => { debouncedSaveGhost(val) }, { deep: true })
   watch(enableInlineEdit, (val) => { saveToStorage('enable_inline_edit', val) })
   watch(activeSidebarTab, (val) => { saveToStorage('active_sidebar_tab', val) })
-  watch(sidebarWidth, (val) => { saveToStorage('sidebar_width', val) })
-  watch(aiPanelHeight, (val) => { saveToStorage('ai_panel_height', val) })
+  watch(sidebarWidth, (val) => { debouncedSaveWidth(val) })
+  watch(aiPanelHeight, (val) => { debouncedSaveHeight(val) })
   watch(livePreview, (val) => { saveToStorage('live_preview', val) })
 
   applyTheme()

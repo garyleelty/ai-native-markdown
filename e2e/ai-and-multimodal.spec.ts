@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { loadDemoWorkspace, openFirstMarkdownFile, resetBrowserState, runCommand, setEditorContent } from './helpers'
+import { createWorkspaceFile, loadDemoWorkspace, openFirstMarkdownFile, resetBrowserState, runCommand, setEditorContent } from './helpers'
 
 async function persistSettingsAndReload(page: Page, settings: Record<string, unknown>) {
   await page.evaluate((nextSettings) => {
@@ -479,6 +479,102 @@ test.describe('AI 与多模态回归', () => {
     expect(history).toEqual([])
   })
 
+  test('AI RAG 来源 chip 可以打开来源笔记', async ({ page }) => {
+    const sourcePath = '/workspace/AI Source Open.md'
+    await createWorkspaceFile(page, sourcePath, [
+      '# AI Source Open',
+      '',
+      'Intro line before source.',
+      'Source body for RAG chip navigation.',
+    ].join('\n'))
+    await page.evaluate((sourcePath) => {
+      localStorage.setItem('ai_chat_history', JSON.stringify([{
+        id: 'rag-source-message',
+        role: 'assistant',
+        content: 'answer with source',
+        timestamp: Date.now(),
+        ragSources: [{
+          id: 'S1',
+          filePath: sourcePath,
+          chunkIndex: 0,
+          lineStart: 4,
+          lineEnd: 4,
+          excerpt: 'Preview excerpt for chip source.',
+          relevance: 9.5,
+        }, {
+          id: 'S2',
+          filePath: sourcePath,
+          chunkIndex: 1,
+          lineStart: 4,
+          lineEnd: 4,
+          relevance: 1.5,
+        }],
+      }]))
+    }, sourcePath)
+
+    await loadDemoWorkspace(page)
+    await page.getByRole('button', { name: 'AI 助手' }).click()
+
+    const sourceButton = page.getByRole('button', { name: '打开 RAG 来源 S1 AI Source Open.md#1:L4' })
+    const legacySourceButton = page.getByRole('button', { name: '打开 RAG 来源 S2 AI Source Open.md#2:L4' })
+    await expect(sourceButton).toBeVisible()
+    await legacySourceButton.hover()
+    await expect(page.getByLabel('RAG 来源预览')).toContainText('该历史来源没有保存预览文本')
+    await sourceButton.hover()
+    await expect(page.getByLabel('RAG 来源预览')).toContainText('Preview excerpt for chip source.')
+    await expect(page.getByLabel('RAG 来源预览')).toContainText('/workspace/AI Source Open.md#chunk-1 L4')
+    await sourceButton.click()
+
+    await expect(page.locator('.tabs-bar')).toContainText('AI Source Open.md')
+    await expect(page.locator('.cm-content')).toContainText('Source body for RAG chip navigation.')
+    await expect(page.locator('.status-bar')).toContainText('行 4')
+  })
+
+  test('AI RAG 正文引用可以打开来源行且不会改写未知或代码引用', async ({ page }) => {
+    const sourcePath = '/workspace/AI Citation Source.md'
+    await createWorkspaceFile(page, sourcePath, [
+      '# AI Citation Source',
+      '',
+      'Intro line before citation source.',
+      'Citation body for inline RAG source navigation.',
+    ].join('\n'))
+    await page.evaluate((sourcePath) => {
+      localStorage.setItem('ai_chat_history', JSON.stringify([{
+        id: 'rag-citation-message',
+        role: 'assistant',
+        content: 'Answer cites [S1] and leaves unknown [S9]. Inline code `[S1]` stays code.',
+        timestamp: Date.now(),
+        ragSources: [{
+          id: 'S1',
+          filePath: sourcePath,
+          chunkIndex: 0,
+          lineStart: 4,
+          lineEnd: 4,
+          excerpt: 'Preview excerpt for inline citation source.',
+          relevance: 8.5,
+        }],
+      }]))
+    }, sourcePath)
+
+    await loadDemoWorkspace(page)
+    await page.getByRole('button', { name: 'AI 助手' }).click()
+
+    const message = page.locator('.chat-message.assistant').filter({ hasText: 'Answer cites' })
+    const citations = message.locator('.message-text .source-citation')
+    await expect(citations).toHaveCount(1)
+    await expect(citations.first()).toContainText('[S1]')
+    await expect(message.locator('.message-text')).toContainText('[S9]')
+    await expect(message.locator('.message-text code')).toContainText('[S1]')
+    await citations.first().hover()
+    await expect(message.getByLabel('RAG 来源预览')).toContainText('Preview excerpt for inline citation source.')
+    await expect(message.getByLabel('RAG 来源预览')).toContainText('/workspace/AI Citation Source.md#chunk-1 L4')
+
+    await citations.first().click()
+    await expect(page.locator('.tabs-bar')).toContainText('AI Citation Source.md')
+    await expect(page.locator('.cm-content')).toContainText('Citation body for inline RAG source navigation.')
+    await expect(page.locator('.status-bar')).toContainText('行 4')
+  })
+
   test('命令面板可以测试当前 AI 连接', async ({ page }) => {
     let modelsRequested = false
     await page.route('https://command-ai.test/v1/models', async (route) => {
@@ -542,24 +638,142 @@ test.describe('AI 与多模态回归', () => {
     await page.locator('.chat-input-area textarea').fill(`解释 ${tailToken}`)
     await page.getByRole('button', { name: '发送' }).click()
     await expect(page.locator('.message-text').filter({ hasText: 'rag answer' })).toBeVisible()
+    const sourcePanel = page.locator('.message-sources').first()
+    await expect(sourcePanel).toContainText('来源')
+    await expect(sourcePanel.locator('.source-chip').first()).toContainText('S1')
 
     const systemPrompt = requestBody.messages[0].content
     expect(systemPrompt).toContain('以下是相关的文档上下文')
+    expect(systemPrompt).toContain('来源编号用于回答引用')
+    expect(systemPrompt).toContain('请在相关句子后标注来源编号')
     expect(systemPrompt).toContain(tailToken)
     expect(systemPrompt).toContain('[/workspace/')
+    expect(systemPrompt).toMatch(/\[S1\] \[\/workspace\/.+#chunk-\d+\]/)
+    expect(systemPrompt).toMatch(/\[S1\] \[\/workspace\/.+#chunk-\d+\] lines L\d+/)
+    await expect.poll(() => page.evaluate(() => {
+      const history = JSON.parse(localStorage.getItem('ai_chat_history') || '[]')
+      const assistant = history.find((message: any) => message.role === 'assistant' && Array.isArray(message.ragSources))
+      return assistant?.ragSources?.[0]?.id || ''
+    })).toBe('S1')
+    await expect.poll(() => page.evaluate(() => {
+      const history = JSON.parse(localStorage.getItem('ai_chat_history') || '[]')
+      const assistant = history.find((message: any) => message.role === 'assistant' && Array.isArray(message.ragSources))
+      return assistant?.ragSources?.[0]?.lineStart || 0
+    })).toBeGreaterThan(0)
+    await expect.poll(() => page.evaluate(() => {
+      const history = JSON.parse(localStorage.getItem('ai_chat_history') || '[]')
+      const assistant = history.find((message: any) => message.role === 'assistant' && Array.isArray(message.ragSources))
+      return assistant?.ragSources?.[0]?.excerpt?.length || 0
+    })).toBeGreaterThan(0)
   })
 
   test('RAG 搜索会命中文件名和路径里的项目关键词', async ({ page }) => {
-    const projectToken = `rag-title-${Date.now()}`
+    const titleToken = `rag-title-${Date.now()}`
+    const pathToken = `rag-path-${Date.now()}`
+    const result = await page.evaluate(async ({ titleToken, pathToken }) => {
+      const { ragService } = await import('/src/services/rag.ts')
+      const titlePath = `/workspace/projects/${titleToken}-roadmap.md`
+      const pathOnlyPath = `/workspace/projects/${pathToken}/roadmap.md`
+
+      await ragService.indexDocument(titlePath, 'Launch milestones and owner notes without the project token in body.')
+      await ragService.indexDocument(pathOnlyPath, 'Launch milestones and owner notes without the project token in title or body.')
+
+      return {
+        titleResults: await ragService.search(titleToken, 5),
+        pathResults: await ragService.search(pathToken, 5),
+      }
+    }, { titleToken, pathToken })
+
+    expect(result.titleResults[0]?.filePath).toContain(titleToken)
+    expect(result.titleResults[0]?.relevance).toBeGreaterThan(0)
+    expect(result.pathResults[0]?.filePath).toContain(pathToken)
+    expect(result.pathResults[0]?.relevance).toBeGreaterThan(0)
+  })
+
+  test('RAG 上下文优先覆盖不同相关文档', async ({ page }) => {
+    const token = `rag-diverse-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const result = await page.evaluate(async (token) => {
       const { ragService } = await import('/src/services/rag.ts')
-      const targetPath = `/workspace/projects/${token}-roadmap.md`
-      await ragService.indexDocument(targetPath, 'Launch milestones and owner notes without the project token in body.')
-      return ragService.search(token, 5)
-    }, projectToken)
+      const dominantPath = `/workspace/rag/${token}-dominant.md`
+      const siblingPath = `/workspace/rag/${token}-sibling.md`
+      const dominantBody = Array.from({ length: 14 }, (_, index) => (
+        `## Dominant section ${index}\n${`${token} repeated dominant evidence ${index}. `.repeat(24)}`
+      )).join('\n\n')
 
-    expect(result[0]?.filePath).toContain(projectToken)
-    expect(result[0]?.relevance).toBeGreaterThan(0)
+      await ragService.indexDocument(dominantPath, `# Dominant ${token}\n\n${dominantBody}`)
+      await ragService.indexDocument(siblingPath, `# Sibling ${token}\n\n${token} sibling decision summary.`)
+
+      const diversified = await ragService.searchDiversified(token, 3, 1)
+      const contextBundle = await ragService.buildContextWithSources(token, 3000)
+
+      return {
+        paths: diversified.map(result => result.filePath),
+        context: contextBundle.context,
+        sources: contextBundle.sources,
+        dominantPath,
+        siblingPath,
+      }
+    }, token)
+
+    expect(new Set(result.paths).size).toBeGreaterThan(1)
+    expect(result.paths).toContain(result.dominantPath)
+    expect(result.paths).toContain(result.siblingPath)
+    expect(result.context).toContain(`[${result.dominantPath}#chunk-`)
+    expect(result.context).toContain(`[${result.siblingPath}#chunk-`)
+    expect(result.context).toMatch(/\[S\d+\] \[.+#chunk-\d+\] lines L\d+/)
+    expect(result.sources.length).toBeGreaterThan(1)
+    expect(result.sources[0].id).toBe('S1')
+    for (const source of result.sources) {
+      expect(source.id).toMatch(/^S\d+$/)
+      expect(source.lineStart).toBeGreaterThan(0)
+      expect(source.excerpt.length).toBeGreaterThan(0)
+      expect(result.context).toContain(`[${source.id}] [${source.filePath}#chunk-${source.chunkIndex + 1}]`)
+    }
+  })
+
+  test('RAG 上下文会补充命中文档的知识图谱邻域', async ({ page }) => {
+    const token = `rag-graph-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const result = await page.evaluate(async (token) => {
+      const { ragService } = await import('/src/services/rag.ts')
+      const { knowledgeIndex } = await import('/src/services/knowledgeIndex.ts')
+      const sourceTitle = `Graph Source ${token}`
+      const neighborTitle = `Graph Neighbor ${token}`
+      const backlinkTitle = `Graph Backlink ${token}`
+      const sourcePath = `/workspace/rag/${token}-source.md`
+      const neighborPath = `/workspace/rag/${token}-neighbor.md`
+      const backlinkPath = `/workspace/rag/${token}-backlink.md`
+      const sourceContent = [
+        '---',
+        `title: ${sourceTitle}`,
+        'tags: [graphrag]',
+        '---',
+        '',
+        `# ${sourceTitle}`,
+        '',
+        `${token} decision anchor for retrieval.`,
+        `Link to [[${neighborTitle}]].`,
+      ].join('\n')
+      const neighborContent = `# ${neighborTitle}\n\nNeighbor context that should travel through the graph.`
+      const backlinkContent = `# ${backlinkTitle}\n\nBacklink note points to [[${sourceTitle}]].`
+
+      await ragService.indexDocument(sourcePath, sourceContent)
+      await knowledgeIndex.indexFile(sourcePath, sourceContent, { silent: true })
+      await knowledgeIndex.indexFile(neighborPath, neighborContent, { silent: true })
+      await knowledgeIndex.indexFile(backlinkPath, backlinkContent, { silent: true })
+      const graphRecords = await knowledgeIndex.getAll()
+
+      return ragService.buildContextWithSources(token, 3000, {
+        includeGraphContext: true,
+        graphNeighborLimit: 2,
+        graphRecords,
+      })
+    }, token)
+
+    expect(result.context).toContain('相关知识图谱')
+    expect(result.context).toContain('- 标签: #graphrag')
+    expect(result.context).toContain(`Graph Neighbor ${token}`)
+    expect(result.context).toContain(`Graph Backlink ${token}`)
+    expect(result.sources[0]?.filePath).toContain(`${token}-source.md`)
   })
 
   test('AI 请求失败时显示错误消息且历史不会超过上限', async ({ page }) => {

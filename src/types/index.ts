@@ -50,11 +50,34 @@ export interface ChatMessage {
   content: string
 }
 
+export interface AIRAGSource {
+  id: string
+  filePath: string
+  chunkIndex: number
+  lineStart?: number
+  lineEnd?: number
+  excerpt?: string
+  relevance: number
+}
+
+export interface ToolCallDisplay {
+  tool: string
+  params: Record<string, unknown>
+  result: {
+    success: boolean
+    display?: string
+    error?: string
+  }
+  timestamp: number
+}
+
 export interface AIMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: number
+  ragSources?: AIRAGSource[]
+  toolCalls?: ToolCallDisplay[]
 }
 
 export interface Workspace {
@@ -64,9 +87,9 @@ export interface Workspace {
   lastOpened: number
 }
 
-export type ViewMode = 'source' | 'preview' | 'split'
+export type ViewMode = 'source' | 'live-preview' | 'preview'
 export type ThemeMode = 'dark' | 'light' | 'system'
-export type SidebarTab = 'files' | 'graph' | 'ai' | 'outline' | 'settings'
+export type SidebarTab = 'files' | 'graph' | 'ai' | 'outline' | 'settings' | 'rss'
 
 export interface GraphNode {
   id: string
@@ -104,4 +127,52 @@ export interface KnowledgeGraphData {
     orphanCount: number
     avgLinkCount: number
   }
+}
+
+// RSS 相关类型定义
+export interface RSSFeed {
+  id: string
+  url: string
+  title: string
+  description: string
+  siteUrl: string
+  lastFetchedAt?: number
+  fetchIntervalMinutes: number
+  autoImport: boolean
+  importPath: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface RSSArticle {
+  id: string
+  feedId: string
+  guid: string
+  title: string
+  link: string
+  pubDate: number
+  author?: string
+  description: string
+  content: string
+  categories: string[]
+  imageUrl?: string
+  isImported: boolean
+  importedPath?: string
+  importedAt?: number
+  createdAt: number
+}
+
+export interface RSSImportOptions {
+  chunkSize: number // 分块大小（字数）
+  includeImages: boolean
+  includeLinks: boolean
+  template: string // 文档模板
+}
+
+export interface RSSFetchResult {
+  articles: RSSArticle[]
+  newArticles: number
+  updatedArticles: number
+  skippedArticles: number
+  error?: string
 }

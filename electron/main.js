@@ -1,5 +1,6 @@
 const { app, BrowserWindow } = require('electron')
 const path = require('path')
+const { registerVaultHandlers } = require('./vaultHandlers')
 require('./menu')
 
 const isDev = !app.isPackaged
@@ -14,6 +15,7 @@ function createWindow() {
     center: true,
     title: 'AI Native Markdown',
     webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -22,6 +24,7 @@ function createWindow() {
     },
   })
 
+  registerVaultHandlers(win)
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
   if (isDev) {

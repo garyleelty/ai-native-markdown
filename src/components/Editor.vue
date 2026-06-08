@@ -81,11 +81,11 @@
 
         <el-divider direction="vertical" />
 
-        <el-tooltip content="实时预览" placement="bottom">
+        <el-tooltip :content="props.livePreview ? '源码模式' : '实时预览'" placement="bottom">
           <el-button
-            :type="settingsStore.livePreview ? 'primary' : 'default'"
+            :type="props.livePreview ? 'primary' : 'default'"
             native-type="button"
-            :icon="View"
+            :icon="props.livePreview ? View : EditPen"
             aria-label="实时预览"
             @click="toggleLivePreview"
           />
@@ -151,6 +151,31 @@
       </template>
       <div v-else class="completion-empty">{{ completionEmptyText }}</div>
     </div>
+    <div
+      v-if="tagCompletionContext"
+      class="wiki-link-completion tag-completion"
+      role="listbox"
+      aria-label="标签建议"
+    >
+      <div class="completion-header">标签建议</div>
+      <template v-if="tagSuggestions.length > 0">
+        <button
+          v-for="(suggestion, index) in tagSuggestions"
+          :key="suggestion.tag"
+          class="completion-item"
+          :class="{ selected: index === tagSelectedIndex }"
+          type="button"
+          role="option"
+          :aria-selected="index === tagSelectedIndex"
+          @mouseenter="tagSelectedIndex = index"
+          @mousedown.prevent="applyTagSuggestion(suggestion)"
+        >
+          <span class="completion-title">#{{ suggestion.tag }}</span>
+          <span class="completion-path">{{ suggestion.count }} 篇笔记</span>
+        </button>
+      </template>
+      <div v-else class="completion-empty">没有匹配标签</div>
+    </div>
   </div>
 </template>
 
@@ -160,6 +185,7 @@ import { EditorView, keymap, placeholder } from '@codemirror/view'
 import { EditorState, Compartment } from '@codemirror/state'
 import { markdown } from '@codemirror/lang-markdown'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { getObsidianSyntaxHighlighting } from '@/extensions/obsidianTheme'
 import { basicSetup } from 'codemirror'
 import { indentWithTab } from '@codemirror/commands'
 import { useSettingsStore } from '@/stores/settings'
@@ -168,10 +194,14 @@ import { inlineEditPlugin, inlineEditKeymap } from '@/extensions/inline-edit/inl
 import { dropHandlerExtension } from '@/extensions/multimodal/dropHandler'
 import { aiActionPlugin, aiActionKeymap } from '@/extensions/ai-actions/aiActionPlugin'
 import '@/extensions/ai-actions/styles.css'
-import { livePreviewPlugin } from '@/extensions/live-preview/livePreviewPlugin'
+import { createLivePreviewPlugin } from '@/extensions/live-preview/livePreviewPlugin'
 import '@/extensions/live-preview/styles.css'
 import { smartPasteExtension } from '@/extensions/smart-paste/pasteHandler'
+import { slashCommandExtension } from '@/extensions/slash-command/slashCommandPlugin'
+import '@/extensions/slash-command/styles.css'
+import { embedSyncService } from '@/services/embedSyncService'
 import { useWikiLinkCompletion } from '@/composables/useWikiLinkCompletion'
+import { useTagCompletion } from '@/composables/useTagCompletion'
 import { useFindReplace } from '@/composables/useFindReplace'
 import FindReplace from './editor/FindReplace.vue'
 import VoiceInputButton from '@/components/ui/VoiceInputButton.vue'
@@ -194,12 +224,16 @@ interface Props {
   markdownPaths?: string[]
   currentFile?: string
   readMarkdownFile?: (path: string) => Promise<string>
+  embedRefreshKey?: number
+  livePreview?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
   markdownPaths: () => [],
-  currentFile: ''
+  currentFile: '',
+  embedRefreshKey: 0,
+  livePreview: false,
 })
 
 const emit = defineEmits<{
@@ -207,6 +241,8 @@ const emit = defineEmits<{
   update: [content: string]
   'cursor-change': [line: number]
   'selection-change': [text: string]
+  'embed-navigate': [target: string]
+  'toggle-live-preview': []
 }>()
 
 const settingsStore = useSettingsStore()
@@ -220,6 +256,7 @@ const livePreviewCompartment = new Compartment()
 const ghostTextCompartment = new Compartment()
 const inlineEditCompartment = new Compartment()
 const themeCompartment = new Compartment()
+const syntaxHighlightCompartment = new Compartment()
 const lineWrappingCompartment = new Compartment()
 const smartPasteCompartment = new Compartment()
 let ignoreNextUpdate = false
@@ -228,6 +265,22 @@ const wordWrap = ref(true)
 
 const aiActionCompartment = new Compartment()
 const activeHeadingFrom = ref(-1)
+
+const createLivePreviewExtensions = () => [
+  createLivePreviewPlugin({
+    currentFile: () => props.currentFile,
+    onEmbedNavigate: (target) => emit('embed-navigate', target),
+    dependencyOwnerId: () => props.currentFile ? `editor:${props.currentFile}` : '',
+    embedRefreshKey: () => props.embedRefreshKey,
+  })
+]
+
+function refreshLivePreviewEmbeds(): void {
+  if (!editorView.value || !settingsStore.livePreview) return
+  editorView.value.dispatch({
+    effects: livePreviewCompartment.reconfigure(createLivePreviewExtensions())
+  })
+}
 
 const {
   completionContext,
@@ -244,6 +297,20 @@ const {
   markdownPaths: () => props.markdownPaths,
   currentFile: () => props.currentFile,
   readMarkdownFile: props.readMarkdownFile,
+})
+
+const {
+  completionContext: tagCompletionContext,
+  selectedCompletionIndex: tagSelectedIndex,
+  tagSuggestions,
+  tagCompletionKeymap,
+  refreshTagCompletion,
+  closeTagCompletion,
+  handleTagCompletionKeydown,
+  applyTagSuggestion,
+  unsubscribe: unsubscribeTagCompletion,
+} = useTagCompletion({
+  editorView: () => editorView.value,
 })
 
 const {
@@ -264,12 +331,15 @@ const createEditor = () => {
       basicSetup,
       markdown(),
       themeCompartment.of(oneDark),
+      syntaxHighlightCompartment.of(getObsidianSyntaxHighlighting(settingsStore.isDark())),
       wikiLinkCompletionKeymap,
+      tagCompletionKeymap,
       keymap.of([indentWithTab]),
       readOnlyCompartment.of(EditorState.readOnly.of(false)),
-      livePreviewCompartment.of(settingsStore.livePreview ? [livePreviewPlugin] : []),
+      livePreviewCompartment.of(props.livePreview ? createLivePreviewExtensions() : []),
       aiActionCompartment.of(settingsStore.enableAIActions ? [aiActionPlugin, aiActionKeymap] : []),
       smartPasteCompartment.of(settingsStore.enableSmartPaste ? [smartPasteExtension] : []),
+      slashCommandExtension,
       ghostTextCompartment.of(settingsStore.ghostTextConfig.enabled ? [ghostTextPlugin, ghostTextKeymap] : []),
       inlineEditCompartment.of(settingsStore.enableInlineEdit ? [inlineEditPlugin, inlineEditKeymap] : []),
       dropHandlerExtension,
@@ -292,11 +362,14 @@ const createEditor = () => {
         }
         if (update.selectionSet || update.docChanged) {
           refreshWikiLinkCompletion(update.view)
+          refreshTagCompletion(update.view)
         }
       }),
       EditorView.domEventHandlers({
         keydown(event, view) {
-          return handleWikiLinkCompletionKeydown(event, view)
+          if (handleWikiLinkCompletionKeydown(event, view)) return true
+          if (handleTagCompletionKeydown(event, view)) return true
+          return false
         },
         scroll(_event, view) {
           const scroller = view.scrollDOM
@@ -360,10 +433,32 @@ watch(() => props.modelValue, (newValue) => {
   }
 })
 
+watch(() => props.currentFile, (_currentFile, previousFile) => {
+  if (previousFile) embedSyncService.clearOwnerDependencies(`editor:${previousFile}`)
+  refreshLivePreviewEmbeds()
+})
+
+watch(() => props.embedRefreshKey, () => {
+  refreshLivePreviewEmbeds()
+})
+
+watch(() => props.livePreview, (enabled) => {
+  if (editorView.value) {
+    editorView.value.dispatch({
+      effects: livePreviewCompartment.reconfigure(
+        enabled ? createLivePreviewExtensions() : []
+      )
+    })
+  }
+})
+
 watch(() => settingsStore.isDark(), (isDark) => {
   if (editorView.value) {
     editorView.value.dispatch({
-      effects: themeCompartment.reconfigure(isDark ? oneDark : [])
+      effects: [
+        themeCompartment.reconfigure(isDark ? oneDark : []),
+        syntaxHighlightCompartment.reconfigure(getObsidianSyntaxHighlighting(isDark)),
+      ]
     })
   }
 })
@@ -507,13 +602,7 @@ const getSelectedText = (): string => {
 }
 
 const toggleLivePreview = () => {
-  settingsStore.toggleLivePreview()
-  if (!editorView.value) return
-  editorView.value.dispatch({
-    effects: livePreviewCompartment.reconfigure(
-      settingsStore.livePreview ? [livePreviewPlugin] : []
-    )
-  })
+  emit('toggle-live-preview')
 }
 
 const toggleWordWrap = () => {
@@ -556,9 +645,10 @@ defineExpose({
 onMounted(() => {
   createEditor()
   const handleEditorKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && completionContext.value) {
+    if (e.key === 'Escape' && (completionContext.value || tagCompletionContext.value)) {
       e.preventDefault()
-      closeWikiLinkCompletion()
+      if (completionContext.value) closeWikiLinkCompletion()
+      if (tagCompletionContext.value) closeTagCompletion()
       return
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
@@ -580,6 +670,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (props.currentFile) embedSyncService.clearOwnerDependencies(`editor:${props.currentFile}`)
+  unsubscribeTagCompletion()
   if (editorView.value) {
     editorView.value.destroy()
   }

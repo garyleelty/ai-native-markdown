@@ -11,6 +11,9 @@
       <el-menu-item index="graph" aria-label="知识图谱">
         <el-icon><Share /></el-icon>
       </el-menu-item>
+      <el-menu-item index="rss" aria-label="RSS 订阅">
+        <el-icon><Document /></el-icon>
+      </el-menu-item>
       <el-menu-item index="ai" aria-label="AI 配置">
         <el-icon><MagicStick /></el-icon>
       </el-menu-item>
@@ -43,6 +46,10 @@
           @wiki-navigate="target => emit('wiki-navigate', target)"
           @link-mention="payload => emit('link-mention', payload)"
         />
+        <RSSPanel
+          v-else-if="activeTab === 'rss'"
+          @select="(path: string) => emit('select', path)"
+        />
         <AIConfigPanel v-else-if="activeTab === 'ai'" />
         <SettingsPanel
           v-else-if="activeTab === 'settings'"
@@ -64,9 +71,10 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
-import { Folder, Share, MagicStick, Setting, List } from '@element-plus/icons-vue'
+import { Folder, Share, MagicStick, Setting, List, Document } from '@element-plus/icons-vue'
 import FileExplorer from './sidebar/FileExplorer.vue'
 import KnowledgePanel from './sidebar/KnowledgePanel.vue'
+import RSSPanel from './sidebar/RSSPanel.vue'
 import AIConfigPanel from './sidebar/AIConfigPanel.vue'
 import SettingsPanel from './sidebar/SettingsPanel.vue'
 import OutlinePanel from './editor/OutlinePanel.vue'
@@ -96,7 +104,7 @@ const emit = defineEmits<{
   (e: 'deleted', payload: { path: string; isDirectory: boolean }): void
 }>()
 
-const sidebarTabs = new Set<SidebarTab>(['files', 'graph', 'ai', 'outline', 'settings'])
+const sidebarTabs = new Set<SidebarTab>(['files', 'graph', 'rss', 'ai', 'outline', 'settings'])
 const settingsStore = useSettingsStore()
 const activeTab = computed(() => settingsStore.activeSidebarTab)
 const rootPath = ref('')
@@ -162,6 +170,12 @@ const focusFileSearch = async (mode: 'name' | 'content', query = '') => {
   await explorer?.focusSearch?.(mode, query)
 }
 
+const refreshTree = async () => {
+  openTab('files')
+  const explorer = await waitForFileExplorer()
+  await explorer?.refreshTree?.()
+}
+
 const handleCreateFile = () => fileExplorerRef.value?.handleCreateFile?.()
 const handleCreateFolder = () => fileExplorerRef.value?.handleCreateFolder?.()
 const openFolder = () => fileExplorerRef.value?.openFolder?.()
@@ -175,6 +189,7 @@ defineExpose({
   openFolder,
   initDemoWorkspace,
   openTab,
+  refreshTree,
   refreshKnowledgeIndex,
   focusFileSearch,
 })
@@ -203,17 +218,22 @@ defineExpose({
   width: 44px;
   color: var(--obsidian-text-muted, #999) !important;
   background: transparent !important;
-  transition: color 0.15s ease;
+  border-radius: 8px;
+  margin: 2px 4px;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.15s var(--ease-spring);
 }
 
 .sidebar-nav .el-menu-item:hover {
   color: var(--obsidian-text-normal, #dcddde) !important;
   background: var(--obsidian-bg-hover, #303030) !important;
+  transform: scale(1.05);
+  transition: color 0.15s ease, background 0.15s ease, transform 0.15s var(--ease-spring);
 }
 
 .sidebar-nav .el-menu-item.is-active {
-  color: var(--obsidian-accent, #7f6df2) !important;
-  background: var(--obsidian-accent-soft, rgba(127, 109, 242, 0.15)) !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, var(--obsidian-accent), #a78bfa) !important;
+  position: relative;
 }
 
 .sidebar-nav .el-menu-item .el-icon {

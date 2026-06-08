@@ -34,6 +34,7 @@ function combineAbortSignals(signals: AbortSignal[]): { signal: AbortSignal; cle
   for (const signal of availableSignals) {
     if (signal.aborted) {
       abort()
+      cleanup()
       break
     }
     signal.addEventListener('abort', abort, { once: true })
@@ -71,6 +72,7 @@ export interface AIOptions {
   maxTokens?: number
   model?: string
   signal?: AbortSignal
+  tools?: any[]
 }
 
 type ProviderStatusListener = (id: string, status: AIProvider['status'], error?: string) => void
@@ -294,6 +296,73 @@ export class FetchAIProvider implements AIProvider {
       if (e.name === 'AbortError') {
         this.status = 'idle'
         return
+      }
+      this.status = 'error'
+      this.lastError = e?.message || String(e)
+      throw new Error(this.lastError)
+    } finally {
+      requestSignal.cleanup()
+    }
+  }
+
+  async chatWithTools(messages: ChatMessage[], options?: AIOptions): Promise<{
+    content?: string
+    toolCalls?: Array<{
+      id: string
+      type: string
+      function: { name: string; arguments: string }
+    }>
+  }> {
+    const requestSignal = createRequestSignal(60000, options?.signal)
+    try {
+      this.status = 'connecting'
+      let result: { content?: string; toolCalls?: any[] } = {}
+      if (this.providerType === 'ollama') {
+        const resp = await fetch(`${this.baseURL}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: options?.model || this.model,
+            messages,
+            tools: options?.tools,
+            stream: false,
+            options: { temperature: options?.temperature ?? this.temperature, num_predict: options?.maxTokens ?? this.maxTokens }
+          }),
+          signal: requestSignal.signal
+        })
+        if (!resp.ok) throw new Error(`Ollama HTTP ${resp.status}`)
+        const data = await resp.json()
+        result.content = data.message?.content || ''
+        result.toolCalls = data.message?.tool_calls || []
+      } else {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (this.apiKey) headers['Authorization'] = `Bearer ${this.apiKey}`
+        const resp = await fetch(`${this.baseURL}/chat/completions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model: options?.model || this.model,
+            messages,
+            tools: options?.tools,
+            temperature: options?.temperature ?? this.temperature,
+            max_tokens: options?.maxTokens ?? this.maxTokens,
+            stream: false,
+          }),
+          signal: requestSignal.signal
+        })
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+        const data = await resp.json()
+        const choice = data.choices?.[0]
+        result.content = choice?.message?.content || ''
+        result.toolCalls = choice?.message?.tool_calls || []
+      }
+      this.status = 'connected'
+      this.lastError = undefined
+      return result
+    } catch (e: any) {
+      if (e.name === 'AbortError') {
+        this.status = 'idle'
+        return { content: '' }
       }
       this.status = 'error'
       this.lastError = e?.message || String(e)

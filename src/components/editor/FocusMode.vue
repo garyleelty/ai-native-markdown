@@ -35,7 +35,7 @@ defineEmits<{
   align-items: center;
   padding: 8px 16px;
   gap: 12px;
-  opacity: 0;
+  opacity: 0.15;
   transition: opacity 0.3s;
   pointer-events: auto;
 }

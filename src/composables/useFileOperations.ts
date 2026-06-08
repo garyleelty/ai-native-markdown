@@ -2,9 +2,10 @@ import { ref, watch, onUnmounted, type Ref } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useEditorStore } from '@/stores/editor'
 import { useSettingsStore } from '@/stores/settings'
-import { fileSystem } from '@/services/fileSystem'
+import { vaultService } from '@/services/vault'
 import { versionHistory } from '@/services/versionHistory'
 import { ragService } from '@/services/rag'
+import { embedSyncService } from '@/services/embedSyncService'
 
 export function useFileOperations(editorRef: Ref<any>) {
   const editorStore = useEditorStore()
@@ -28,7 +29,8 @@ export function useFileOperations(editorRef: Ref<any>) {
     saveStatusMessage.value = '正在保存...'
     saveStatusClass.value = 'text-info'
     try {
-      await fileSystem.writeFile(path, contentToSave)
+      await vaultService.writeFile(path, contentToSave)
+      embedSyncService.notifyChange(path)
       if (isDisposed) return
       editorStore.markPathSaved(path, contentToSave)
       await versionHistory.saveSnapshot(path, contentToSave, '自动保存').catch(() => {})
@@ -74,7 +76,7 @@ export function useFileOperations(editorRef: Ref<any>) {
       if (isDisposed || requestId !== fileSelectRequestId) return
     }
     try {
-      const content = await fileSystem.readFile(filePath)
+      const content = await vaultService.readFile(filePath)
       if (isDisposed || requestId !== fileSelectRequestId) return
       editorStore.addTab(filePath, content)
       if (editorRef.value) {
@@ -113,7 +115,7 @@ export function useFileOperations(editorRef: Ref<any>) {
   const handleTemplateSelect = async (content: string, name: string) => {
     try {
       const path = `/workspace/${name}`
-      await fileSystem.writeFile(path, content)
+      await vaultService.writeFile(path, content)
       editorStore.addTab(path, content)
       if (editorRef.value) {
         editorStore.setContentSilent(content)

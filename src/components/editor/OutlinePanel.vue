@@ -86,20 +86,20 @@ const activeHeadingLineNumber = computed(() => {
   cursor: pointer;
   border-radius: 4px;
   font-size: 12.5px;
-  color: var(--el-text-color-secondary);
+  color: var(--obsidian-text-muted);
   transition: all 0.15s ease;
   white-space: nowrap;
   overflow: hidden;
 }
 
 .outline-item:hover {
-  background: var(--el-fill-color-light);
-  color: var(--el-text-color-primary);
+  background: var(--obsidian-bg-hover);
+  color: var(--obsidian-text-normal);
 }
 
 .outline-item.active {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
+  background: var(--obsidian-accent-soft);
+  color: var(--obsidian-accent);
   font-weight: 600;
 }
 
@@ -108,7 +108,7 @@ const activeHeadingLineNumber = computed(() => {
   text-overflow: ellipsis;
 }
 
-.level-1 { font-weight: 600; color: var(--el-text-color-primary); padding-left: 8px; }
+.level-1 { font-weight: 600; color: var(--obsidian-text-normal); padding-left: 8px; }
 .level-2 { padding-left: 20px; }
 .level-3 { padding-left: 32px; font-size: 12px; }
 .level-4 { padding-left: 44px; font-size: 11.5px; }
@@ -118,7 +118,7 @@ const activeHeadingLineNumber = computed(() => {
 .outline-empty {
   padding: 24px;
   text-align: center;
-  color: var(--el-text-color-placeholder);
+  color: var(--obsidian-text-faint);
   font-size: 12px;
 }
 </style>

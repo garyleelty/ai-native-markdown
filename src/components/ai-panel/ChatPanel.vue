@@ -6,16 +6,31 @@
         <el-tag v-if="activeModel" size="small" type="info" effect="plain">
           {{ activeModel }}
         </el-tag>
+        <el-tag v-if="agentMode" size="small" type="warning" effect="plain">
+          Agent
+        </el-tag>
       </div>
-      <el-button
-        :icon="Delete"
-        native-type="button"
-        circle
-        size="small"
-        aria-label="清空对话"
-        @click="clearMessages"
-        title="清空对话"
-      />
+      <div class="chat-header-right">
+        <el-button
+          :icon="SetUp"
+          native-type="button"
+          circle
+          size="small"
+          :type="agentMode ? 'warning' : 'default'"
+          aria-label="切换 Agent 模式"
+          @click="toggleAgentMode"
+          title="切换 Agent 模式"
+        />
+        <el-button
+          :icon="Delete"
+          native-type="button"
+          circle
+          size="small"
+          aria-label="清空对话"
+          @click="clearMessages"
+          title="清空对话"
+        />
+      </div>
     </div>
 
     <div class="chat-messages" ref="messagesRef">
@@ -32,7 +47,86 @@
           </el-icon>
         </div>
         <div class="message-content">
-          <div class="message-text" v-html="renderMarkdown(msg.content)"></div>
+          <div
+            class="message-text"
+            v-html="renderMarkdown(msg.content, msg.ragSources)"
+            @click="handleMessageCitationClick($event, msg)"
+            @mouseover="handleMessageCitationPreview($event, msg)"
+            @focusin="handleMessageCitationPreview($event, msg)"
+            @mouseout="handleMessageCitationPreviewEnd($event, msg)"
+            @focusout="handleMessageCitationPreviewEnd($event, msg)"
+          ></div>
+          <div
+            v-if="msg.role === 'assistant' && msg.ragSources?.length"
+            class="message-sources"
+            aria-label="RAG 来源"
+          >
+            <span class="sources-label">来源</span>
+            <button
+              v-for="source in msg.ragSources"
+              :key="`${msg.id}-${source.id}-${source.filePath}-${source.chunkIndex}`"
+              class="source-chip"
+              type="button"
+              :title="formatSourceTitle(source)"
+              :aria-label="`打开 RAG 来源 ${formatSourceLabel(source)}`"
+              :class="{ active: isSourcePreviewActive(msg.id, source.id) }"
+              @mouseenter="showSourcePreview(msg.id, source)"
+              @focus="showSourcePreview(msg.id, source)"
+              @mouseleave="hideSourcePreview(msg.id, source.id)"
+              @blur="hideSourcePreview(msg.id, source.id)"
+              @click="openRAGSource(source)"
+            >
+              {{ formatSourceLabel(source) }}
+            </button>
+          </div>
+          <div
+            v-if="activeSourcePreview?.messageId === msg.id"
+            class="source-preview"
+            role="status"
+            aria-label="RAG 来源预览"
+          >
+            <div class="source-preview-header">
+              <span class="source-preview-id">{{ activeSourcePreview.source.id }}</span>
+              <span class="source-preview-target">{{ formatSourceTarget(activeSourcePreview.source) }}</span>
+            </div>
+            <div
+              v-if="activeSourcePreview.source.excerpt"
+              class="source-preview-excerpt"
+            >
+              {{ activeSourcePreview.source.excerpt }}
+            </div>
+            <div v-else class="source-preview-empty">
+              该历史来源没有保存预览文本，点击可打开原文。
+            </div>
+          </div>
+          <div
+            v-if="msg.role === 'assistant' && msg.toolCalls?.length"
+            class="message-tool-calls"
+            aria-label="工具调用记录"
+          >
+            <div class="tool-calls-label">工具调用</div>
+            <div
+              v-for="(tc, idx) in msg.toolCalls"
+              :key="`${msg.id}-tc-${idx}`"
+              class="tool-call-item"
+              :class="{ 'tool-call-error': !tc.result.success }"
+            >
+              <div class="tool-call-header">
+                <span class="tool-call-name">{{ tc.tool }}</span>
+                <span class="tool-call-status" :class="tc.result.success ? 'success' : 'error'">
+                  {{ tc.result.success ? '✓' : '✗' }}
+                </span>
+              </div>
+              <div class="tool-call-params">
+                <template v-for="(val, key) in tc.params" :key="key">
+                  <span class="param-key">{{ key }}:</span>
+                  <span class="param-value">{{ truncateParam(String(val)) }}</span>
+                </template>
+              </div>
+              <div v-if="tc.result.display" class="tool-call-result">{{ tc.result.display }}</div>
+              <div v-if="tc.result.error" class="tool-call-error-msg">{{ tc.result.error }}</div>
+            </div>
+          </div>
           <div class="message-actions" v-if="msg.role === 'assistant'">
             <el-button
               :icon="CopyDocument"
@@ -60,13 +154,13 @@
               aria-label="重新生成"
               @click="regenerate(msg)"
               title="重新生成"
-              :disabled="streaming"
+              :disabled="streaming || isAgentRunning"
             />
           </div>
         </div>
       </div>
 
-      <div v-if="streaming" class="chat-message assistant streaming">
+      <div v-if="streaming || isAgentRunning" class="chat-message assistant streaming">
         <div class="message-avatar">
           <el-icon :size="18">
             <ChatDotRound />
@@ -76,6 +170,7 @@
           <div class="typing-indicator">
             <span></span><span></span><span></span>
           </div>
+          <div v-if="isAgentRunning" class="agent-status">Agent 正在执行...</div>
         </div>
       </div>
     </div>
@@ -92,13 +187,13 @@
         @keydown.shift.enter.exact.stop
       />
       <el-button
-          v-if="streaming"
+          v-if="streaming || isAgentRunning"
           type="danger"
           :icon="VideoPause"
           native-type="button"
           circle
           aria-label="停止"
-          @click="stopStreaming"
+          @click="stopAll"
           title="停止"
         />
       <template v-else>
@@ -121,12 +216,12 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
 import { aiService } from '@/services/ai'
-import { ragService } from '@/services/rag'
-import type { AIMessage } from '@/types'
-import { useEditorStore, useSettingsStore } from '@/stores'
+import type { AIMessage, AIRAGSource } from '@/types'
 import { throttle } from '@/composables/useDebounce'
+import { useAgentChat } from '@/composables/useAgentChat'
+import { useChatStream } from '@/composables/useChatStream'
 import { ElMessage } from 'element-plus'
-import { sanitizeMarkdown, safeCopyToClipboard, safeStorage } from '@/utils/security'
+import { escapeHtml, sanitizeMarkdown, safeCopyToClipboard, safeStorage } from '@/utils/security'
 import {
   User,
   ChatDotRound,
@@ -135,7 +230,8 @@ import {
   Plus,
   Refresh,
   Promotion,
-  VideoPause
+  VideoPause,
+  SetUp
 } from '@element-plus/icons-vue'
 import QuickActions from './QuickActions.vue'
 import VoiceInputButton from '@/components/ui/VoiceInputButton.vue'
@@ -146,12 +242,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'insert', content: string): void
+  (e: 'open-source', payload: { path: string; lineNumber?: number }): void
 }>()
 
 const CHAT_HISTORY_KEY = 'ai_chat_history'
 const MAX_HISTORY_MESSAGES = 50
 const MAX_HISTORY_BYTES = 200_000
-const BASE_SYSTEM_PROMPT = '你是一个专业的 Markdown 写作助手。'
 
 function loadChatHistory(): AIMessage[] {
   const parsed = safeStorage.get<AIMessage[]>(CHAT_HISTORY_KEY, [])
@@ -169,40 +265,55 @@ function saveChatHistory(msgs: AIMessage[]) {
   safeStorage.set(CHAT_HISTORY_KEY, toSave)
 }
 
-function buildSystemContent(basePrompt: string, documentContext: string | undefined, ragContext: string): string {
-  const contextParts = [basePrompt.trim() || BASE_SYSTEM_PROMPT]
-  if (ragContext) {
-    contextParts.push(`以下是相关的文档上下文：\n\n${ragContext}\n\n请优先基于上下文回答用户问题。`)
-  }
-  if (documentContext) {
-    contextParts.push(`当前文档内容：\n${documentContext}`)
-  }
-  return contextParts.join('\n\n')
+function formatSourceLabel(source: AIRAGSource): string {
+  const fileName = source.filePath.split('/').pop() || source.filePath
+  const lineRange = formatSourceLineRange(source)
+  return `${source.id} ${fileName}#${source.chunkIndex + 1}${lineRange ? `:${lineRange}` : ''}`
+}
+
+function formatSourceTitle(source: AIRAGSource): string {
+  return `${source.id} ${formatSourceTarget(source)}`
+}
+
+function formatSourceTarget(source: AIRAGSource): string {
+  const lineRange = formatSourceLineRange(source)
+  return `${source.filePath}#chunk-${source.chunkIndex + 1}${lineRange ? ` ${lineRange}` : ''}`
+}
+
+function formatSourceLineRange(source: AIRAGSource): string {
+  if (!source.lineStart || source.lineStart <= 0) return ''
+  if (!source.lineEnd || source.lineEnd <= source.lineStart) return `L${source.lineStart}`
+  return `L${source.lineStart}-L${source.lineEnd}`
+}
+
+function sourceLineNumber(source: AIRAGSource): number | undefined {
+  return source.lineStart && source.lineStart > 0 ? source.lineStart : undefined
 }
 
 const messages = ref<AIMessage[]>(loadChatHistory())
 const inputText = ref('')
-const streaming = ref(false)
-let currentAbortController: AbortController | null = null
-let userStoppedStreaming = false
-let currentStreamingMessage: AIMessage | null = null
-let isDisposed = false
 const messagesRef = ref<HTMLDivElement>()
+const activeSourcePreview = ref<{ messageId: string; source: AIRAGSource } | null>(null)
 
-const settingsStore = useSettingsStore()
-const editorStore = useEditorStore()
+const { streaming, streamChat, stopStreaming, dispose: disposeStream } = useChatStream({
+  messages: () => messages.value,
+  documentContext: props.context,
+  onError: (msg: string) => ElMessage.error('AI 请求失败'),
+})
 
-async function ensureCurrentDocumentIndexedForRAG(): Promise<void> {
-  if (!settingsStore.enableRAG) return
-  const filePath = editorStore.currentFile
-  const content = editorStore.content
-  if (!filePath || !content.trim()) return
-  try {
-    await ragService.indexDocument(filePath, content)
-  } catch (error) {
-    console.warn('RAG current document indexing failed; continuing chat without fresh index.', error)
-  }
-}
+const {
+  agentMode,
+  isAgentRunning,
+  setAgentMode,
+  executeAgent,
+  stopAgent,
+} = useAgentChat({
+  messages: () => messages.value,
+  onMessageUpdate: (msg: AIMessage) => {
+    const idx = messages.value.findIndex(m => m.id === msg.id)
+    if (idx !== -1) messages.value[idx] = { ...msg }
+  },
+})
 
 const activeModel = computed(() => {
   const provider = aiService.getActiveProvider()
@@ -211,15 +322,58 @@ const activeModel = computed(() => {
 
 const scrollToBottom = throttle(async () => {
   await nextTick()
-  if (messagesRef.value) {
-    messagesRef.value.scrollTop = messagesRef.value.scrollHeight
-  }
+  if (messagesRef.value) messagesRef.value.scrollTop = messagesRef.value.scrollHeight
 }, 100)
 
-const renderMarkdown = (text: string) => {
+const truncateParam = (val: string, maxLen = 80): string => {
+  return val.length <= maxLen ? val : val.slice(0, maxLen) + '...'
+}
+
+const toggleAgentMode = () => setAgentMode(!agentMode.value)
+
+function openRAGSource(source: AIRAGSource) {
+  emit('open-source', { path: source.filePath, lineNumber: sourceLineNumber(source) })
+}
+
+function showSourcePreview(messageId: string, source: AIRAGSource) {
+  activeSourcePreview.value = { messageId, source }
+}
+
+function hideSourcePreview(messageId?: string, sourceId?: string) {
+  const active = activeSourcePreview.value
+  if (!active) return
+  if (messageId && active.messageId !== messageId) return
+  if (sourceId && active.source.id !== sourceId) return
+  activeSourcePreview.value = null
+}
+
+function isSourcePreviewActive(messageId: string, sourceId: string): boolean {
+  return activeSourcePreview.value?.messageId === messageId && activeSourcePreview.value.source.id === sourceId
+}
+
+function renderSourceCitations(html: string, sources?: AIRAGSource[]): string {
+  if (!sources?.length) return html
+  const sourceMap = new Map(
+    sources.filter(s => /^S\d+$/.test(s.id)).map(s => [s.id, s])
+  )
+  if (sourceMap.size === 0) return html
+  return html.replace(/\[(S\d+)\]/g, (match, sourceId: string) => {
+    const source = sourceMap.get(sourceId)
+    if (!source) return match
+    const label = `[${source.id}]`
+    const title = `打开 ${formatSourceTitle(source)}`
+    return [
+      '<button', ' class="source-citation"', ' type="button"',
+      ` title="${escapeHtml(title)}"`, ` aria-label="${escapeHtml(title)}"`,
+      ` data-source-id="${escapeHtml(source.id)}"`, '>',
+      escapeHtml(label), '</button>',
+    ].join('')
+  })
+}
+
+const renderMarkdown = (text: string, sources?: AIRAGSource[]) => {
   const codeBlocks: string[] = []
   const inlineCodes: string[] = []
-
   const preserved = text
     .replace(/```([\s\S]*?)```/g, (_, code) => {
       codeBlocks.push(`<pre><code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`)
@@ -229,24 +383,47 @@ const renderMarkdown = (text: string) => {
       inlineCodes.push(`<code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code>`)
       return `\x00IC${inlineCodes.length - 1}\x00`
     })
-
   const rendered = preserved
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     .replace(/\n/g, '<br>')
-
-  return sanitizeMarkdown(rendered
+  return sanitizeMarkdown(renderSourceCitations(rendered, sources)
     .replace(/\x00CB(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i)])
     .replace(/\x00IC(\d+)\x00/g, (_, i) => inlineCodes[parseInt(i)]))
 }
 
+function findSourceFromCitationEvent(event: Event, msg: AIMessage): { source: AIRAGSource; button: HTMLButtonElement } | null {
+  if (!msg.ragSources?.length) return null
+  const target = event.target as HTMLElement | null
+  const button = target?.closest('.source-citation') as HTMLButtonElement | null
+  if (!button) return null
+  const sourceId = button.getAttribute('data-source-id')
+  const source = msg.ragSources.find(item => item.id === sourceId)
+  return source ? { source, button } : null
+}
+
+function handleMessageCitationClick(event: MouseEvent, msg: AIMessage) {
+  const found = findSourceFromCitationEvent(event, msg)
+  if (found) openRAGSource(found.source)
+}
+
+function handleMessageCitationPreview(event: MouseEvent | FocusEvent, msg: AIMessage) {
+  const found = findSourceFromCitationEvent(event, msg)
+  if (found) showSourcePreview(msg.id, found.source)
+}
+
+function handleMessageCitationPreviewEnd(event: MouseEvent | FocusEvent, msg: AIMessage) {
+  const found = findSourceFromCitationEvent(event, msg)
+  if (!found) return
+  const relatedTarget = event.relatedTarget
+  if (relatedTarget instanceof Node && found.button.contains(relatedTarget)) return
+  hideSourcePreview(msg.id, found.source.id)
+}
+
 const addCopyButtons = () => {
   nextTick(() => {
-    const codeBlocks = messagesRef.value?.querySelectorAll('pre code')
-    codeBlocks?.forEach((block) => {
+    messagesRef.value?.querySelectorAll('pre code').forEach((block) => {
       const pre = block.parentElement
       if (pre && !pre.querySelector('.copy-btn')) {
         const btn = document.createElement('button')
@@ -268,82 +445,42 @@ const addCopyButtons = () => {
 
 const sendMessage = async () => {
   const text = inputText.value.trim()
-  if (!text || streaming.value || isDisposed) return
+  if (!text || streaming.value || isAgentRunning.value) return
 
   const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  const userMsg: AIMessage = {
-    id: uid(),
-    role: 'user',
-    content: text,
-    timestamp: Date.now()
-  }
-  messages.value.push(userMsg)
+  messages.value.push({ id: uid(), role: 'user', content: text, timestamp: Date.now() })
   inputText.value = ''
   await scrollToBottom()
 
+  if (agentMode.value) {
+    await sendAgentMessage(text, uid)
+    return
+  }
+
+  const assistantMsg = await streamChat(text)
+  if (assistantMsg) {
+    messages.value.push(assistantMsg)
+    await scrollToBottom()
+  }
+}
+
+const sendAgentMessage = async (prompt: string, uid: () => string) => {
   const assistantMsg: AIMessage = {
-    id: uid(),
-    role: 'assistant',
-    content: '',
-    timestamp: Date.now()
+    id: uid(), role: 'assistant', content: '', toolCalls: [], timestamp: Date.now()
   }
   messages.value.push(assistantMsg)
-  streaming.value = true
-  userStoppedStreaming = false
-  currentStreamingMessage = assistantMsg
+  await scrollToBottom()
 
   try {
-    const provider = aiService.getActiveProvider()
-    if (!provider) {
-      if (isDisposed) return
-      assistantMsg.content = 'AI Provider 未就绪，请在 AI 配置中检查模型和连接。'
-      streaming.value = false
-      return
-    }
-
-    const chatMessages = messages.value
-      .filter(m => m.role !== 'system')
-      .slice(-10)
-      .map(m => ({ role: m.role, content: m.content }))
-
-    let ragContext = ''
-    if (settingsStore.enableRAG) {
-      try {
-        await ensureCurrentDocumentIndexedForRAG()
-        if (isDisposed) return
-        ragContext = await ragService.buildContext(text, 2000)
-        if (isDisposed) return
-      } catch {
-        ragContext = ''
-      }
-    }
-
-    chatMessages.unshift({
-      role: 'system',
-      content: buildSystemContent(settingsStore.aiConfig.systemPrompt, props.context, ragContext),
-    })
-
-    const streamController = new AbortController()
-    currentAbortController = streamController
-    for await (const chunk of provider.streamChat(chatMessages, { signal: streamController.signal })) {
-      if (isDisposed || streamController.signal.aborted || currentAbortController !== streamController) return
-      assistantMsg.content += chunk
-      await scrollToBottom()
-    }
-  } catch (error: any) {
-    if (isDisposed) return
-    const aborted = userStoppedStreaming || currentAbortController?.signal.aborted || error?.name === 'AbortError'
-    if (aborted) {
-      if (!assistantMsg.content.trim()) assistantMsg.content = '已停止生成'
+    const result = await executeAgent(prompt)
+    if (result) {
+      assistantMsg.content = result.message
+      assistantMsg.toolCalls = result.toolCalls
     } else {
-      assistantMsg.content = `错误: ${error.message || String(error)}`
-      ElMessage.error('AI 请求失败')
+      assistantMsg.content = 'Agent 执行已取消'
     }
-  } finally {
-    if (!isDisposed) streaming.value = false
-    currentAbortController = null
-    userStoppedStreaming = false
-    currentStreamingMessage = null
+  } catch (e) {
+    assistantMsg.content = `Agent 执行出错: ${e instanceof Error ? e.message : String(e)}`
   }
 }
 
@@ -357,51 +494,19 @@ const regenerate = async (msg: AIMessage) => {
 
 const copyMessage = async (content: string) => {
   const copied = await safeCopyToClipboard(content)
-  if (copied) {
-    ElMessage.success('已复制到剪贴板')
-  } else {
-    ElMessage.error('复制失败')
-  }
+  copied ? ElMessage.success('已复制到剪贴板') : ElMessage.error('复制失败')
 }
 
-const stopStreaming = () => {
-  userStoppedStreaming = true
-  if (currentStreamingMessage && !currentStreamingMessage.content.trim()) {
-    currentStreamingMessage.content = '已停止生成'
-  }
-  if (currentAbortController) {
-    currentAbortController.abort()
-    currentAbortController = null
-  }
-  streaming.value = false
-}
-
-const clearMessages = () => {
-  messages.value = []
-}
-
-const handleQuickAction = (prompt: string, _label: string) => {
-  inputText.value = prompt
-  sendMessage()
-}
-
-const handleVoiceResult = (text: string) => {
-  inputText.value += text
-}
+const stopAll = () => { stopStreaming(); stopAgent() }
+const clearMessages = () => { messages.value = [] }
+const handleQuickAction = (prompt: string, _label: string) => { inputText.value = prompt; sendMessage() }
+const handleVoiceResult = (text: string) => { inputText.value += text }
 
 watch(messages, () => { scrollToBottom(); addCopyButtons(); saveChatHistory(messages.value) }, { deep: true })
 
-onUnmounted(() => {
-  isDisposed = true
-  userStoppedStreaming = true
-  currentAbortController?.abort()
-  currentAbortController = null
-  currentStreamingMessage = null
-})
+onUnmounted(() => { disposeStream(); stopAgent() })
 
-defineExpose({
-  clearMessages,
-})
+defineExpose({ clearMessages })
 </script>
 
 <style scoped>
@@ -429,6 +534,12 @@ defineExpose({
   gap: 6px;
 }
 
+.chat-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .chat-title {
   font-size: 13px;
   font-weight: 600;
@@ -447,18 +558,9 @@ defineExpose({
   scrollbar-color: var(--obsidian-text-faint) transparent;
 }
 
-.chat-messages::-webkit-scrollbar {
-  width: 4px;
-}
-
-.chat-messages::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.chat-messages::-webkit-scrollbar-thumb {
-  background: var(--obsidian-text-faint);
-  border-radius: 2px;
-}
+.chat-messages::-webkit-scrollbar { width: 4px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background: var(--obsidian-text-faint); border-radius: 2px; }
 
 .chat-message {
   display: flex;
@@ -472,9 +574,7 @@ defineExpose({
   to { opacity: 1; transform: translateY(0); }
 }
 
-.chat-message.user {
-  flex-direction: row-reverse;
-}
+.chat-message.user { flex-direction: row-reverse; }
 
 .message-avatar {
   width: 26px;
@@ -489,11 +589,7 @@ defineExpose({
   margin-top: 2px;
 }
 
-.chat-message.assistant .message-avatar {
-  background: var(--obsidian-accent-soft);
-  color: var(--obsidian-accent);
-}
-
+.chat-message.assistant .message-avatar,
 .chat-message.user .message-avatar {
   background: var(--obsidian-accent-soft);
   color: var(--obsidian-accent);
@@ -546,6 +642,106 @@ defineExpose({
   color: var(--obsidian-text-normal);
 }
 
+.message-text :deep(.source-citation) {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 3px;
+  border: 1px solid var(--obsidian-border);
+  border-radius: var(--radius-sm);
+  background: var(--obsidian-bg-primary);
+  color: var(--obsidian-accent);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  line-height: 1.3;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+
+.message-text :deep(.source-citation:hover),
+.message-text :deep(.source-citation:focus-visible) {
+  border-color: var(--obsidian-accent);
+  background: var(--obsidian-accent-soft);
+  outline: none;
+}
+
+.message-sources {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--obsidian-border);
+  color: var(--obsidian-text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.sources-label { color: var(--obsidian-text-faint); white-space: nowrap; }
+
+.source-chip {
+  max-width: 100%;
+  padding: 1px 5px;
+  border: 1px solid var(--obsidian-border);
+  border-radius: var(--radius-sm);
+  background: var(--obsidian-bg-primary);
+  color: var(--obsidian-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.source-chip:hover,
+.source-chip:focus-visible,
+.source-chip.active {
+  border-color: var(--obsidian-accent);
+  color: var(--obsidian-accent);
+  outline: none;
+}
+
+.source-preview {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--obsidian-border);
+  color: var(--obsidian-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.source-preview-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 3px;
+}
+
+.source-preview-id {
+  flex-shrink: 0;
+  color: var(--obsidian-accent);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.source-preview-target {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  color: var(--obsidian-text-faint);
+}
+
+.source-preview-excerpt,
+.source-preview-empty {
+  color: var(--obsidian-text-muted);
+  overflow-wrap: anywhere;
+}
+
 .message-actions {
   display: flex;
   gap: 2px;
@@ -554,16 +750,9 @@ defineExpose({
   border-top: 1px solid var(--obsidian-border);
 }
 
-.message-actions :deep(.el-button) {
-  width: 22px;
-  height: 22px;
-}
+.message-actions :deep(.el-button) { width: 22px; height: 22px; }
 
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-  padding: 4px 0;
-}
+.typing-indicator { display: flex; gap: 4px; padding: 4px 0; }
 
 .typing-indicator span {
   width: 5px;
@@ -607,9 +796,7 @@ defineExpose({
   box-shadow: none;
 }
 
-.chat-input-area :deep(.el-textarea__inner::placeholder) {
-  color: var(--obsidian-text-faint);
-}
+.chat-input-area :deep(.el-textarea__inner::placeholder) { color: var(--obsidian-text-faint); }
 
 .chat-input-area :deep(.el-button--primary) {
   background: var(--obsidian-accent);
@@ -628,6 +815,58 @@ defineExpose({
   color: var(--obsidian-text-muted);
 }
 
+.message-tool-calls {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--obsidian-border);
+}
+
+.tool-calls-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--obsidian-text-faint);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tool-call-item {
+  padding: 4px 6px;
+  margin-bottom: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--obsidian-bg-primary);
+  border-left: 2px solid var(--obsidian-accent);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.tool-call-item.tool-call-error { border-left-color: var(--el-color-danger, #f56c6c); }
+
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.tool-call-name { font-family: var(--font-mono); font-weight: 600; color: var(--obsidian-accent); }
+.tool-call-status.success { color: var(--el-color-success, #67c23a); }
+.tool-call-status.error { color: var(--el-color-danger, #f56c6c); }
+
+.tool-call-params {
+  color: var(--obsidian-text-muted);
+  margin-top: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.param-key { font-family: var(--font-mono); color: var(--obsidian-text-faint); }
+.param-value { color: var(--obsidian-text-muted); word-break: break-all; }
+.tool-call-result { margin-top: 2px; color: var(--obsidian-text-muted); }
+.tool-call-error-msg { margin-top: 2px; color: var(--el-color-danger, #f56c6c); }
+.agent-status { font-size: 11px; color: var(--obsidian-text-muted); margin-top: 4px; }
+
 .copy-btn {
   position: absolute;
   top: 6px;
@@ -644,12 +883,6 @@ defineExpose({
   transition: opacity var(--duration-fast) var(--ease-default);
 }
 
-pre:hover .copy-btn {
-  opacity: 1;
-}
-
-.copy-btn:hover {
-  background: var(--obsidian-bg-hover);
-  color: var(--obsidian-text-normal);
-}
+pre:hover .copy-btn { opacity: 1; }
+.copy-btn:hover { background: var(--obsidian-bg-hover); color: var(--obsidian-text-normal); }
 </style>

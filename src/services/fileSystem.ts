@@ -3,6 +3,7 @@ import { knowledgeIndex } from './knowledgeIndex'
 import { ragService } from './rag'
 import { versionHistory } from './versionHistory'
 import { updateWikiLinksForRename } from '@/utils/wikiLinks'
+import { isMarkdownPath, mimeTypeForPath } from '@/utils/pathHelpers'
 
 export interface FileRecord {
   id?: number
@@ -140,7 +141,12 @@ async function syncSecondaryStore(name: string, operation: () => Promise<void>):
 }
 
 function isMarkdownFile(record: FileRecord): boolean {
-  return !record.isDirectory && (record.name.endsWith('.md') || record.name.endsWith('.markdown'))
+  return !record.isDirectory && isMarkdownPath(record.path)
+}
+
+function contentToDataUrl(path: string, content: string): string {
+  if (content.startsWith('data:')) return content
+  return `data:${mimeTypeForPath(path)};base64,${content}`
 }
 
 function getSourcePathBeforeRename(path: string, oldPath: string, newPath: string, isDirectory: boolean): string {
@@ -157,10 +163,9 @@ async function updateSavedWikiLinksForRename(
   isDirectory: boolean,
   markdownPathsBeforeRename: string[]
 ): Promise<string[]> {
-  const markdownFiles = await db.files.filter(isMarkdownFile).toArray()
-  const updatedPaths: string[] = []
+  const filesToUpdate: Array<{ id: number; path: string; content: string }> = []
 
-  for (const file of markdownFiles) {
+  await db.files.filter(isMarkdownFile).each(file => {
     const updatedContent = updateWikiLinksForRename(file.content, {
       sourcePath: file.path,
       sourcePathBeforeRename: getSourcePathBeforeRename(file.path, oldPath, newPath, isDirectory),
@@ -169,18 +174,26 @@ async function updateSavedWikiLinksForRename(
       isDirectory,
       markdownPathsBeforeRename,
     })
-    if (updatedContent === file.content) continue
+    if (updatedContent !== file.content) {
+      filesToUpdate.push({ id: file.id!, path: file.path, content: updatedContent })
+    }
+  })
 
-    await db.files.update(file.id!, {
-      content: updatedContent,
+  const updatedPaths: string[] = []
+  for (const { id, path, content } of filesToUpdate) {
+    await db.files.update(id, {
+      content,
       updatedAt: Date.now(),
-      size: updatedContent.length,
+      size: content.length,
     })
-    updatedPaths.push(file.path)
+    updatedPaths.push(path)
   }
 
   return updatedPaths
 }
+
+// 临时导出 db 用于测试
+export const _testDb = db;
 
 export const fileSystem = {
   async init() {
@@ -199,6 +212,9 @@ export const fileSystem = {
           { path: '/workspace/notes', name: 'notes', content: '', isDirectory: true, parentPath: '/workspace', createdAt: now, updatedAt: now, size: 0 },
           { path: '/workspace/notes/Research Map.md', name: 'Research Map.md', content: DEMO_RESEARCH_MAP_CONTENT, isDirectory: false, parentPath: '/workspace/notes', createdAt: now, updatedAt: now, size: DEMO_RESEARCH_MAP_CONTENT.length },
         ])
+        // 索引新创建的示例文件
+        await knowledgeIndex.indexFile('/workspace/README.md', DEMO_README_CONTENT, { silent: true })
+        await knowledgeIndex.indexFile('/workspace/notes/Research Map.md', DEMO_RESEARCH_MAP_CONTENT, { silent: true })
       }
     })
   },
@@ -222,6 +238,10 @@ export const fileSystem = {
     }
   },
 
+  async readAsset(path: string): Promise<string> {
+    return contentToDataUrl(path, await this.readFile(path))
+  },
+
   async writeFile(path: string, content: string): Promise<void> {
     const name = path.split('/').pop() || ''
     const parentPath = getParentPath(path)
@@ -236,7 +256,11 @@ export const fileSystem = {
     } else {
       await db.files.add({ path, name, content, isDirectory: false, parentPath, createdAt: now, updatedAt: now, size: content.length })
     }
-    await syncKnowledgeIndex(() => knowledgeIndex.indexFile(path, content))
+    await syncKnowledgeIndex(() => (
+      isMarkdownPath(path)
+        ? knowledgeIndex.indexFile(path, content)
+        : knowledgeIndex.removeByPrefix(path)
+    ))
   },
 
   async createFile(path: string): Promise<void> {
@@ -246,7 +270,9 @@ export const fileSystem = {
     await assertParentDirectoryExists(parentPath)
     await assertPathAvailable(path)
     await db.files.add({ path, name, content: '', isDirectory: false, parentPath, createdAt: now, updatedAt: now, size: 0 })
-    await syncKnowledgeIndex(() => knowledgeIndex.indexFile(path, ''))
+    if (isMarkdownPath(path)) {
+      await syncKnowledgeIndex(() => knowledgeIndex.indexFile(path, ''))
+    }
   },
 
   async createDirectory(path: string): Promise<void> {
@@ -290,7 +316,10 @@ export const fileSystem = {
 
   async renameFile(oldPath: string, newPath: string): Promise<RenameFileResult> {
     const renamedPaths: Array<{ oldPath: string; newPath: string; content: string; isDirectory: boolean }> = []
-    const markdownPathsBeforeRename = (await db.files.filter(isMarkdownFile).toArray()).map(file => file.path)
+    const markdownPathsBeforeRename: string[] = []
+    await db.files.filter(isMarkdownFile).each(file => {
+      markdownPathsBeforeRename.push(file.path)
+    })
     await db.transaction('rw', db.files, async () => {
       const record = await db.files.where('path').equals(oldPath).first()
       if (!record) throw new Error(`File not found: ${oldPath}`)
@@ -344,20 +373,22 @@ export const fileSystem = {
         updatedLinkPaths.map(path => db.files.where('path').equals(path).first())
       )).filter((file): file is FileRecord => Boolean(file))
       const updatedContentByPath = new Map(updatedRecords.map(file => [file.path, file.content]))
-      const renamedMarkdownPaths = new Set(renamedPaths.filter(item => !item.isDirectory).map(item => item.newPath))
+      const renamedMarkdownPaths = new Set(renamedPaths.filter(item => !item.isDirectory && isMarkdownPath(item.newPath)).map(item => item.newPath))
+      const removedMarkdownPaths = renamedPaths.filter(item => !item.isDirectory && isMarkdownPath(item.oldPath) && !isMarkdownPath(item.newPath))
 
       await Promise.all(renamedPaths
-        .filter(item => !item.isDirectory)
+        .filter(item => !item.isDirectory && isMarkdownPath(item.newPath))
         .map(item => knowledgeIndex.renameFile(
           item.oldPath,
           item.newPath,
           updatedContentByPath.get(item.newPath) ?? item.content,
           { silent: true }
         )))
+      await Promise.all(removedMarkdownPaths.map(item => knowledgeIndex.removeByPrefix(item.oldPath, { silent: true })))
       await Promise.all(updatedRecords
         .filter(item => !renamedMarkdownPaths.has(item.path))
         .map(item => knowledgeIndex.indexFile(item.path, item.content, { silent: true })))
-      if (renamedPaths.some(item => !item.isDirectory) || updatedRecords.length > 0) knowledgeIndex.notifyChanged()
+      if (renamedMarkdownPaths.size > 0 || removedMarkdownPaths.length > 0 || updatedRecords.length > 0) knowledgeIndex.notifyChanged()
     })
     const historyRename = rootRename.isDirectory
       ? () => versionHistory.renameByPrefix(oldPath, newPath)
@@ -413,8 +444,11 @@ export const fileSystem = {
   },
 
   async getAllMarkdownFiles(): Promise<FileRecord[]> {
-    const files = await db.files.toArray()
-    return files.filter(isMarkdownFile)
+    const files: FileRecord[] = []
+    await db.files.filter(isMarkdownFile).each(file => {
+      files.push(file)
+    })
+    return files
   },
 
   async importFromPicker(): Promise<number> {

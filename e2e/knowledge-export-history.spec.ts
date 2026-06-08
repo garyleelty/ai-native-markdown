@@ -113,6 +113,165 @@ test.describe('知识整理、导出、模板、版本历史', () => {
     expect(html).toContain('id="%E6%A0%87%E9%A2%98-%E7%89%B9%E6%AE%8A%E5%AD%97%E7%AC%A6-%26-link"')
   })
 
+  test('迁移校验报告缺失笔记、标题、块引用和附件', async ({ page }) => {
+    const suffix = Date.now()
+    await createWorkspaceFile(page, `/workspace/Migration Existing ${suffix}.md`, [
+      '# Migration Existing',
+      '',
+      '## Present Heading',
+      '',
+      `Existing block. ^present-block-${suffix}`,
+    ].join('\n'))
+    await createWorkspaceFile(page, `/workspace/referenced-image-${suffix}.png`, 'iVBORw0KGgo=')
+    await page.evaluate(async () => {
+      const { fileSystem } = await import('/src/services/fileSystem.ts')
+      await fileSystem.init()
+      await fileSystem.createDirectory('/workspace/Attachments')
+      await fileSystem.createDirectory('/workspace/AttachA')
+      await fileSystem.createDirectory('/workspace/AttachB')
+    })
+    await createWorkspaceFile(page, `/workspace/Attachments/missing-audio-${suffix}.mp3`, 'audio-bytes')
+    await createWorkspaceFile(page, `/workspace/AttachA/ambiguous-audio-${suffix}.mp3`, 'audio-a')
+    await createWorkspaceFile(page, `/workspace/AttachB/ambiguous-audio-${suffix}.mp3`, 'audio-b')
+    await createWorkspaceFile(page, `/workspace/orphan-image-${suffix}.png`, 'iVBORw0KGgo=')
+    await createWorkspaceFile(page, `/workspace/archive-${suffix}.zip`, 'zip-bytes')
+    await createWorkspaceFile(page, `/workspace/Migration Host ${suffix}.md`, [
+      '# Migration Host',
+      '',
+      `[[Missing Note ${suffix}]]`,
+      `[[Migration Existing ${suffix}#Missing Heading ${suffix}]]`,
+      `[[Migration Existing ${suffix}#^missing-block-${suffix}]]`,
+      `![[Missing Embed ${suffix}]]`,
+      `![[missing-audio-${suffix}.mp3]]`,
+      `![[ambiguous-audio-${suffix}.mp3|Ambiguous Audio]]`,
+      `![[referenced-image-${suffix}.png]]`,
+      '',
+      '```md',
+      `[[Ignored Missing ${suffix}]]`,
+      '```',
+    ].join('\n'))
+    await loadDemoWorkspace(page)
+
+    await runCommand(page, '迁移校验')
+
+    const dialog = page.getByRole('dialog', { name: '迁移校验' })
+    await expect(dialog).toBeVisible()
+    await expect(dialog).toContainText(`Missing Note ${suffix}`)
+    await expect(dialog).toContainText(`Missing Heading ${suffix}`)
+    await expect(dialog).toContainText(`^missing-block-${suffix}`)
+    await expect(dialog).toContainText(`Missing Embed ${suffix}`)
+    await expect(dialog).toContainText(`missing-audio-${suffix}.mp3`)
+    await expect(dialog).toContainText(`Attachments/missing-audio-${suffix}.mp3`)
+    await expect(dialog).toContainText(`ambiguous-audio-${suffix}.mp3`)
+    await expect(dialog).toContainText('找到 2 个同名候选')
+    await expect(dialog).toContainText(`orphan-image-${suffix}.png`)
+    await expect(dialog).toContainText(`archive-${suffix}.zip`)
+    await expect(dialog).not.toContainText(`Ignored Missing ${suffix}`)
+    await expect(dialog).not.toContainText(`referenced-image-${suffix}.png`)
+
+    await dialog.locator('.el-table__row').filter({ hasText: `Missing Note ${suffix}` }).getByRole('button', { name: '打开' }).click()
+    await expect(page.locator('.tabs-bar')).toContainText(`Migration Host ${suffix}.md`)
+    await expect(page.locator('.status-bar')).toContainText('行 3')
+
+    await runCommand(page, '迁移校验')
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: /创建缺失笔记/ }).click()
+    await expect(page.getByText('已创建 2 个缺失笔记')).toBeVisible()
+    await expect.poll(() => readWorkspaceFile(page, `/workspace/Missing Note ${suffix}.md`).catch(() => '')).toContain(`# Missing Note ${suffix}`)
+    await expect.poll(() => readWorkspaceFile(page, `/workspace/Missing Embed ${suffix}.md`).catch(() => '')).toContain(`# Missing Embed ${suffix}`)
+    await expect(dialog).not.toContainText(`Missing Note ${suffix}`)
+    await expect(dialog).not.toContainText(`Missing Embed ${suffix}`)
+    await expect(dialog).toContainText(`Missing Heading ${suffix}`)
+    await expect(dialog).toContainText(`missing-audio-${suffix}.mp3`)
+    await expect(dialog).toContainText(`ambiguous-audio-${suffix}.mp3`)
+
+    await dialog.getByRole('button', { name: /补齐标题\/块/ }).click()
+    await expect(page.getByText('已补齐 2 个标题或块')).toBeVisible()
+    await expect.poll(() => readWorkspaceFile(page, `/workspace/Migration Existing ${suffix}.md`).catch(() => '')).toContain(`## Missing Heading ${suffix}`)
+    await expect.poll(() => readWorkspaceFile(page, `/workspace/Migration Existing ${suffix}.md`).catch(() => '')).toContain(`^missing-block-${suffix}`)
+    await expect(dialog).not.toContainText(`Missing Heading ${suffix}`)
+    await expect(dialog).not.toContainText(`^missing-block-${suffix}`)
+    await expect(dialog).toContainText(`missing-audio-${suffix}.mp3`)
+    await expect(dialog).toContainText(`ambiguous-audio-${suffix}.mp3`)
+    await expect(dialog).toContainText(`orphan-image-${suffix}.png`)
+    await expect(dialog).toContainText(`archive-${suffix}.zip`)
+
+    await dialog.getByRole('button', { name: /预览附件修复/ }).click()
+    await expect(page.getByText('将修复 1 个附件链接')).toBeVisible()
+    const repairPreview = dialog.locator('[aria-label="附件修复预览"]')
+    await expect(repairPreview).toContainText('待修复附件链接')
+    await expect(repairPreview).toContainText('将更新 1 个，跳过 0 个')
+    await expect(repairPreview).toContainText(`![[missing-audio-${suffix}.mp3]]`)
+    await expect(repairPreview).toContainText(`![[Attachments/missing-audio-${suffix}.mp3]]`)
+    await expect.poll(() => readWorkspaceFile(page, `/workspace/Migration Host ${suffix}.md`).catch(() => '')).toContain(`![[missing-audio-${suffix}.mp3]]`)
+    await expect.poll(() => readWorkspaceFile(page, `/workspace/Migration Host ${suffix}.md`).catch(() => '')).not.toContain(`![[Attachments/missing-audio-${suffix}.mp3]]`)
+    await repairPreview.getByRole('button', { name: '确认修复' }).click()
+    await expect(page.getByText('已修复 1 个附件链接')).toBeVisible()
+    await expect.poll(() => readWorkspaceFile(page, `/workspace/Migration Host ${suffix}.md`).catch(() => '')).toContain(`![[Attachments/missing-audio-${suffix}.mp3]]`)
+    const repairReport = dialog.locator('[aria-label="最近附件修复报告"]')
+    await expect(repairReport).toContainText('最近附件修复')
+    await expect(repairReport).toContainText('已更新 1 个，跳过 0 个')
+    await expect(repairReport).toContainText('快照 1 个')
+    await expect(repairReport).toContainText(`![[missing-audio-${suffix}.mp3]]`)
+    await expect(repairReport).toContainText(`![[Attachments/missing-audio-${suffix}.mp3]]`)
+    const firstRepairSnapshots = await page.evaluate(async ({ hostPath }) => {
+      const { versionHistory } = await import('/src/services/versionHistory.ts')
+      const snapshots = await versionHistory.getSnapshots(hostPath)
+      return snapshots.map(snapshot => ({
+        id: snapshot.id,
+        label: snapshot.label,
+        content: snapshot.content,
+      }))
+    }, { hostPath: `/workspace/Migration Host ${suffix}.md` })
+    expect(firstRepairSnapshots).toHaveLength(1)
+    expect(firstRepairSnapshots[0].label).toBe('迁移附件修复前')
+    expect(firstRepairSnapshots[0].content).toContain(`![[missing-audio-${suffix}.mp3]]`)
+    expect(firstRepairSnapshots[0].content).not.toContain(`![[Attachments/missing-audio-${suffix}.mp3]]`)
+    const restoredFirstRepairSnapshot = await page.evaluate(async ({ snapshotId }) => {
+      const { versionHistory } = await import('/src/services/versionHistory.ts')
+      return versionHistory.restoreSnapshot(snapshotId)
+    }, { snapshotId: firstRepairSnapshots[0].id! })
+    expect(restoredFirstRepairSnapshot).toContain(`![[missing-audio-${suffix}.mp3]]`)
+    await expect(dialog).not.toContainText(`找不到附件: missing-audio-${suffix}.mp3`)
+    await expect(dialog).toContainText(`ambiguous-audio-${suffix}.mp3`)
+
+    const ambiguousRow = dialog.locator('.el-table__row').filter({ hasText: `ambiguous-audio-${suffix}.mp3` })
+    await ambiguousRow.locator('.asset-candidate-select').click()
+    await dialog.getByRole('option', { name: `AttachB/ambiguous-audio-${suffix}.mp3` }).click()
+    await ambiguousRow.getByRole('button', { name: '预览' }).click()
+    await expect(repairPreview).toContainText(`![[ambiguous-audio-${suffix}.mp3|Ambiguous Audio]]`)
+    await expect(repairPreview).toContainText(`![[AttachB/ambiguous-audio-${suffix}.mp3|Ambiguous Audio]]`)
+    await expect.poll(() => readWorkspaceFile(page, `/workspace/Migration Host ${suffix}.md`).catch(() => '')).toContain(`![[ambiguous-audio-${suffix}.mp3|Ambiguous Audio]]`)
+    await repairPreview.getByRole('button', { name: '确认修复' }).click()
+    await expect(page.getByText('已修复 1 个附件链接')).toBeVisible()
+    await expect.poll(() => readWorkspaceFile(page, `/workspace/Migration Host ${suffix}.md`).catch(() => '')).toContain(`![[AttachB/ambiguous-audio-${suffix}.mp3|Ambiguous Audio]]`)
+    await expect(repairReport).toContainText(`![[ambiguous-audio-${suffix}.mp3|Ambiguous Audio]]`)
+    await expect(repairReport).toContainText(`![[AttachB/ambiguous-audio-${suffix}.mp3|Ambiguous Audio]]`)
+    const allRepairSnapshots = await page.evaluate(async ({ hostPath }) => {
+      const { versionHistory } = await import('/src/services/versionHistory.ts')
+      const snapshots = await versionHistory.getSnapshots(hostPath)
+      return snapshots.map(snapshot => ({
+        id: snapshot.id,
+        label: snapshot.label,
+        content: snapshot.content,
+      }))
+    }, { hostPath: `/workspace/Migration Host ${suffix}.md` })
+    expect(allRepairSnapshots).toHaveLength(2)
+    expect(allRepairSnapshots.every(snapshot => snapshot.label === '迁移附件修复前')).toBe(true)
+    expect(allRepairSnapshots.some(snapshot =>
+      snapshot.content.includes(`![[Attachments/missing-audio-${suffix}.mp3]]`) &&
+      snapshot.content.includes(`![[ambiguous-audio-${suffix}.mp3|Ambiguous Audio]]`)
+    )).toBe(true)
+    await expect(dialog).not.toContainText(`找不到附件: ambiguous-audio-${suffix}.mp3`)
+    await expect(dialog).toContainText(`orphan-image-${suffix}.png`)
+    await expect(dialog).toContainText(`archive-${suffix}.zip`)
+
+    await repairReport.getByRole('button', { name: '打开版本历史' }).click()
+    await expect(dialog).not.toBeVisible()
+    await expect(page.locator('.tabs-bar')).toContainText(`Migration Host ${suffix}.md`)
+    await expect(page.locator('.history-card').filter({ hasText: '迁移附件修复前' })).toHaveCount(2)
+  })
+
   test('版本历史可以恢复已保存快照', async ({ page }) => {
     await loadDemoWorkspace(page)
     await openFirstMarkdownFile(page)

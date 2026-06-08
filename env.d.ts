@@ -12,6 +12,10 @@ declare module 'markdown-it-task-lists' {
   export default plugin
 }
 
+interface Window {
+  aiNativeVault?: import('./src/services/vault/types').VaultBridge
+}
+
 declare module 'markdown-it-katex' {
   import type MarkdownIt from 'markdown-it'
   const plugin: (md: MarkdownIt, options?: Record<string, unknown>) => void

@@ -42,7 +42,7 @@ const actions = [
 .quick-actions-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--el-text-color-placeholder);
+  color: var(--obsidian-text-faint);
   margin-bottom: 6px;
   letter-spacing: 0;
 }

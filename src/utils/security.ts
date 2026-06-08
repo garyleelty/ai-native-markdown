@@ -42,8 +42,9 @@ const MARKDOWN_ALLOWED_TAGS = [
 
 const MARKDOWN_ALLOWED_ATTR = [
   'href', 'src', 'alt', 'title', 'class', 'target', 'rel',
-  'checked', 'disabled', 'type',
-  'data-filename', 'data-line', 'data-line-end',
+  'checked', 'disabled', 'type', 'aria-label',
+  'data-filename', 'data-line', 'data-line-end', 'data-target', 'data-heading',
+  'data-source-id',
   'style',
   'd', 'r', 'cx', 'cy', 'x', 'y', 'width', 'height', 'x1', 'y1', 'x2', 'y2',
   'points', 'transform', 'fill', 'stroke', 'stroke-width', 'stroke-dasharray',
@@ -102,7 +103,7 @@ async function getDerivationKey(): Promise<CryptoKey> {
   )
 }
 
-export async function obfuscateValue(plaintext: string): Promise<string> {
+export async function encryptValue(plaintext: string): Promise<string> {
   if (!plaintext) return ''
   const encoder = new TextEncoder()
   const iv = crypto.getRandomValues(new Uint8Array(12))
@@ -118,7 +119,7 @@ export async function obfuscateValue(plaintext: string): Promise<string> {
   return ENC_PREFIX + btoa(String.fromCharCode(...payload))
 }
 
-export async function deobfuscateValue(ciphertext: string): Promise<string> {
+export async function decryptValue(ciphertext: string): Promise<string> {
   if (!ciphertext) return ''
   if (!ciphertext.startsWith(ENC_PREFIX)) {
     // Fallback: try legacy v1 XOR deobfuscation
@@ -156,8 +157,10 @@ function legacyDeobfuscateV1(ciphertext: string): string {
   }
 }
 
-export const encryptValue = obfuscateValue
-export const decryptValue = deobfuscateValue
+/** @deprecated Use encryptValue instead */
+export const obfuscateValue = encryptValue
+/** @deprecated Use decryptValue instead */
+export const deobfuscateValue = decryptValue
 
 export const safeStorage = {
   get<T>(key: string, defaultValue: T): T {

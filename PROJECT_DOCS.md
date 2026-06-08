@@ -1,5 +1,7 @@
 # AI Native Markdown Editor
 
+> Status: historical document. This file contains older Tauri-era architecture notes and is no longer the current source of truth. For the current Electron + IndexedDB architecture, see `docs/current-architecture.md`.
+
 一个 AI 原生的 Markdown 编辑器，基于 Tauri + Vue 3 + CodeMirror 6 构建。
 
 ---

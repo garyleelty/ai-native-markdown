@@ -3,9 +3,9 @@
     <div class="welcome-content">
       <section class="welcome-primary" aria-labelledby="welcome-title">
         <div class="welcome-logo">
-          <el-icon :size="34"><Document /></el-icon>
+          ✦
         </div>
-        <p class="welcome-kicker">Local-first AI workspace</p>
+        <p class="welcome-kicker">Your AI-powered creative space</p>
         <h1 id="welcome-title" class="welcome-title">AI Markdown</h1>
         <p class="welcome-subtitle">
           面向知识工作流的 Markdown 编辑器，把本地文件、实时预览、知识图谱和 AI 写作放在同一个工作台里。
@@ -104,17 +104,17 @@ defineEmits<{
 const recentFiles = shallowRef<Array<{ name: string; path: string }>>([])
 
 const capabilities = [
-  { title: '本地工作区', desc: '导入、重命名、删除和导出 Markdown', icon: Collection },
-  { title: '实时预览', desc: 'Mermaid、KaTeX 与 Wiki Link 导航', icon: Connection },
-  { title: 'AI 写作', desc: 'Ollama 与 OpenAI-compatible Provider', icon: Cpu },
-  { title: '多模态输入', desc: '语音输入、OCR、PDF 拖拽和知识图谱', icon: Microphone },
+  { title: '📁 本地工作区', desc: '导入、重命名、删除和导出 Markdown', icon: Collection },
+  { title: '👁 实时预览', desc: 'Mermaid、KaTeX 与 Wiki Link 导航', icon: Connection },
+  { title: '🤖 AI 写作', desc: 'Ollama 与 OpenAI-compatible Provider', icon: Cpu },
+  { title: '🎙 多模态输入', desc: '语音输入、OCR、PDF 拖拽和知识图谱', icon: Microphone },
 ]
 
 const workflow = [
-  { index: '01', title: '选择工作区', desc: '打开本地文件夹或直接试用示例库' },
-  { index: '02', title: '写 Markdown', desc: '源码、分屏、预览随时切换' },
-  { index: '03', title: '连接笔记', desc: '用 Wiki Link、反链和图谱整理知识' },
-  { index: '04', title: '用 AI 加速', desc: '基于当前内容继续写作和问答' },
+  { index: '01', title: '📂 选择工作区', desc: '打开本地文件夹或直接试用示例库' },
+  { index: '02', title: '✍️ 写 Markdown', desc: '源码、分屏、预览随时切换' },
+  { index: '03', title: '🔗 连接笔记', desc: '用 Wiki Link、反链和图谱整理知识' },
+  { index: '04', title: '⚡ 用 AI 加速', desc: '基于当前内容继续写作和问答' },
 ]
 </script>
 
@@ -181,15 +181,18 @@ const workflow = [
   align-items: center;
   justify-content: center;
   margin-bottom: 22px;
-  color: var(--obsidian-accent);
-  background: var(--obsidian-accent-soft);
-  border: 1px solid rgba(127, 109, 242, 0.24);
+  font-size: 28px;
+  background: var(--gradient-vivid);
+  border: none;
   border-radius: var(--radius-md);
 }
 
 .welcome-kicker {
   margin: 0 0 8px;
-  color: var(--obsidian-accent);
+  background: var(--gradient-vivid);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -304,8 +307,8 @@ const workflow = [
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--obsidian-accent);
-  background: var(--obsidian-accent-soft);
+  color: #fff;
+  background: var(--gradient-cool);
   border-radius: var(--radius-sm);
 }
 
@@ -350,7 +353,10 @@ const workflow = [
 }
 
 .step-index {
-  color: var(--obsidian-accent);
+  background: var(--gradient-vivid);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;

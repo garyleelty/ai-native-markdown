@@ -1,6 +1,15 @@
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view'
-import type { Range } from '@codemirror/state'
+import type { Extension, Range } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
+import { EmbedWidget } from '@/extensions/embed/embedWidget'
+import { embedSyncService } from '@/services/embedSyncService'
+
+export interface LivePreviewOptions {
+  currentFile?: () => string
+  onEmbedNavigate?: (target: string) => void
+  dependencyOwnerId?: () => string
+  embedRefreshKey?: () => number
+}
 
 class HeaderMarkWidget extends WidgetType {
   constructor(readonly level: number, readonly text: string) { super() }
@@ -23,7 +32,7 @@ class CheckboxWidget extends WidgetType {
     input.type = 'checkbox'
     input.checked = this.checked
     input.className = 'cm-live-preview-checkbox'
-    input.setAttribute('aria-label', this.checked ? '标记任务为未完成' : '标记任务为已完成')
+    input.setAttribute('aria-label', this.checked ? '标记任务为已完成' : '标记任务为未完成')
     input.dataset.from = String(this.from)
     input.dataset.to = String(this.to)
     input.addEventListener('mousedown', (event) => {
@@ -76,13 +85,53 @@ class HrWidget extends WidgetType {
   ignoreEvent(): boolean { return false }
 }
 
-function buildDecorations(view: EditorView): DecorationSet {
+function parseEmbedLine(text: string): { target: string; heading?: string } | null {
+  const match = text.match(/^\s*!\[\[([^\]\n]+)\]\]\s*$/)
+  if (!match) return null
+  const raw = match[1].trim()
+  const hashIndex = raw.indexOf('#')
+  const target = (hashIndex === -1 ? raw : raw.slice(0, hashIndex)).trim()
+  const heading = hashIndex === -1 ? '' : raw.slice(hashIndex + 1).trim()
+  if (!target && !heading) return null
+  return { target, heading: heading || undefined }
+}
+
+function buildDecorations(view: EditorView, options: LivePreviewOptions = {}, renderEpoch = 0): DecorationSet {
   const decorations: Range<Decoration>[] = []
   const doc = view.state.doc
+  const hostPath = options.currentFile?.()
+  const dependencyOwnerId = hostPath ? options.dependencyOwnerId?.() : undefined
+  const widgetRenderKey = `${renderEpoch}:${options.embedRefreshKey?.() ?? 0}`
+
+  // 获取当前光标所在行
+  const cursorLine = doc.lineAt(view.state.selection.main.head).number
+
+  if (hostPath && dependencyOwnerId) {
+    embedSyncService.replaceOwnerDependencies(dependencyOwnerId, hostPath, [])
+  }
 
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i)
     const text = line.text
+    const embed = parseEmbedLine(text)
+
+    if (embed) {
+      decorations.push(
+        Decoration.replace({
+          widget: new EmbedWidget(embed.target, embed.heading, widgetRenderKey, {
+            currentFile: options.currentFile,
+            currentContent: () => view.state.doc.toString(),
+            onNavigate: options.onEmbedNavigate,
+            onDependencies: (dependencies) => {
+              if (hostPath && dependencyOwnerId) {
+                embedSyncService.addOwnerDependencies(dependencyOwnerId, hostPath, dependencies)
+              }
+            },
+          }),
+        }).range(line.from, line.to)
+      )
+      continue
+    }
 
     const headingMatch = text.match(/^(#{1,6})\s+(.+)/)
     if (headingMatch) {
@@ -90,10 +139,17 @@ function buildDecorations(view: EditorView): DecorationSet {
       const content = headingMatch[2]
       const markEnd = line.from + headingMatch[1].length + 1
 
-      decorations.push(
-        Decoration.replace({ widget: new HeaderMarkWidget(level, content) }).range(line.from, markEnd),
-        Decoration.replace({}).range(markEnd, line.to),
-      )
+      // 如果光标在当前标题行，只隐藏 # 标记，保留内容可编辑
+      if (i === cursorLine) {
+        decorations.push(
+          Decoration.replace({}).range(line.from, markEnd),
+        )
+      } else {
+        decorations.push(
+          Decoration.replace({ widget: new HeaderMarkWidget(level, content) }).range(line.from, markEnd),
+          Decoration.replace({}).range(markEnd, line.to),
+        )
+      }
       continue
     }
 
@@ -152,18 +208,24 @@ function buildDecorations(view: EditorView): DecorationSet {
   return Decoration.set(decorations, true)
 }
 
-export const livePreviewPlugin = ViewPlugin.fromClass(class {
-  decorations: DecorationSet
+export function createLivePreviewPlugin(options: LivePreviewOptions = {}): Extension {
+  return ViewPlugin.fromClass(class {
+    decorations: DecorationSet
+    renderEpoch = 0
 
-  constructor(view: EditorView) {
-    this.decorations = buildDecorations(view)
-  }
-
-  update(update: ViewUpdate) {
-    if (update.docChanged || update.viewportChanged) {
-      this.decorations = buildDecorations(update.view)
+    constructor(view: EditorView) {
+      this.decorations = buildDecorations(view, options, this.renderEpoch)
     }
-  }
-}, {
-  decorations: v => v.decorations
-})
+
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) {
+        if (update.docChanged) this.renderEpoch += 1
+        this.decorations = buildDecorations(update.view, options, this.renderEpoch)
+      }
+    }
+  }, {
+    decorations: v => v.decorations
+  })
+}
+
+export const livePreviewPlugin = createLivePreviewPlugin()

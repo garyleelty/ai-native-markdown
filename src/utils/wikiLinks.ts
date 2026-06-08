@@ -13,6 +13,12 @@ export interface MarkdownHeading {
   lineNumber: number
 }
 
+export interface MarkdownBlock {
+  id: string
+  text: string
+  lineNumber: number
+}
+
 export interface LinkUnlinkedMentionOptions {
   lineNumber?: number
 }
@@ -184,6 +190,31 @@ function findMentionInLine(line: string, names: string[]): { start: number; end:
   return null
 }
 
+function getBlockIdMatch(line: string): RegExpMatchArray | null {
+  return line.match(/(?:^|\s)\^([A-Za-z0-9_-]+)\s*$/)
+}
+
+function removeBlockIdMarker(line: string, id: string): string {
+  return line.replace(new RegExp(`\\s*\\^${escapeRegExp(id)}\\s*$`), '').trimEnd()
+}
+
+function isParagraphBoundary(line: string): boolean {
+  return !line.trim() || /^ {0,3}#{1,6}\s+/.test(line)
+}
+
+function blockStartLine(lines: string[], markerLineIndex: number): number {
+  const markerLine = lines[markerLineIndex]
+  if (/^ {0,3}(#{1,6})\s+/.test(markerLine)) return markerLineIndex
+  if (/^\s*(?:[-+*]|\d+[.)])\s+/.test(markerLine)) return markerLineIndex
+  if (/^\s*>/.test(markerLine)) return markerLineIndex
+
+  let start = markerLineIndex
+  while (start > 0 && !isParagraphBoundary(lines[start - 1])) {
+    start -= 1
+  }
+  return start
+}
+
 function getRenamedResolvedPath(resolvedPath: string, oldPath: string, newPath: string, isDirectory = false): string | null {
   if (resolvedPath === oldPath) return newPath
   if (isDirectory && resolvedPath.startsWith(`${oldPath}/`)) {
@@ -315,6 +346,45 @@ export function extractMarkdownHeadings(content: string): MarkdownHeading[] {
   return headings
 }
 
+export function extractMarkdownBlocks(content: string): MarkdownBlock[] {
+  const lines = content.split('\n')
+  const blocks: MarkdownBlock[] = []
+  let activeFence: { marker: '`' | '~'; length: number } | null = null
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const fence = parseFenceMarker(line)
+
+    if (activeFence) {
+      if (
+        fence &&
+        fence.marker === activeFence.marker &&
+        fence.length >= activeFence.length
+      ) {
+        activeFence = null
+      }
+      continue
+    }
+
+    if (fence) {
+      activeFence = fence
+      continue
+    }
+
+    const match = getBlockIdMatch(line)
+    if (!match) continue
+    const id = match[1]
+    const start = blockStartLine(lines, i)
+    const blockLines = lines.slice(start, i + 1)
+    blockLines[blockLines.length - 1] = removeBlockIdMarker(blockLines[blockLines.length - 1], id)
+    const text = blockLines.join('\n').trim()
+    if (!text) continue
+    blocks.push({ id, text, lineNumber: start + 1 })
+  }
+
+  return blocks
+}
+
 export function findMarkdownHeadingLine(content: string, heading: string): number | null {
   const targetText = normalizeHeadingText(heading)
   const targetSlug = normalizeHeadingSlug(heading)
@@ -329,6 +399,13 @@ export function findMarkdownHeadingLine(content: string, heading: string): numbe
     }
   }
   return null
+}
+
+export function findMarkdownBlockLine(content: string, blockId: string): number | null {
+  const normalizedId = blockId.replace(/^\^/, '').trim()
+  if (!normalizedId) return null
+  const block = extractMarkdownBlocks(content).find(item => item.id === normalizedId)
+  return block?.lineNumber ?? null
 }
 
 export function resolveWikiLinkTarget(rawTarget: string, currentFile: string, markdownPaths: string[]): string | null {

@@ -145,7 +145,7 @@ defineExpose({ setMatchInfo, setSearchError, findText, openReplace })
 
 .search-error {
   font-size: 12px;
-  color: var(--el-color-danger);
+  color: var(--accent-red);
   padding-left: 4px;
 }
 </style>

@@ -52,9 +52,9 @@ const showGoalSetting = ref(false)
 const percentage = computed(() => target.value > 0 ? Math.min(100, Math.round((props.current / target.value) * 100)) : 0)
 const remaining = computed(() => Math.max(0, target.value - props.current))
 const progressColor = computed(() => {
-  if (percentage.value >= 100) return 'var(--el-color-success)'
+  if (percentage.value >= 100) return 'var(--accent-green)'
   if (percentage.value >= 60) return 'var(--accent-primary)'
-  return 'var(--el-color-warning)'
+  return 'var(--warning)'
 })
 const goalStatusLabel = computed(() => remaining.value > 0 ? `还需 ${remaining.value} 词` : '目标达成')
 const goalProgressStyle = computed(() => ({
