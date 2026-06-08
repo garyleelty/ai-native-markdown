@@ -250,7 +250,7 @@ onUnmounted(() => {
 })
 
 watch(() => props.currentFile, () => {
-  void loadCurrentFileKnowledge()
+  void Promise.all([loadCurrentFileKnowledge(), loadGraphData()])
 })
 
 watch(() => props.rootPath, async (newPath, oldPath) => {
