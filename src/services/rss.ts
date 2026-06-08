@@ -380,3 +380,4 @@ tags: {tags}
 }
 
 export const rssService = new RSSService()
+export { db as rssDb }

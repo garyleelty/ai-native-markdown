@@ -1,193 +1,23 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import 'fake-indexeddb/auto'
 import type { RSSFeed, RSSArticle, RSSImportOptions } from '../../types'
+import { rssService } from '../rss'
 
-// 创建内存模拟 DB
-class MockRSSDB {
-  feeds = new Map<string, RSSFeed>()
-  articles = new Map<string, RSSArticle>()
-
-  async clear() {
-    this.feeds.clear()
-    this.articles.clear()
+// 模拟 fileSystem
+vi.mock('../../services/fileSystem', () => ({
+  fileSystem: {
+    createDirectory: vi.fn().mockResolvedValue(undefined),
+    writeFile: vi.fn().mockResolvedValue(undefined),
   }
-}
-
-const mockDB = new MockRSSDB()
-
-// 模拟服务
-const rssService = {
-  async addFeed(url: string, options?: Partial<RSSFeed>): Promise<RSSFeed> {
-    const id = Math.random().toString(36).substring(2, 15)
-    const now = Date.now()
-    const feed: RSSFeed = {
-      id,
-      url,
-      title: options?.title || '',
-      description: options?.description || '',
-      siteUrl: options?.siteUrl || new URL(url).origin,
-      fetchIntervalMinutes: options?.fetchIntervalMinutes || 60,
-      autoImport: options?.autoImport || false,
-      importPath: options?.importPath || '/RSS/',
-      createdAt: now,
-      updatedAt: now
-    }
-    mockDB.feeds.set(id, feed)
-    return feed
-  },
-
-  async updateFeed(id: string, updates: Partial<RSSFeed>): Promise<RSSFeed> {
-    const feed = mockDB.feeds.get(id)
-    if (!feed) throw new Error('Feed not found')
-    const updatedFeed = { ...feed, ...updates, updatedAt: Date.now() }
-    mockDB.feeds.set(id, updatedFeed)
-    return updatedFeed
-  },
-
-  async deleteFeed(id: string): Promise<void> {
-    mockDB.feeds.delete(id)
-    const articlesToDelete: string[] = []
-    mockDB.articles.forEach((article, articleId) => {
-      if (article.feedId === id) articlesToDelete.push(articleId)
-    })
-    articlesToDelete.forEach(articleId => mockDB.articles.delete(articleId))
-  },
-
-  async getFeeds(): Promise<RSSFeed[]> {
-    return Array.from(mockDB.feeds.values())
-  },
-
-  async getFeed(id: string): Promise<RSSFeed | null> {
-    return mockDB.feeds.get(id) || null
-  },
-
-  async addArticles(feedId: string, articles: Partial<RSSArticle>[]): Promise<void> {
-    const now = Date.now()
-    const existingGuids = new Set(
-      Array.from(mockDB.articles.values()).filter(a => a.feedId === feedId).map(a => a.guid)
-    )
-
-    for (const articleData of articles) {
-      if (articleData.guid && existingGuids.has(articleData.guid)) continue
-
-      const id = Math.random().toString(36).substring(2, 15)
-      const article: RSSArticle = {
-        id,
-        feedId,
-        guid: articleData.guid || id,
-        title: articleData.title || '',
-        link: articleData.link || '',
-        pubDate: articleData.pubDate || now,
-        description: articleData.description || '',
-        content: articleData.content || '',
-        categories: articleData.categories || [],
-        imageUrl: articleData.imageUrl,
-        isImported: false,
-        createdAt: now
-      }
-      mockDB.articles.set(id, article)
-    }
-  },
-
-  async getArticles(feedId?: string, limit?: number): Promise<RSSArticle[]> {
-    let articles = Array.from(mockDB.articles.values())
-    if (feedId) articles = articles.filter(a => a.feedId === feedId)
-    articles.sort((a, b) => b.pubDate - a.pubDate)
-    if (limit && limit > 0) articles = articles.slice(0, limit)
-    return articles
-  },
-
-  async markImported(articleId: string, filePath: string): Promise<void> {
-    const article = mockDB.articles.get(articleId)
-    if (!article) throw new Error('Article not found')
-    mockDB.articles.set(articleId, {
-      ...article,
-      isImported: true,
-      importedPath: filePath,
-      importedAt: Date.now()
-    })
-  },
-
-  async articleToMarkdown(article: RSSArticle, options?: Partial<RSSImportOptions>): Promise<string[]> {
-    const opts: RSSImportOptions = {
-      chunkSize: options?.chunkSize || 1000,
-      includeImages: options?.includeImages !== false,
-      includeLinks: options?.includeLinks !== false,
-      template: options?.template || `---
-title: "{title}"
-author: "{author}"
-date: "{date}"
-source: "{source}"
-tags: {tags}
----
-
-{content}
-`
-    }
-
-    let content = article.content || article.description || ''
-
-    if (!opts.includeImages) {
-      content = content.replace(/<img[^>]*>/gi, '')
-    }
-
-    if (!opts.includeLinks) {
-      content = content.replace(/<a[^>]*>([^<]*)<\/a>/gi, '$1')
-    }
-
-    content = content
-      .replace(/<h1[^>]*>/gi, '# ')
-      .replace(/<\/h1>/gi, '\n\n')
-      .replace(/<h2[^>]*>/gi, '## ')
-      .replace(/<\/h2>/gi, '\n\n')
-      .replace(/<h3[^>]*>/gi, '### ')
-      .replace(/<\/h3>/gi, '\n\n')
-      .replace(/<p[^>]*>/gi, '')
-      .replace(/<\/p>/gi, '\n\n')
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<strong[^>]*>([^<]*)<\/strong>/gi, '**$1**')
-      .replace(/<b[^>]*>([^<]*)<\/b>/gi, '**$1**')
-      .replace(/<em[^>]*>([^<]*)<\/em>/gi, '*$1*')
-      .replace(/<i[^>]*>([^<]*)<\/i>/gi, '*$1*')
-      .replace(/<li[^>]*>/gi, '- ')
-      .replace(/<\/li>/gi, '\n')
-      .replace(/<[^>]+>/g, '')
-      .trim()
-
-    const date = new Date(article.pubDate)
-    let markdown = opts.template
-      .replace(/\{title\}/g, article.title)
-      .replace(/\{author\}/g, article.author || '')
-      .replace(/\{date\}/g, date.toISOString().split('T')[0])
-      .replace(/\{source\}/g, article.link)
-      .replace(/\{tags\}/g, JSON.stringify(article.categories || []))
-      .replace(/\{content\}/g, content)
-
-    const chunks: string[] = []
-    if (opts.chunkSize <= 0 || markdown.length <= opts.chunkSize) {
-      chunks.push(markdown)
-    } else {
-      const paragraphs = markdown.split('\n\n')
-      let currentChunk = ''
-
-      for (const para of paragraphs) {
-        if ((currentChunk + '\n\n' + para).length <= opts.chunkSize || currentChunk.length === 0) {
-          currentChunk = currentChunk ? currentChunk + '\n\n' + para : para
-        } else {
-          chunks.push(currentChunk)
-          currentChunk = para
-        }
-      }
-
-      if (currentChunk) chunks.push(currentChunk)
-    }
-
-    return chunks
-  }
-}
+}))
 
 describe('RSS Service', () => {
   beforeEach(async () => {
-    await mockDB.clear()
+    vi.clearAllMocks()
+    // 清空数据库
+    const { rssDb } = await import('../rss')
+    await rssDb.feeds.clear()
+    await rssDb.articles.clear()
   })
 
   describe('Feed Management', () => {
@@ -388,6 +218,69 @@ describe('RSS Service', () => {
       expect(chunks[0]).toContain('# Custom Template Test')
       expect(chunks[0]).toContain('Source: https://example.com/test')
       expect(chunks[0]).toContain('Test content')
+    })
+  })
+
+  describe('Article Import', () => {
+    it('should import article to markdown file', async () => {
+      const { fileSystem } = await import('../../services/fileSystem')
+      const feed = await rssService.addFeed('https://example.com/feed.xml')
+      await rssService.addArticles(feed.id, [{
+        title: 'Import Test Article',
+        link: 'https://example.com/import-test',
+        guid: 'import-test-guid',
+        content: '<p>This is the content to import.</p>'
+      }])
+
+      const articles = await rssService.getArticles(feed.id)
+      const paths = await rssService.importArticle(articles[0].id)
+
+      expect(paths).toHaveLength(1)
+      expect(paths[0]).toContain('/RSS/')
+      expect(paths[0]).toContain('.md')
+      expect(fileSystem.writeFile).toHaveBeenCalled()
+      expect(fileSystem.createDirectory).toHaveBeenCalled()
+    })
+
+    it('should create nested directories recursively', async () => {
+      const { fileSystem } = await import('../../services/fileSystem')
+      const feed = await rssService.addFeed('https://example.com/feed.xml', {
+        importPath: '/RSS/Nested/Deep/'
+      })
+      await rssService.addArticles(feed.id, [{
+        title: 'Nested Test',
+        link: 'https://example.com/nested-test',
+        guid: 'nested-test-guid',
+        content: '<p>Testing nested paths.</p>'
+      }])
+
+      const articles = await rssService.getArticles(feed.id)
+      await rssService.importArticle(articles[0].id)
+
+      // 验证 createDirectory 被调用多次（每个目录层级一次）
+      expect(fileSystem.createDirectory).toHaveBeenCalled()
+      const calls = (fileSystem.createDirectory as any).mock.calls
+      expect(calls.length).toBeGreaterThanOrEqual(2)
+    })
+
+    it('should handle import path with existing directories', async () => {
+      const { fileSystem } = await import('../../services/fileSystem')
+      // 模拟目录已存在的情况
+      ;(fileSystem.createDirectory as any).mockRejectedValueOnce(new Error('路径已存在'))
+
+      const feed = await rssService.addFeed('https://example.com/feed.xml', {
+        importPath: '/RSS/'
+      })
+      await rssService.addArticles(feed.id, [{
+        title: 'Existing Path Test',
+        link: 'https://example.com/existing-test',
+        guid: 'existing-test-guid',
+        content: '<p>Testing existing directories.</p>'
+      }])
+
+      const articles = await rssService.getArticles(feed.id)
+      // 应该不会抛出错误
+      await expect(rssService.importArticle(articles[0].id)).resolves.toBeDefined()
     })
   })
 })
