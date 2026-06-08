@@ -25,6 +25,28 @@ export function isValidFileName(name: string): boolean {
   return true
 }
 
+// Input validation constants
+export const MAX_FILE_SIZE = 10 * 1024 * 1024  // 10MB
+export const MAX_MARKDOWN_LENGTH = 5 * 1024 * 1024  // 5MB
+export const MAX_SEARCH_QUERY_LENGTH = 1000
+export const MAX_FILE_NAME_LENGTH = 255
+
+export function isValidMarkdownContent(content: string): boolean {
+  return content.length > 0 && content.length <= MAX_MARKDOWN_LENGTH
+}
+
+export function isValidSearchQuery(query: string): boolean {
+  return query.length > 0 && query.length <= MAX_SEARCH_QUERY_LENGTH
+}
+
+export function truncateSearchQuery(query: string): string {
+  return query.slice(0, MAX_SEARCH_QUERY_LENGTH)
+}
+
+export function truncateMarkdownContent(content: string): string {
+  return content.slice(0, MAX_MARKDOWN_LENGTH)
+}
+
 const MARKDOWN_ALLOWED_TAGS = [
   'b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li',
   'code', 'pre', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -45,7 +67,6 @@ const MARKDOWN_ALLOWED_ATTR = [
   'checked', 'disabled', 'type', 'aria-label',
   'data-filename', 'data-line', 'data-line-end', 'data-target', 'data-heading',
   'data-source-id',
-  'style',
   'd', 'r', 'cx', 'cy', 'x', 'y', 'width', 'height', 'x1', 'y1', 'x2', 'y2',
   'points', 'transform', 'fill', 'stroke', 'stroke-width', 'stroke-dasharray',
   'stroke-opacity', 'fill-opacity', 'opacity', 'font-size', 'text-anchor',
@@ -61,6 +82,7 @@ const DANGEROUS_ATTRS = [
   'onload', 'onclick', 'onerror', 'onmouseover', 'onfocus', 'onblur',
   'onsubmit', 'onreset', 'onchange', 'oninput', 'onkeydown', 'onkeyup',
   'onkeypress', 'onmouseout', 'onmousedown', 'onmouseup',
+  'style',  // 禁止 style 属性，防止 CSS 注入
 ]
 
 export function sanitizeMarkdown(content: string): string {
@@ -140,12 +162,18 @@ export async function decryptValue(ciphertext: string): Promise<string> {
 }
 
 // Legacy v1 XOR deobfuscation for backward compatibility
+// DEPRECATED: This XOR-based obfuscation is NOT secure encryption.
+// It provides only basic obfuscation and should not be used for sensitive data.
+// This fallback will be removed in a future version. Migrate to v2 AES-GCM encryption.
 const V1_PREFIX = 'enc:v1:'
-const V1_CRYPTO_KEY = 'ai-native-md-obf-2024'
 
 function legacyDeobfuscateV1(ciphertext: string): string {
   if (!ciphertext.startsWith(V1_PREFIX)) return ciphertext
+  console.warn('[Security] Legacy v1 obfuscation detected. This is deprecated and will be removed.')
   try {
+    // XOR obfuscation is NOT real encryption - only basic obfuscation
+    // This key is hardcoded and publicly visible in source code
+    const V1_CRYPTO_KEY = 'ai-native-md-obf-2024'
     const decoded = atob(ciphertext.slice(V1_PREFIX.length))
     let result = ''
     for (let i = 0; i < decoded.length; i++) {
@@ -157,9 +185,9 @@ function legacyDeobfuscateV1(ciphertext: string): string {
   }
 }
 
-/** @deprecated Use encryptValue instead */
+/** @deprecated Use encryptValue instead. XOR obfuscation is NOT secure encryption. */
 export const obfuscateValue = encryptValue
-/** @deprecated Use decryptValue instead */
+/** @deprecated Use decryptValue instead. XOR obfuscation is NOT secure encryption. */
 export const deobfuscateValue = decryptValue
 
 export const safeStorage = {

@@ -201,6 +201,20 @@ describe('sanitizeMarkdown', () => {
     const result = sanitizeMarkdown('<style>body{display:none}</style>')
     expect(result).not.toContain('<style')
   })
+
+  it('removes style attributes from elements', () => {
+    const html = '<p style="color: red; font-size: 20px;">text</p>'
+    const result = sanitizeMarkdown(html)
+    expect(result).not.toContain('style="')
+    expect(result).toContain('<p>text</p>')
+  })
+
+  it('removes CSS injection attempts via style attributes', () => {
+    const html = '<div style="background: url(&#x27;javascript:alert(1)&#x27;)">evil</div>'
+    const result = sanitizeMarkdown(html)
+    expect(result).not.toContain('javascript:')
+    expect(result).not.toContain('style="')
+  })
 })
 
 // ---------------------------------------------------------------------------

@@ -286,15 +286,20 @@ export const fileSystem = {
 
   async deleteFile(path: string): Promise<void> {
     const removedPaths: string[] = []
+    const maxFilesToDelete = 10000
     await db.transaction('rw', db.files, async () => {
       const record = await db.files.where('path').equals(path).first()
       if (!record) return
       const pathsToDelete: string[] = [path]
       if (record.isDirectory) {
         const queue = [path]
-        while (queue.length > 0) {
+        while (queue.length > 0 && pathsToDelete.length < maxFilesToDelete) {
           const current = queue.shift()!
-          const children = await db.files.where('parentPath').equals(current).toArray()
+          const children: FileRecord[] = []
+          await db.files.where('parentPath').equals(current).each(child => {
+            if (pathsToDelete.length + children.length >= maxFilesToDelete) return false
+            children.push(child)
+          })
           for (const child of children) {
             pathsToDelete.push(child.path)
             if (child.isDirectory) queue.push(child.path)
@@ -317,6 +322,7 @@ export const fileSystem = {
   async renameFile(oldPath: string, newPath: string): Promise<RenameFileResult> {
     const renamedPaths: Array<{ oldPath: string; newPath: string; content: string; isDirectory: boolean }> = []
     const markdownPathsBeforeRename: string[] = []
+    const maxFilesToRename = 10000
     await db.files.filter(isMarkdownFile).each(file => {
       markdownPathsBeforeRename.push(file.path)
     })
@@ -333,9 +339,13 @@ export const fileSystem = {
       await assertPathAvailable(newPath, oldPath)
 
       if (record.isDirectory) {
-        const descendants = await db.files
+        const descendants: FileRecord[] = []
+        await db.files
           .filter(file => file.path.startsWith(`${oldPath}/`))
-          .toArray()
+          .until(() => descendants.length >= maxFilesToRename)
+          .each(file => {
+            descendants.push(file)
+          })
         for (const child of descendants) {
           const childNewPath = newPath + child.path.substring(oldPath.length)
           await assertPathAvailable(childNewPath, child.path)
@@ -346,9 +356,13 @@ export const fileSystem = {
       renamedPaths.push({ oldPath, newPath, content: record.content, isDirectory: record.isDirectory })
       if (record.isDirectory) {
         const queue = [oldPath]
-        while (queue.length > 0) {
+        while (queue.length > 0 && renamedPaths.length < maxFilesToRename) {
           const current = queue.shift()!
-          const children = await db.files.where('parentPath').equals(current).toArray()
+          const children: FileRecord[] = []
+          await db.files.where('parentPath').equals(current).each(child => {
+            if (renamedPaths.length + children.length >= maxFilesToRename) return false
+            children.push(child)
+          })
           for (const child of children) {
             const childNewPath = newPath + child.path.substring(oldPath.length)
             const childNewName = childNewPath.split('/').pop() || ''
@@ -416,7 +430,14 @@ export const fileSystem = {
         throw new Error(`路径不是文件夹: ${path}`)
       }
     }
-    return db.files.where('parentPath').equals(path).toArray()
+    const files: FileRecord[] = []
+    const maxFilesPerDirectory = 1000
+    await db.files.where('parentPath').equals(path)
+      .until(() => files.length >= maxFilesPerDirectory)
+      .each(file => {
+        files.push(file)
+      })
+    return files
   },
 
   async searchFiles(query: string, limit = 20): Promise<Array<{ filePath: string; fileName: string; matches: Array<{ lineNumber: number; lineContent: string }> }>> {

@@ -15,13 +15,28 @@ export function useKnowledgeGraph(
   const hoveredNode = ref<SimulationNode | null>(null)
   const selectedNode = ref<SimulationNode | null>(null)
 
+  // Graph visualization constants
+  const NODE_RADIUS_BASE = 8
+  const NODE_RADIUS_SCALE = 5
+  const GRAPH_FORCE_DISTANCE = 80
+  const GRAPH_FORCE_STRENGTH = -200
+  const GRAPH_COLLISION_PADDING = 4
+  const GRAPH_ALPHA_DECAY = 0.02
+  const GRAPH_VELOCITY_DECAY = 0.4
+  const GRAPH_STROKE_WIDTH = 2
+  const GRAPH_STROKE_OPACITY = 0.4
+  const GRAPH_NODE_STROKE_WIDTH = 4
+  const GRAPH_TRANSITION_DURATION = 200
+  const GRAPH_FOCUS_DURATION = 500
+  const GRAPH_FOCUS_SCALE = 1.5
+
   const TAG_COLORS = [
     '#89b4fa', '#a6e3a1', '#f9e2af', '#f38ba8', '#cba6f7',
     '#94e2d5', '#fab387', '#74c7ec', '#f5c2e7', '#eba0ac'
   ]
 
   function getNodeRadius(linkCount: number): number {
-    return Math.sqrt(linkCount + 1) * 5 + 8
+    return Math.sqrt(linkCount + 1) * NODE_RADIUS_SCALE + NODE_RADIUS_BASE
   }
 
   function getTagColor(tags: string[]): string {
@@ -148,26 +163,32 @@ export function useKnowledgeGraph(
           .attr('stroke', d.isOrphan ? '#f38ba8' : 'var(--bg-elevated)')
           .attr('stroke-width', d.isOrphan ? 2.5 : 1.5)
         edgeSelection
-          .attr('stroke-opacity', 0.4)
+          .attr('stroke-opacity', GRAPH_STROKE_OPACITY)
           .attr('stroke', 'var(--text-muted)')
       })
 
     const sim = d3.forceSimulation<SimulationNode>(simNodes)
       .force('link', d3.forceLink<SimulationNode, SimulationEdge>(simEdges)
         .id(d => d.id)
-        .distance(80)
+        .distance(GRAPH_FORCE_DISTANCE)
       )
-      .force('charge', d3.forceManyBody().strength(-200))
+      .force('charge', d3.forceManyBody().strength(GRAPH_FORCE_STRENGTH))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide<SimulationNode>().radius(d => getNodeRadius(d.linkCount) + 4))
+      .force('collision', d3.forceCollide<SimulationNode>().radius(d => getNodeRadius(d.linkCount) + GRAPH_COLLISION_PADDING))
+      .alphaDecay(GRAPH_ALPHA_DECAY)
+      .velocityDecay(GRAPH_VELOCITY_DECAY)
       .on('tick', () => {
-        edgeSelection
-          .attr('x1', d => (d.source as SimulationNode).x ?? 0)
-          .attr('y1', d => (d.source as SimulationNode).y ?? 0)
-          .attr('x2', d => (d.target as SimulationNode).x ?? 0)
-          .attr('y2', d => (d.target as SimulationNode).y ?? 0)
+        // Throttle tick updates to improve performance for large graphs
+        if (sim.alpha() < sim.alphaMin()) return
+        requestAnimationFrame(() => {
+          edgeSelection
+            .attr('x1', d => (d.source as SimulationNode).x ?? 0)
+            .attr('y1', d => (d.source as SimulationNode).y ?? 0)
+            .attr('x2', d => (d.target as SimulationNode).x ?? 0)
+            .attr('y2', d => (d.target as SimulationNode).y ?? 0)
 
-        nodeSelection.attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
+          nodeSelection.attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
+        })
       })
 
     simulation.value = sim
@@ -178,9 +199,9 @@ export function useKnowledgeGraph(
     svg.value.selectAll<SVGGElement, SimulationNode>('g')
       .filter((d: SimulationNode) => d.id === nodeId)
       .select('circle')
-      .transition().duration(200)
+      .transition().duration(GRAPH_TRANSITION_DURATION)
       .attr('stroke', 'var(--accent-primary)')
-      .attr('stroke-width', 4)
+      .attr('stroke-width', GRAPH_NODE_STROKE_WIDTH)
   }
 
   function focusNode(nodeId: string) {
@@ -192,9 +213,9 @@ export function useKnowledgeGraph(
     const width = container.value?.clientWidth ?? 600
     const height = container.value?.clientHeight ?? 400
 
-    svg.value.transition().duration(500).call(
+    svg.value.transition().duration(GRAPH_FOCUS_DURATION).call(
       zoomBehavior.value.transform,
-      d3.zoomIdentity.translate(width / 2, height / 2).scale(1.5).translate(-target.x, -target.y)
+      d3.zoomIdentity.translate(width / 2, height / 2).scale(GRAPH_FOCUS_SCALE).translate(-target.x, -target.y)
     )
   }
 

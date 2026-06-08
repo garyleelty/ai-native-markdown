@@ -78,9 +78,7 @@ async function saveEncryptedConfig(key: string, value: AIConfig): Promise<void> 
   try {
     const toStore = { ...value }
     if (toStore.apiKey) {
-      // Write non-encrypted fields synchronously first so they're immediately available,
-      // then update with encrypted apiKey asynchronously
-      safeStorage.set(key, { ...toStore, apiKey: '' })
+      // Encrypt the API key before storing
       toStore.apiKey = await encryptValue(toStore.apiKey)
     }
     safeStorage.set(key, toStore)

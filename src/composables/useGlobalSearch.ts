@@ -1,4 +1,4 @@
-import { ref, computed, watch, type Ref } from 'vue'
+import { ref, computed, watch, onUnmounted, type Ref } from 'vue'
 import { knowledgeIndex } from '@/services/knowledgeIndex'
 import { fileSystem } from '@/services/fileSystem'
 
@@ -26,6 +26,7 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const searchMode = ref<'text' | 'regex'>('text')
+  let isDisposed = false
 
   // Detect if query is a regex pattern (starts and ends with /)
   const isRegexQuery = (q: string): boolean => {
@@ -95,32 +96,43 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
 
   // Search using regex pattern
   const searchWithRegex = async (pattern: RegExp, originalQuery: string) => {
-    const allFiles = await fileSystem.getAllMarkdownFiles()
     const searchResults: SearchResult[] = []
+    const allRecords = await knowledgeIndex.getAll()
+    const cleanQuery = originalQuery.replace(/^\/|\/$/g, '')
 
-    for (const file of allFiles) {
+    // First filter using knowledge index searchableText (faster)
+    const candidateFiles = allRecords.filter(record => {
+      // Also include filename match
+      return record.searchableText.toLowerCase().includes(cleanQuery.toLowerCase()) ||
+             record.filePath.toLowerCase().includes(cleanQuery.toLowerCase())
+    })
+
+    for (const record of candidateFiles) {
       if (searchResults.length >= maxResults) break
 
       try {
-        const content = await fileSystem.readFile(file.path)
+        const content = await fileSystem.readFile(record.filePath)
         const lines = content.split('\n')
         const matches: Array<{ lineNumber: number; lineContent: string }> = []
 
         for (let i = 0; i < lines.length; i++) {
           if (matches.length >= maxMatchesPerFile) break
           const line = lines[i]
+          // Reset regex lastIndex to avoid issues with global regex
+          pattern.lastIndex = 0
           if (pattern.test(line)) {
             matches.push({
               lineNumber: i + 1,
-              lineContent: makeExcerpt(line, originalQuery.replace(/^\/|\/$/g, '')),
+              lineContent: makeExcerpt(line, cleanQuery),
             })
           }
         }
 
         if (matches.length > 0) {
+          const fileName = record.filePath.split('/').pop() || record.filePath
           searchResults.push({
-            filePath: file.path,
-            fileName: file.name,
+            filePath: record.filePath,
+            fileName,
             matches,
           })
         }
@@ -134,14 +146,21 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
 
   // Search using text (case-insensitive)
   const searchWithText = async (lowerQuery: string, originalQuery: string) => {
-    const allFiles = await fileSystem.getAllMarkdownFiles()
     const searchResults: SearchResult[] = []
+    const allRecords = await knowledgeIndex.getAll()
 
-    for (const file of allFiles) {
+    // First filter using knowledge index searchableText (faster)
+    const candidateFiles = allRecords.filter(record => {
+      // Also include filename match
+      return record.searchableText.toLowerCase().includes(lowerQuery) ||
+             record.filePath.toLowerCase().includes(lowerQuery)
+    })
+
+    for (const record of candidateFiles) {
       if (searchResults.length >= maxResults) break
 
       try {
-        const content = await fileSystem.readFile(file.path)
+        const content = await fileSystem.readFile(record.filePath)
         const lines = content.split('\n')
         const matches: Array<{ lineNumber: number; lineContent: string }> = []
 
@@ -157,9 +176,10 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
         }
 
         if (matches.length > 0) {
+          const fileName = record.filePath.split('/').pop() || record.filePath
           searchResults.push({
-            filePath: file.path,
-            fileName: file.name,
+            filePath: record.filePath,
+            fileName,
             matches,
           })
         }
@@ -174,8 +194,11 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
   // Debounced search
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   const debouncedSearch = (q: string) => {
+    if (isDisposed) return
     if (debounceTimer) clearTimeout(debounceTimer)
-    debounceTimer = setTimeout(() => search(q), 200)
+    debounceTimer = setTimeout(() => {
+      if (!isDisposed) search(q)
+    }, 200)
   }
 
   // Watch query changes
@@ -183,10 +206,29 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
     debouncedSearch(newQuery)
   })
 
+  // Cleanup on unmount
+  onUnmounted(() => {
+    isDisposed = true
+    if (debounceTimer) {
+      clearTimeout(debounceTimer)
+      debounceTimer = null
+    }
+  })
+
   // Total match count
   const totalMatches = computed(() => {
     return results.value.reduce((sum, r) => sum + r.matches.length, 0)
   })
+
+  function dispose(): void {
+    isDisposed = true
+    if (debounceTimer) {
+      clearTimeout(debounceTimer)
+      debounceTimer = null
+    }
+    results.value = []
+    error.value = null
+  }
 
   return {
     query,
@@ -197,5 +239,6 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
     totalMatches,
     search,
     isRegexQuery,
+    dispose,
   }
 }

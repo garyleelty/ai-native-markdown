@@ -258,16 +258,26 @@ export const knowledgeIndex = {
     const workspaceRelativePath = filePathWithoutExt.replace(/^\/?workspace\//i, '')
     names.add(normalizeNoteName(workspaceRelativePath))
 
-    // Use indexed query on normalizedLinks instead of loading all records
+    // Use indexed query on normalizedLinks with limit to avoid loading too many records
     const results: KnowledgeReference[] = []
+    const maxResults = 100
+    const seenFilePaths = new Set<string>()
+    
     for (const name of names) {
+      if (results.length >= maxResults) break
+      
       const matchingRecords = await db.records
         .where('normalizedLinks')
         .equals(name)
+        .limit(maxResults - results.length)
         .toArray()
+        
       for (const record of matchingRecords) {
+        if (results.length >= maxResults) break
         if (record.filePath === filePath) continue
-        if (results.some(r => r.filePath === record.filePath)) continue
+        if (seenFilePaths.has(record.filePath)) continue
+        
+        seenFilePaths.add(record.filePath)
         // Read content on demand instead of storing it
         const content = await readCurrentFileOrEmpty(record.filePath)
         results.push({
@@ -290,19 +300,30 @@ export const knowledgeIndex = {
 
     // Only load records that have links (to exclude them), then check for text mentions
     const linkedFilePaths = new Set<string>()
+    const maxLinkedCheck = 1000
+    let linkedCount = 0
+    
     for (const name of normalizedNames) {
+      if (linkedCount >= maxLinkedCheck) break
       const matching = await db.records
         .where('normalizedLinks').equals(name)
+        .limit(maxLinkedCheck - linkedCount)
         .toArray()
       for (const record of matching) {
-        if (record.filePath !== filePath) linkedFilePaths.add(record.filePath)
+        if (record.filePath !== filePath) {
+          linkedFilePaths.add(record.filePath)
+          linkedCount++
+        }
       }
     }
 
     // For unlinked mentions, we still need to scan records that DON'T link to this file
-    // Use a targeted approach: scan records not in linkedFilePaths
+    // Use a targeted approach: scan records not in linkedFilePaths with a limit
     const results: KnowledgeReference[] = []
+    const maxResults = 100
+    
     await db.records.each(record => {
+      if (results.length >= maxResults) return false
       if (record.filePath === filePath) return
       if (linkedFilePaths.has(record.filePath)) return
       const hasMention = names.some(name => {
