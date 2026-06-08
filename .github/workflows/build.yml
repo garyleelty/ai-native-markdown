@@ -1,4 +1,4 @@
-name: Build Electron App
+name: Build Windows Electron App
 
 on:
   push:
@@ -10,19 +10,8 @@ on:
 
 jobs:
   build:
-    name: Build ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        include:
-          - os: ubuntu-latest
-            platform: linux
-          - os: windows-latest
-            platform: windows
-          - os: macos-latest
-            platform: macos
+    name: Build Windows
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -46,26 +35,3 @@ jobs:
 
       - name: Build Electron app
         run: npm run electron:build
-
-      - name: Upload artifacts (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-native-markdown-${{ matrix.platform }}
-          path: release/*.exe
-
-      - name: Upload artifacts (macOS)
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-native-markdown-${{ matrix.platform }}
-          path: release/*.dmg
-
-      - name: Upload artifacts (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-native-markdown-${{ matrix.platform }}
-          path: |
-            release/*.AppImage
-            release/*.deb
