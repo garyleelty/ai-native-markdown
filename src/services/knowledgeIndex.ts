@@ -16,6 +16,7 @@ export interface KnowledgeIndexRecord {
   links: string[]
   normalizedLinks: string[]
   frontmatter: Record<string, FrontmatterValue>
+  propertyTypes: Record<string, string>
   searchableText: string
   updatedAt: number
 }
@@ -39,6 +40,17 @@ class KnowledgeIndexDB extends Dexie {
       records: '++id, &filePath, normalizedTitle, *normalizedAliases, *tags, *normalizedLinks, updatedAt'
     }).upgrade(() => {
       safeStorage.set('ai-markdown-knowledge-index-stale', true)
+    })
+    this.version(3).stores({
+      records: '++id, &filePath, normalizedTitle, *normalizedAliases, *tags, *normalizedLinks, updatedAt'
+    }).upgrade(async (trans) => {
+      // 为现有记录添加默认 propertyTypes
+      const t = trans as any
+      await t.records.toCollection().modify((record: any) => {
+        if (!record.propertyTypes) {
+          record.propertyTypes = {}
+        }
+      })
     })
   }
 }
@@ -167,12 +179,22 @@ export const knowledgeIndex = {
       links: metadata.links,
       normalizedLinks: metadata.links.map(normalizeNoteName),
       frontmatter: metadata.frontmatter,
+      propertyTypes: existing?.propertyTypes || {},
       searchableText: metadata.searchableText,
       updatedAt: Date.now(),
     }
 
     await db.records.put(record)
     if (!options.silent) notifyChange()
+  },
+
+  async savePropertyTypePref(filePath: string, propertyName: string, type: string): Promise<void> {
+    const record = await db.records.where('filePath').equals(filePath).first()
+    if (record && record.id) {
+      const newPropertyTypes = { ...record.propertyTypes }
+      newPropertyTypes[propertyName] = type
+      await db.records.update(record.id, { propertyTypes: newPropertyTypes })
+    }
   },
 
   async removeFile(filePath: string, options: IndexOptions = {}): Promise<void> {

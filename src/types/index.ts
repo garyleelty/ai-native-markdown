@@ -89,7 +89,7 @@ export interface Workspace {
 
 export type ViewMode = 'source' | 'live-preview' | 'preview'
 export type ThemeMode = 'dark' | 'light' | 'system'
-export type SidebarTab = 'files' | 'graph' | 'ai' | 'outline' | 'settings' | 'rss'
+export type SidebarTab = 'files' | 'graph' | 'ai' | 'properties' | 'outline' | 'settings' | 'rss'
 
 export interface GraphNode {
   id: string

@@ -101,6 +101,7 @@
           @navigate="handleOutlineNavigate"
           @renamed="handleFileTreeRename"
           @deleted="handleFileTreeDelete"
+          @content-change="handlePropertiesContentChange"
         />
         <div v-if="sidebarVisible && !isNarrowViewport" class="resize-handle-v" @mousedown="startResize('sidebar', $event)" />
       </el-aside>
@@ -505,6 +506,9 @@ const wordCount = computed(() => {
 })
 
 const handleEditorUpdate = (content: string) => editorStore.setContent(content)
+const handlePropertiesContentChange = (content: string) => {
+  editorStore.setContent(content)
+}
 const handleToggleLivePreview = () => {
   if (editorStore.viewMode === 'source') {
     editorStore.setViewMode('live-preview')

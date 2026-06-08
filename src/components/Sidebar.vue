@@ -20,6 +20,9 @@
       <el-menu-item index="settings" aria-label="设置">
         <el-icon><Setting /></el-icon>
       </el-menu-item>
+      <el-menu-item index="properties" aria-label="属性面板">
+        <el-icon><Document /></el-icon>
+      </el-menu-item>
       <el-menu-item index="outline" aria-label="文档大纲">
         <el-icon><List /></el-icon>
       </el-menu-item>
@@ -58,6 +61,12 @@
           @set-theme="(dark: boolean) => emit('set-theme', dark)"
           @toggle-ai="emit('toggle-ai')"
         />
+        <PropertiesPanel
+          v-else-if="activeTab === 'properties'"
+          :content="editorContent"
+          :file-path="currentFile"
+          @content-change="handlePropertiesContentChange"
+        />
         <div v-else-if="activeTab === 'outline'" class="panel">
           <div class="panel-header">
             <span class="panel-title">大纲</span>
@@ -77,6 +86,7 @@ import KnowledgePanel from './sidebar/KnowledgePanel.vue'
 import RSSPanel from './sidebar/RSSPanel.vue'
 import AIConfigPanel from './sidebar/AIConfigPanel.vue'
 import SettingsPanel from './sidebar/SettingsPanel.vue'
+import PropertiesPanel from './sidebar/PropertiesPanel.vue'
 import OutlinePanel from './editor/OutlinePanel.vue'
 import { useSettingsStore } from '@/stores/settings'
 import type { SidebarTab } from '@/types'
@@ -102,9 +112,10 @@ const emit = defineEmits<{
   (e: 'navigate', lineNumber: number): void
   (e: 'renamed', payload: { oldPath: string; newPath: string; isDirectory: boolean; renamedPaths?: Array<{ oldPath: string; newPath: string; isDirectory: boolean }>; updatedLinkPaths?: string[] }): void
   (e: 'deleted', payload: { path: string; isDirectory: boolean }): void
+  (e: 'content-change', content: string): void
 }>()
 
-const sidebarTabs = new Set<SidebarTab>(['files', 'graph', 'rss', 'ai', 'outline', 'settings'])
+const sidebarTabs = new Set<SidebarTab>(['files', 'graph', 'rss', 'ai', 'properties', 'outline', 'settings'])
 const settingsStore = useSettingsStore()
 const activeTab = computed(() => settingsStore.activeSidebarTab)
 const rootPath = ref('')
@@ -123,6 +134,10 @@ const handleRootPathChange = (path: string) => {
 
 const handleOutlineNavigate = (lineNumber: number) => {
   emit('navigate', lineNumber)
+}
+
+const handlePropertiesContentChange = (content: string) => {
+  emit('content-change', content)
 }
 
 const readFile = async (filePath: string): Promise<string> => {
