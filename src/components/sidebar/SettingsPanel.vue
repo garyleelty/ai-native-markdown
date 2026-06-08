@@ -5,6 +5,7 @@
     </div>
 
     <div class="settings-list">
+      <div class="setting-section-title">外观设置</div>
       <div class="setting-row">
         <div class="setting-info">
           <span class="setting-label">外观主题</span>
@@ -31,7 +32,7 @@
 
       <el-divider />
 
-      <div class="setting-section-title">写作智能</div>
+      <div class="setting-section-title">AI 配置</div>
       <div class="setting-row">
         <div class="setting-info">
           <span class="setting-label">知识库增强问答</span>

@@ -2,6 +2,11 @@
   /* ═══════════════════════════════════════════════════
      Design System Tokens - Obsidian-inspired Modern Dark
      ═══════════════════════════════════════════════════ */
+  
+  /* ── 主题过渡动画 ── */
+  --theme-transition: background-color var(--duration-slow) var(--ease-default),
+                    color var(--duration-slow) var(--ease-default),
+                    border-color var(--duration-slow) var(--ease-default);
 
   /* ── Obsidian 色彩体系 ── */
   --obsidian-bg-primary: #1e1e1e;

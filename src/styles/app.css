@@ -9,6 +9,8 @@
   background: var(--obsidian-bg-primary);
   color: var(--obsidian-text-normal);
   font-family: var(--font-sans);
+  /* 主题切换平滑过渡 */
+  transition: var(--theme-transition);
 }
 
 /* ── Header: Obsidian 风格极简标题栏 ── */
@@ -23,6 +25,8 @@
   flex-shrink: 0;
   -webkit-app-region: drag;
   user-select: none;
+  /* 主题切换平滑过渡 */
+  transition: var(--theme-transition);
 }
 
 .app-header .header-left,
@@ -124,7 +128,7 @@
   background: var(--obsidian-bg-secondary);
   border-right: 1px solid var(--obsidian-border);
   overflow: hidden;
-  transition: width 0s;
+  transition: width 0s, var(--theme-transition);
   flex-shrink: 0;
 }
 
@@ -136,6 +140,8 @@
   display: flex;
   flex-direction: column;
   background: var(--obsidian-bg-primary);
+  /* 主题切换平滑过渡 */
+  transition: var(--theme-transition);
 }
 
 .editor-main {
@@ -468,6 +474,8 @@
   user-select: none;
   min-width: 0;
   overflow: hidden;
+  /* 主题切换平滑过渡 */
+  transition: var(--theme-transition);
 }
 
 .status-bar .status-item {
