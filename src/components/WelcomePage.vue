@@ -112,7 +112,7 @@ const capabilities = [
 
 const workflow = [
   { index: '01', title: '📂 选择工作区', desc: '打开本地文件夹或直接试用示例库' },
-  { index: '02', title: '✍️ 写 Markdown', desc: '源码、分屏、预览随时切换' },
+  { index: '02', title: '✍️ 写 Markdown', desc: '源码、实时预览、阅读随时切换' },
   { index: '03', title: '🔗 连接笔记', desc: '用 Wiki Link、反链和图谱整理知识' },
   { index: '04', title: '⚡ 用 AI 加速', desc: '基于当前内容继续写作和问答' },
 ]

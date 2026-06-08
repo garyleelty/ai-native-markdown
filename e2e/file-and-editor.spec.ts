@@ -731,20 +731,22 @@ test.describe('文件与编辑器主流程', () => {
     await expect(page.locator('.cm-content')).toHaveCount(0)
   })
 
-  test('源码、分屏、预览模式可以切换', async ({ page }) => {
+  test('源码、实时预览、阅读模式可以切换', async ({ page }) => {
     await loadDemoWorkspace(page)
     await openFirstMarkdownFile(page)
     await setEditorContent(page, '# View Mode\n\npreview target')
 
+    // 源码模式：只有编辑器
     await runCommand(page, '源码模式')
     await expect(page.locator('.cm-content')).toBeVisible()
     await expect(page.locator('.preview-content')).toHaveCount(0)
 
-    await runCommand(page, '分屏模式')
+    // 实时预览模式：编辑器 + 内联渲染
+    await runCommand(page, '实时预览模式')
     await expect(page.locator('.cm-content')).toBeVisible()
-    await expect(page.locator('.preview-content')).toBeVisible()
 
-    await runCommand(page, '预览模式')
+    // 阅读模式：只有预览
+    await runCommand(page, '阅读模式')
     await expect(page.locator('.cm-content')).toHaveCount(0)
     await expect(page.locator('.preview-content')).toContainText('View Mode')
   })
@@ -982,19 +984,16 @@ test.describe('文件与编辑器主流程', () => {
     await openFirstMarkdownFile(page)
     await setEditorContent(page, '- [ ] task item')
 
+    // Live Preview 模式下复选框在编辑器内渲染
     const checkbox = page.locator('.cm-live-preview-checkbox')
-    const previewCheckbox = page.locator('.preview-content input[type="checkbox"]')
     await expect(checkbox).toBeVisible()
-    await expect(previewCheckbox).toHaveCount(1)
     await checkbox.click()
     await expect(checkbox).toBeChecked()
-    await expect(previewCheckbox.first()).toBeChecked()
     await page.keyboard.press('Control+S')
     await expect.poll(() => readWorkspaceFile(page, '/workspace/README.md')).toContain('- [x] task item')
 
     await checkbox.click()
     await expect(checkbox).not.toBeChecked()
-    await expect(previewCheckbox.first()).not.toBeChecked()
     await page.keyboard.press('Control+S')
     await expect.poll(() => readWorkspaceFile(page, '/workspace/README.md')).toContain('- [ ] task item')
   })

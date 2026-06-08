@@ -29,7 +29,7 @@ const EMBED_SOURCE = [
 ].join('\n')
 
 async function setEditorMarkdown(page: Page, content: string) {
-  const livePreviewButton = page.getByRole('button', { name: '实时预览' })
+  const livePreviewButton = page.locator('.editor-toolbar').getByRole('button', { name: '实时预览' })
   const wasLivePreviewOn = await livePreviewButton.evaluate(el => el.classList.contains('el-button--primary'))
   if (wasLivePreviewOn) await livePreviewButton.click()
   await setEditorContent(page, content)
@@ -48,7 +48,7 @@ test.describe('block embeds', () => {
 
   test('preview renders an embedded note', async ({ page }) => {
     await setEditorMarkdown(page, '![[Embed Source]]')
-    await runCommand(page, '分屏模式')
+    await runCommand(page, '阅读模式')
 
     const embed = page.locator('.preview-content .embed-note').first()
     await expect(embed).toBeVisible()
@@ -67,7 +67,7 @@ test.describe('block embeds', () => {
 
   test('preview renders only the requested embedded heading section', async ({ page }) => {
     await setEditorMarkdown(page, '![[Embed Source#Section One]]')
-    await runCommand(page, '分屏模式')
+    await runCommand(page, '阅读模式')
 
     const embed = page.locator('.preview-content .embed-note').first()
     await expect(embed).toContainText('Visible section body.')
@@ -76,7 +76,7 @@ test.describe('block embeds', () => {
 
   test('preview renders only the requested block id', async ({ page }) => {
     await setEditorMarkdown(page, '![[Embed Source#^source-block]]')
-    await runCommand(page, '分屏模式')
+    await runCommand(page, '阅读模式')
 
     const embed = page.locator('.preview-content .embed-note').first()
     const embedContent = embed.locator('.embed-content')
@@ -96,7 +96,7 @@ test.describe('block embeds', () => {
       '',
       'Current file reusable body.',
     ].join('\n'))
-    await runCommand(page, '分屏模式')
+    await runCommand(page, '阅读模式')
 
     const embed = page.locator('.preview-content .embed-note').first()
     await expect(embed).toContainText('Current file reusable body.')
@@ -119,7 +119,7 @@ test.describe('block embeds', () => {
 
   test('preview shows a visible missing state for unresolved embeds', async ({ page }) => {
     await setEditorMarkdown(page, '![[Missing Embed Target]]')
-    await runCommand(page, '分屏模式')
+    await runCommand(page, '阅读模式')
 
     const missing = page.locator('.preview-content .embed-not-found').first()
     await expect(missing).toBeVisible()

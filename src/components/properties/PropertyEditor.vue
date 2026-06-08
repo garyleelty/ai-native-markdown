@@ -198,9 +198,7 @@ function handleBooleanUpdate(checked: boolean) {
 }
 
 function handleDateUpdate(date: string | null) {
-  if (date) {
-    emit('update', props.keyName, date)
-  }
+  emit('update', props.keyName, date || '')
 }
 
 function handleTagsUpdate(value: string) {

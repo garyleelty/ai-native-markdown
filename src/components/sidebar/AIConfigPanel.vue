@@ -189,9 +189,10 @@ const testConnection = async () => {
   }
 }
 
-const saveAIConfig = () => {
+const saveAIConfig = async () => {
   applyAIConfig()
   settingsStore.updateAIConfig(buildAIConfig())
+  await settingsStore.persistAIConfigNow()
   configSaved.value = true
   if (configSavedTimer) clearTimeout(configSavedTimer)
   configSavedTimer = setTimeout(() => {

@@ -36,7 +36,7 @@ AI Native Markdown 是一个本地优先的 Markdown 知识工作台，基于 El
 ### 编辑与预览
 
 - CodeMirror 6 Markdown 编辑器
-- 源码、预览、分屏三种模式
+- 源码模式、实时预览模式、阅读模式
 - 实时预览、任务列表和 Live Preview 任务勾选回写
 - Markdown 工具栏：加粗、斜体、删除线、标题、代码块、引用、列表、链接、图片
 - Mermaid 图表、KaTeX 数学公式、代码高亮

@@ -10,6 +10,8 @@ import type { SearchResult, VaultBackend, VaultChangeEvent, VaultService, VaultS
 
 let activeBackendKind: VaultBackend['kind'] = 'indexeddb'
 let electronKnowledgeQueue: Promise<void> = Promise.resolve()
+const vaultChangeListeners = new Set<(event: VaultChangeEvent) => void>()
+let unsubscribeElectronChanges: (() => void) | null = null
 
 
 function isElectronBridgeAvailable(): boolean {
@@ -20,6 +22,19 @@ function activeBackend(): VaultBackend {
   return activeBackendKind === 'electron-fs' && isElectronBridgeAvailable()
     ? electronVault
     : indexedDbVault
+}
+
+function ensureElectronChangeSubscription(): void {
+  if (unsubscribeElectronChanges || !isElectronBridgeAvailable() || vaultChangeListeners.size === 0) return
+  unsubscribeElectronChanges = electronVault.onDidChange((event) => {
+    for (const listener of vaultChangeListeners) listener(event)
+  })
+}
+
+function releaseElectronChangeSubscriptionIfIdle(): void {
+  if (vaultChangeListeners.size > 0 || !unsubscribeElectronChanges) return
+  unsubscribeElectronChanges()
+  unsubscribeElectronChanges = null
 }
 
 function getSourcePathBeforeRename(path: string, oldPath: string, newPath: string, isDirectory: boolean): string {
@@ -75,6 +90,7 @@ async function useElectronBackendIfOpen(): Promise<boolean> {
   const state = await electronVault.getState()
   if (!state.rootPath) return false
   activeBackendKind = 'electron-fs'
+  ensureElectronChangeSubscription()
   await rebuildElectronKnowledgeIndex()
   return true
 }
@@ -90,6 +106,7 @@ export const vaultService: VaultService = {
     await indexedDbVault.init()
     try {
       await useElectronBackendIfOpen()
+      ensureElectronChangeSubscription()
     } catch {
       activeBackendKind = 'indexeddb'
     }
@@ -107,8 +124,12 @@ export const vaultService: VaultService = {
   },
 
   onDidChange(listener: (event: VaultChangeEvent) => void): () => void {
-    if (!isElectronBridgeAvailable()) return () => {}
-    return electronVault.onDidChange(listener)
+    vaultChangeListeners.add(listener)
+    ensureElectronChangeSubscription()
+    return () => {
+      vaultChangeListeners.delete(listener)
+      releaseElectronChangeSubscriptionIfIdle()
+    }
   },
 
   async openDirectory(): Promise<VaultState | null> {
@@ -116,6 +137,7 @@ export const vaultService: VaultService = {
     const state = await electronVault.openDirectory()
     if (!state?.rootPath) return null
     activeBackendKind = 'electron-fs'
+    ensureElectronChangeSubscription()
     await rebuildElectronKnowledgeIndex()
     return state
   },

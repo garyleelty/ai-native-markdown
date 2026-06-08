@@ -45,13 +45,19 @@
         <el-tooltip content="AI 助手" placement="bottom">
           <el-button :icon="ChatDotRound" native-type="button" circle size="small" aria-label="AI 助手" :type="settingsStore.showAIPanel ? 'primary' : 'default'" @click="toggleAIPanel" />
         </el-tooltip>
+        <el-tooltip content="图谱工作区" placement="bottom">
+          <el-button :icon="Share" native-type="button" circle size="small" aria-label="图谱工作区" :type="showDesktopGraphPane ? 'primary' : 'default'" @click="toggleGraphPane" />
+        </el-tooltip>
+        <el-tooltip content="右侧工作台" placement="bottom">
+          <el-button :icon="Tickets" native-type="button" circle size="small" aria-label="右侧工作台" :type="showDesktopRightDock ? 'primary' : 'default'" @click="toggleRightDock" />
+        </el-tooltip>
         <el-tooltip :content="viewModeTooltip" placement="bottom">
           <el-button :icon="editorStore.viewMode === 'preview' ? View : EditPen" native-type="button" circle size="small" aria-label="切换视图模式" @click="cycleViewMode" />
         </el-tooltip>
         <el-tooltip content="版本历史" placement="bottom" v-if="editorStore.currentFile">
           <el-button :icon="Clock" native-type="button" circle size="small" aria-label="版本历史" @click="showVersionHistory = true" />
         </el-tooltip>
-        <el-dropdown trigger="click" @command="handleExport">
+        <el-dropdown trigger="click" hide-on-click @command="handleExport">
           <el-button :icon="Download" native-type="button" circle size="small" aria-label="导出" />
           <template #dropdown>
             <el-dropdown-menu>
@@ -184,6 +190,8 @@
                     native-type="button"
                     @click="reloadCurrentConflictFromDisk"
                   >重新载入磁盘版本</el-button>
+                  <el-button size="small" :icon="Clock" native-type="button" @click="saveCurrentConflictSnapshot">保存本地快照</el-button>
+                  <el-button size="small" :icon="Clock" native-type="button" @click="openCurrentConflictVersionHistory">版本历史</el-button>
                   <el-button size="small" :icon="Select" native-type="button" @click="keepCurrentConflictLocal">保留本地版本</el-button>
                 </div>
               </div>
@@ -223,7 +231,7 @@
                 </div>
               </div>
             </div>
-            <div class="editor-preview-view" :class="{ 'split-mode': false }">
+            <div class="editor-preview-view">
               <Editor
                 v-if="editorStore.viewMode !== 'preview'"
                 ref="editorRef"
@@ -268,6 +276,43 @@
           </div>
         </Transition>
       </el-container>
+
+      <Transition name="workbench-pane">
+        <div
+          v-if="showDesktopGraphPane"
+          class="graph-pane-shell"
+          :style="{ width: settingsStore.graphPaneWidth + 'px' }"
+        >
+          <div class="workbench-resize-handle is-left" @mousedown="startResize('graphPane', $event)" />
+          <GraphWorkbenchPane
+            :current-file="editorStore.currentFile"
+            @select="handleFileSelect"
+            @close="settingsStore.setGraphPaneVisible(false)"
+          />
+        </div>
+      </Transition>
+
+      <Transition name="workbench-pane">
+        <div
+          v-if="showDesktopRightDock"
+          class="right-dock-shell"
+          :style="{ width: settingsStore.rightDockWidth + 'px' }"
+        >
+          <div class="workbench-resize-handle is-left" @mousedown="startResize('rightDock', $event)" />
+          <RightDock
+            :current-file="editorStore.currentFile"
+            :editor-content="editorContent"
+            :cursor-line="editorStore.cursorLine"
+            @close="settingsStore.setRightDockVisible(false)"
+            @navigate="handleOutlineNavigate"
+            @select="handleFileSelect"
+            @reference-select="handleKnowledgeReferenceSelect"
+            @wiki-navigate="handleWikiNavigate"
+            @link-mention="handleLinkMention"
+            @content-change="handlePropertiesContentChange"
+          />
+        </div>
+      </Transition>
     </el-container>
 
     <el-footer class="status-bar" height="28px">
@@ -313,12 +358,13 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Operation, Document, ChatDotRound, View, EditPen, Download, Moon, Sunny, Clock, Upload, FullScreen, WarningFilled, RefreshLeft, Select } from '@element-plus/icons-vue'
+import { Operation, Document, ChatDotRound, View, EditPen, Download, Moon, Sunny, Clock, Upload, FullScreen, WarningFilled, RefreshLeft, Select, Share, Tickets } from '@element-plus/icons-vue'
 import { useSettingsStore } from './stores/settings'
 import { useEditorStore } from './stores/editor'
 import { aiService, configureAIProvider } from './services/ai'
 import { vaultService } from './services/vault'
 import { embedSyncService } from './services/embedSyncService'
+import { versionHistory } from './services/versionHistory'
 import { createMissingHeadingsAndBlocksFromAuditReport, createMissingNotesFromAuditReport, previewMissingAssetLinksFromAuditReport, repairMissingAssetLinksFromAuditReport, runMigrationAudit, type MigrationAuditAssetRepairResult, type MigrationAuditIssue, type MigrationAuditReport } from './services/migrationAudit'
 import type { VaultChangeEvent } from './services/vault'
 import type { KnowledgeReference } from './services/knowledgeIndex'
@@ -330,6 +376,8 @@ import Sidebar from './components/Sidebar.vue'
 import Editor from './components/Editor.vue'
 import Preview from './components/Preview.vue'
 import ChatPanel from './components/ai-panel/ChatPanel.vue'
+import GraphWorkbenchPane from './components/workbench/GraphWorkbenchPane.vue'
+import RightDock from './components/workbench/RightDock.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import MigrationAuditDialog from './components/MigrationAuditDialog.vue'
 import WelcomePage from './components/WelcomePage.vue'
@@ -342,7 +390,10 @@ import { getActiveSession, updateSession, getSessionDuration } from './utils/wri
 
 const TemplateGallery = defineAsyncComponent(() => import('./components/TemplateGallery.vue'))
 const VersionHistoryPanel = defineAsyncComponent(() => import('./components/editor/VersionHistoryPanel.vue'))
-const ExportDialog = defineAsyncComponent(() => import('./components/ExportDialog.vue'))
+const ExportDialog = defineAsyncComponent({
+  loader: () => import('./components/ExportDialog.vue'),
+  delay: 0,
+})
 const MarkdownCheatsheet = defineAsyncComponent(() => import('./components/MarkdownCheatsheet.vue'))
 const settingsStore = useSettingsStore()
 const editorStore = useEditorStore()
@@ -421,6 +472,8 @@ const editorContent = computed({
 const isDark = computed(() => settingsStore.isDark())
 const isNarrowViewport = computed(() => viewportWidth.value <= narrowViewportBreakpoint)
 const sidebarVisible = computed(() => isNarrowViewport.value ? mobileSidebarOpen.value : settingsStore.showSidebar)
+const showDesktopGraphPane = computed(() => !isNarrowViewport.value && viewportWidth.value >= 1320 && settingsStore.showGraphPane && editorStore.openTabs.length > 0)
+const showDesktopRightDock = computed(() => !isNarrowViewport.value && viewportWidth.value >= 1040 && settingsStore.showRightDock && editorStore.openTabs.length > 0)
 const sidebarAsideWidth = computed(() => {
   if (!sidebarVisible.value) return '0px'
   if (!isNarrowViewport.value) return `${settingsStore.sidebarWidth}px`
@@ -448,7 +501,7 @@ const closeMobileSidebar = () => {
   mobileSidebarOpen.value = false
 }
 
-type MobileReadableViewMode = Exclude<ViewMode, 'split'>
+type MobileReadableViewMode = ViewMode
 
 const preferReadableMobileView = (
   mode: MobileReadableViewMode = 'source',
@@ -476,6 +529,8 @@ const toggleSidebar = () => {
     settingsStore.toggleSidebar()
   }
 }
+const toggleGraphPane = () => settingsStore.toggleGraphPane()
+const toggleRightDock = () => settingsStore.toggleRightDock()
 const toggleAIPanel = () => settingsStore.toggleAIPanel()
 
 const cycleViewMode = () => {
@@ -703,6 +758,21 @@ const keepCurrentConflictLocal = () => {
   if (!path) return
   clearExternalConflict(path)
   ElMessage.success('已保留本地未保存内容')
+}
+const saveCurrentConflictSnapshot = async () => {
+  const conflict = currentExternalConflict.value
+  if (!conflict) return
+  try {
+    await versionHistory.saveSnapshot(conflict.path, conflict.localContent, '外部冲突：本地未保存版本')
+    ElMessage.success('已保存本地快照')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    ElMessage.error(`保存本地快照失败: ${message}`)
+  }
+}
+const openCurrentConflictVersionHistory = () => {
+  if (!currentExternalConflict.value) return
+  showVersionHistory.value = true
 }
 const handleFileSelect = async (
   filePath: string,
@@ -1414,6 +1484,8 @@ const handleCommandExecute = (command: string) => {
     'edit.image': () => editorRef.value?.insertImage?.(),
     'view.sidebar': () => toggleSidebar(),
     'view.ai-panel': () => toggleAIPanel(),
+    'view.graph-workbench': () => toggleGraphPane(),
+    'view.right-dock': () => toggleRightDock(),
     'view.files-panel': () => openSidebarTab('files'),
     'view.knowledge-panel': () => openSidebarTab('graph'),
     'view.ai-settings': () => openSidebarTab('ai'),
@@ -1447,6 +1519,8 @@ const startResize = (panel: string, event: MouseEvent) => {
   startPos.x = event.clientX
   startPos.y = event.clientY
   if (panel === 'sidebar') startSize.w = settingsStore.sidebarWidth
+  else if (panel === 'graphPane') startSize.w = settingsStore.graphPaneWidth
+  else if (panel === 'rightDock') startSize.w = settingsStore.rightDockWidth
   else if (panel === 'aiPanel') startSize.h = settingsStore.aiPanelHeight
   document.addEventListener('mousemove', handleResize)
   document.addEventListener('mouseup', stopResize)
@@ -1459,6 +1533,12 @@ const handleResize = (event: MouseEvent) => {
   if (resizing === 'sidebar') {
     const diff = event.clientX - startPos.x
     settingsStore.setSidebarWidth(Math.max(240, Math.min(400, startSize.w + diff)))
+  } else if (resizing === 'graphPane') {
+    const diff = startPos.x - event.clientX
+    settingsStore.setGraphPaneWidth(Math.max(320, Math.min(760, startSize.w + diff)))
+  } else if (resizing === 'rightDock') {
+    const diff = startPos.x - event.clientX
+    settingsStore.setRightDockWidth(Math.max(280, Math.min(460, startSize.w + diff)))
   } else if (resizing === 'aiPanel') {
     const diff = window.innerHeight - event.clientY - 28
     settingsStore.setAIPanelHeight(Math.max(140, Math.min(400, diff)))
@@ -1587,17 +1667,17 @@ onMounted(async () => {
   window.addEventListener('resize', updateViewportWidth)
   window.addEventListener('beforeunload', handleBeforeUnload)
   document.addEventListener('keydown', handleKeyDown)
+  unsubscribeVaultChanges = vaultService.onDidChange((event) => {
+    void syncVaultExternalChanges(event)
+  })
+  unsubscribeEmbedSyncChanges = embedSyncService.onDidChange((event) => {
+    if (editorStore.currentFile && event.affectedHostPaths.includes(editorStore.currentFile)) {
+      embedRefreshKey.value += 1
+    }
+  })
   try {
     await vaultService.init()
     if (isAppDisposed) return
-    unsubscribeVaultChanges = vaultService.onDidChange((event) => {
-      void syncVaultExternalChanges(event)
-    })
-    unsubscribeEmbedSyncChanges = embedSyncService.onDidChange((event) => {
-      if (editorStore.currentFile && event.affectedHostPaths.includes(editorStore.currentFile)) {
-        embedRefreshKey.value += 1
-      }
-    })
     const restoredContent = await editorStore.hydrateRestoredSession()
     if (isAppDisposed) return
     if (editorRef.value) {

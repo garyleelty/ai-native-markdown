@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { loadDemoWorkspace, openApp, openFirstMarkdownFile, setEditorContent } from './helpers'
+import { loadDemoWorkspace, openApp, openFirstMarkdownFile, runCommand, setEditorContent } from './helpers'
 
 test.describe('安全修复验证', () => {
   test.beforeEach(async ({ page }) => {
@@ -16,6 +16,7 @@ test.describe('安全修复验证', () => {
     await loadDemoWorkspace(page)
     await openFirstMarkdownFile(page)
     await setEditorContent(page, '<script>alert("xss")</script>\n\n<img src=x onerror=alert(1)>')
+    await runCommand(page, '阅读模式')
 
     const preview = page.locator('.preview-content')
     await expect(preview).toContainText('<script>alert')
@@ -216,8 +217,9 @@ test.describe('功能完整性验证', () => {
   test('试用示例工作区功能正常', async ({ page }) => {
     await loadDemoWorkspace(page)
     await openFirstMarkdownFile(page)
-    await expect(page.locator('.editor-preview-view.split-mode')).toBeVisible()
-    await expect(page.locator('.preview-pane')).toBeVisible()
+    await expect(page.locator('.cm-content')).toBeVisible()
+    await expect(page.locator('.preview-pane')).toHaveCount(0)
+    await expect(page.locator('.status-bar')).toContainText('实时预览')
   })
 
   test('重命名到已存在路径会失败且不会产生重复文件记录', async ({ page }) => {
@@ -265,6 +267,7 @@ test.describe('功能完整性验证', () => {
     await loadDemoWorkspace(page)
     await openFirstMarkdownFile(page)
     await setEditorContent(page, '# Test Heading\n\n**Bold text** and *italic text*')
+    await runCommand(page, '阅读模式')
 
     const preview = page.locator('.preview-content')
     await expect(preview).toBeVisible()
@@ -313,13 +316,12 @@ test.describe('功能完整性验证', () => {
     expect(box!.x).toBeGreaterThanOrEqual(0)
     expect(box!.x + box!.width).toBeLessThanOrEqual(390)
 
-    const itemHeights = await page.locator('.command-item').evaluateAll(items =>
-      items.slice(0, 8).map(item => item.getBoundingClientRect().height)
-    )
-    expect(itemHeights.length).toBeGreaterThan(0)
-    for (const height of itemHeights) {
-      expect(height).toBeGreaterThanOrEqual(43.5)
-    }
+    await expect.poll(async () => {
+      const itemHeights = await page.locator('.command-item').evaluateAll(items =>
+        items.slice(0, 8).map(item => item.getBoundingClientRect().height)
+      )
+      return itemHeights.length > 0 && itemHeights.every(height => height >= 43.5)
+    }).toBe(true)
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
     expect(overflow).toBeLessThanOrEqual(1)

@@ -55,24 +55,13 @@
 }
 
 .brand-emoji {
-  font-size: 18px;
-  background: var(--gradient-vivid);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: brand-pulse 3s ease-in-out infinite;
-}
-
-@keyframes brand-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(1.1); }
+  font-size: 14px;
+  color: var(--obsidian-accent);
+  line-height: 1;
 }
 
 .brand-text {
-  background: var(--accent-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--obsidian-text-muted);
 }
 
 /* ── Header 按钮: Obsidian 风格 ── */
@@ -135,6 +124,7 @@
 /* ── 编辑器主区域 ── */
 .editor-container-main {
   flex: 1;
+  flex-basis: 0;
   min-width: 0;
   overflow: hidden;
   display: flex;
@@ -142,6 +132,56 @@
   background: var(--obsidian-bg-primary);
   /* 主题切换平滑过渡 */
   transition: var(--theme-transition);
+}
+
+.graph-pane-shell,
+.right-dock-shell {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--obsidian-bg-primary);
+}
+
+.graph-pane-shell {
+  max-width: min(760px, 44vw);
+}
+
+.right-dock-shell {
+  max-width: min(460px, 32vw);
+}
+
+.workbench-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  z-index: 12;
+  cursor: col-resize;
+  background: transparent;
+  transition: background var(--duration-fast), opacity var(--duration-fast);
+}
+
+.workbench-resize-handle.is-left {
+  left: -3px;
+}
+
+.workbench-resize-handle:hover,
+.workbench-resize-handle:active {
+  background: var(--obsidian-accent);
+  opacity: 0.45;
+}
+
+.workbench-pane-enter-active,
+.workbench-pane-leave-active {
+  transition: opacity var(--duration-slow) var(--ease-default), transform var(--duration-slow) var(--ease-default);
+}
+
+.workbench-pane-enter-from,
+.workbench-pane-leave-to {
+  opacity: 0;
+  transform: translateX(10px);
 }
 
 .editor-main {
@@ -412,14 +452,6 @@
   overflow: hidden;
 }
 
-.editor-preview-view.split-mode {
-  position: relative;
-}
-
-.editor-preview-view.split-mode .editor-pane {
-  border-right: 1px solid var(--obsidian-border);
-}
-
 .editor-pane {
   flex: 1;
   min-width: 0;
@@ -632,7 +664,9 @@
 .focus-mode-active .app-header,
 .focus-mode-active .status-bar,
 .focus-mode-active .tabs-bar,
-.focus-mode-active .ai-panel-section {
+.focus-mode-active .ai-panel-section,
+.focus-mode-active .graph-pane-shell,
+.focus-mode-active .right-dock-shell {
   display: none;
 }
 
@@ -736,13 +770,9 @@
     width: 100%;
   }
 
-  .editor-preview-view.split-mode {
-    flex-direction: column;
-  }
-
-  .editor-preview-view.split-mode .editor-pane {
-    border-right: 0;
-    border-bottom: 1px solid var(--obsidian-border);
+  .graph-pane-shell,
+  .right-dock-shell {
+    display: none;
   }
 
   .vault-conflict-banner {

@@ -12,7 +12,7 @@ import { knowledgeIndex } from '@/services/knowledgeIndex'
 interface Props {
   getContent: () => string
   onContentChange: (newContent: string) => void
-  filePath: string
+  getFilePath: () => string
 }
 
 export function useProperties(props: Props) {
@@ -30,7 +30,8 @@ export function useProperties(props: Props) {
 
       const inferredTypes = inferPropertyTypes(parsed)
 
-      const record = await knowledgeIndex.getByPath(props.filePath)
+      const filePath = props.getFilePath()
+      const record = filePath ? await knowledgeIndex.getByPath(filePath) : undefined
       const userPrefs = (record?.propertyTypes || {}) as any
 
       propertyTypes.value = mergePropertyTypes(inferredTypes, userPrefs)
@@ -54,7 +55,8 @@ export function useProperties(props: Props) {
 
   async function setPropertyType(key: string, type: PropertyType) {
     propertyTypes.value[key] = type
-    await knowledgeIndex.savePropertyTypePref(props.filePath, key, type)
+    const filePath = props.getFilePath()
+    if (filePath) await knowledgeIndex.savePropertyTypePref(filePath, key, type)
   }
 
   function addProperty(key: string, value: any, type: PropertyType = 'text') {

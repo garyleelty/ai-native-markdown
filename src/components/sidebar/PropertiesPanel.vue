@@ -1,7 +1,11 @@
 <template>
   <div class="properties-panel">
-    <div class="panel-header">
-      <h3>📋 属性</h3>
+    <div class="panel-header" :class="{ compact: embedded }">
+      <h3 v-if="!embedded">
+        <el-icon><Tickets /></el-icon>
+        属性
+      </h3>
+      <span v-else class="panel-kicker">Frontmatter</span>
       <el-button size="small" link @click="handleShowAddProperty">
         {{ showAddProperty ? '取消' : '+ 添加' }}
       </el-button>
@@ -12,7 +16,7 @@
       <el-input v-model="newPropertyValue" ref="valueInputRef" placeholder="属性值" size="small" class="property-value-input" />
       <el-button size="small" @click="handleAddProperty" type="primary">添加</el-button>
       <div class="form-hint">
-        <span class="hint-item">⌘+Enter 添加</span>
+        <span class="hint-item">Ctrl/⌘+Enter 添加</span>
         <span class="hint-item">Tab 切换</span>
         <span class="hint-item">Esc 取消</span>
       </div>
@@ -41,12 +45,14 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { Tickets } from '@element-plus/icons-vue'
 import PropertyEditor from '@/components/properties/PropertyEditor.vue'
 import { useProperties } from '@/composables/useProperties'
 
 const props = defineProps<{
   content: string
   filePath: string
+  embedded?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -66,13 +72,22 @@ const {
 } = useProperties({
   getContent: () => props.content,
   onContentChange: (newContent: string) => emit('contentChange', newContent),
-  filePath: props.filePath
+  getFilePath: () => props.filePath
 })
 
 const newPropertyKey = ref('')
 const newPropertyValue = ref('')
-const keyInputRef = ref<HTMLInputElement | null>(null)
-const valueInputRef = ref<HTMLInputElement | null>(null)
+const keyInputRef = ref<any>(null)
+const valueInputRef = ref<any>(null)
+
+function getInputElement(inputRef: any): HTMLInputElement | HTMLTextAreaElement | null {
+  return inputRef?.input || inputRef?.textarea || inputRef?.$el?.querySelector?.('input, textarea') || null
+}
+
+function focusInput(inputRef: any) {
+  inputRef?.focus?.()
+  getInputElement(inputRef)?.focus()
+}
 
 function handleAddProperty() {
   if (newPropertyKey.value.trim()) {
@@ -87,7 +102,7 @@ function handleShowAddProperty() {
   showAddProperty.value = !showAddProperty.value
   if (showAddProperty.value) {
     setTimeout(() => {
-      keyInputRef.value?.focus()
+      focusInput(keyInputRef.value)
     }, 100)
   }
 }
@@ -99,14 +114,15 @@ function handleKeydown(e: KeyboardEvent) {
     showAddProperty.value = false
     newPropertyKey.value = ''
     newPropertyValue.value = ''
-  } else if (e.key === 'Enter' && e.metaKey) {
+  } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
     handleAddProperty()
   } else if (e.key === 'Tab') {
     e.preventDefault()
-    if (document.activeElement === keyInputRef.value) {
-      valueInputRef.value?.focus()
-    } else if (document.activeElement === valueInputRef.value) {
-      keyInputRef.value?.focus()
+    const active = document.activeElement
+    if (active === getInputElement(keyInputRef.value)) {
+      focusInput(valueInputRef.value)
+    } else if (active === getInputElement(valueInputRef.value)) {
+      focusInput(keyInputRef.value)
     }
   }
 }
@@ -119,7 +135,7 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
 })
 
-watch(() => props.content, () => {
+watch(() => [props.content, props.filePath] as const, () => {
   load()
 }, { immediate: true })
 </script>
@@ -139,6 +155,11 @@ watch(() => props.content, () => {
   border-bottom: 1px solid var(--obsidian-border);
 }
 
+.panel-header.compact {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+}
+
 .panel-header h3 {
   margin: 0;
   font-size: 14px;
@@ -147,6 +168,14 @@ watch(() => props.content, () => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.panel-kicker {
+  color: var(--obsidian-text-faint);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.4;
+  text-transform: uppercase;
 }
 
 .add-property-form {

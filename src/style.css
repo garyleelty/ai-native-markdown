@@ -9,18 +9,18 @@
                     border-color var(--duration-slow) var(--ease-default);
 
   /* ── Obsidian 色彩体系 ── */
-  --obsidian-bg-primary: #1e1e1e;
-  --obsidian-bg-secondary: #252525;
-  --obsidian-bg-tertiary: #2a2a2a;
-  --obsidian-bg-hover: #303030;
-  --obsidian-bg-active: #363636;
-  --obsidian-bg-modifier: #1a1a1a;
+  --obsidian-bg-primary: #202020;
+  --obsidian-bg-secondary: #191919;
+  --obsidian-bg-tertiary: #242424;
+  --obsidian-bg-hover: #2b2b2b;
+  --obsidian-bg-active: #313131;
+  --obsidian-bg-modifier: #141414;
   --obsidian-text-normal: #dcddde;
-  --obsidian-text-muted: #999;
-  --obsidian-text-faint: #8c8c8c;
-  --obsidian-accent: #7f6df2;
-  --obsidian-accent-hover: #8b7cf3;
-  --obsidian-accent-soft: rgba(127, 109, 242, 0.12);
+  --obsidian-text-muted: #a3a3a3;
+  --obsidian-text-faint: #737373;
+  --obsidian-accent: #705dcf;
+  --obsidian-accent-hover: #7d6be0;
+  --obsidian-accent-soft: rgba(112, 93, 207, 0.16);
   --obsidian-border: rgba(255, 255, 255, 0.06);
 
   /* ── Element Plus 变量映射 ── */
@@ -369,12 +369,12 @@ button {
 
 /* 按钮悬停微动效 */
 .el-button:not(.is-disabled):not(.is-loading):hover {
-  transform: translateY(-1px);
-  transition: transform 0.15s var(--ease-spring), background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transform: none;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .el-button:not(.is-disabled):not(.is-loading):active {
-  transform: translateY(0) scale(0.97);
+  transform: none;
 }
 
 /* 弹窗弹跳动画 */

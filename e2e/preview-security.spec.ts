@@ -25,7 +25,7 @@ test.describe('预览渲染与安全补充', () => {
       '```',
     ].join('\n'))
 
-    await runCommand(page, '预览模式')
+    await runCommand(page, '阅读模式')
     const preview = page.locator('.preview-content')
     await expect(preview.locator('.katex')).toBeVisible()
     await expect(preview.locator('input[type="checkbox"]')).toBeChecked()
@@ -84,7 +84,7 @@ test.describe('预览渲染与安全补充', () => {
 
   test('Mermaid 图表成功渲染或显示安全错误文本', async ({ page }) => {
     await setEditorContent(page, '```mermaid\ngraph TD\n  A[Start] --> B[Done]\n```')
-    await runCommand(page, '预览模式')
+    await runCommand(page, '阅读模式')
 
     const mermaid = page.locator('.preview-content .mermaid').first()
     await expect(mermaid).toBeVisible()
@@ -110,7 +110,7 @@ test.describe('预览渲染与安全补充', () => {
       '\\int_0^1 x^2 dx = \\frac{1}{3}',
       '$$',
     ].join('\n'))
-    await runCommand(page, '预览模式')
+    await runCommand(page, '阅读模式')
 
     const mermaid = page.locator('.preview-content .mermaid').first()
     await expect(mermaid).toBeVisible()
@@ -125,10 +125,12 @@ test.describe('预览渲染与安全补充', () => {
 
   test('快速替换 Mermaid 内容后预览只保留最新 Markdown', async ({ page }) => {
     await setEditorContent(page, '```mermaid\ngraph TD\n  Old[Old diagram] --> Done[Done]\n```')
-    await runCommand(page, '分屏模式')
+    await runCommand(page, '阅读模式')
     await expect(page.locator('.preview-content .mermaid')).toBeVisible()
 
+    await runCommand(page, '实时预览模式')
     await setEditorContent(page, '# Latest plain note\n\nThis content replaces the diagram.')
+    await runCommand(page, '阅读模式')
 
     const preview = page.locator('.preview-content')
     await expect(preview.locator('h1')).toContainText('Latest plain note')
@@ -145,7 +147,7 @@ test.describe('预览渲染与安全补充', () => {
       '',
       '<img src=x onerror=alert(1)>',
     ].join('\n'))
-    await runCommand(page, '预览模式')
+    await runCommand(page, '阅读模式')
 
     const unsafeDom = await page.locator('.preview-content').evaluate((el) => ({
       javascriptLinks: el.querySelectorAll('a[href^="javascript:"]').length,
@@ -171,7 +173,7 @@ test.describe('预览渲染与安全补充', () => {
       'console.log("line map")',
       '```',
     ].join('\n'))
-    await runCommand(page, '预览模式')
+    await runCommand(page, '阅读模式')
 
     const preview = page.locator('.preview-content')
     await expect(preview.locator('h1[data-line="1"]')).toContainText('First')
@@ -180,7 +182,7 @@ test.describe('预览渲染与安全补充', () => {
     await expect(preview.locator('[data-line="7"][data-line-end="9"]')).toBeVisible()
   })
 
-  test('分屏模式下编辑器光标会高亮对应预览标题', async ({ page }) => {
+  test('阅读模式会高亮切换前的编辑器光标所在标题', async ({ page }) => {
     await setEditorContent(page, [
       '# First',
       '',
@@ -190,15 +192,15 @@ test.describe('预览渲染与安全补充', () => {
       '',
       'target',
     ].join('\n'))
-    await runCommand(page, '分屏模式')
     await moveEditorCursorToLine(page, 5)
+    await runCommand(page, '阅读模式')
 
     const highlighted = page.locator('.preview-content .current-line')
     await expect(highlighted).toContainText('Second')
     await expect(highlighted).toHaveAttribute('data-line', '5')
   })
 
-  test('点击预览标题锚点会跳转到编辑器源码行', async ({ page }) => {
+  test('点击阅读模式标题锚点会同步当前源码行', async ({ page }) => {
     await setEditorContent(page, [
       '# First',
       '',
@@ -208,11 +210,13 @@ test.describe('预览渲染与安全补充', () => {
       '',
       'target',
     ].join('\n'))
-    await runCommand(page, '分屏模式')
+    await runCommand(page, '阅读模式')
     await page.locator('.preview-content h2 .header-anchor').click()
 
     await expect(page.locator('.status-bar')).toContainText('行 5')
-    await expect(page.locator('.cm-activeLine')).toContainText('Second')
+    const highlighted = page.locator('.preview-content .current-line')
+    await expect(highlighted).toContainText('Second')
+    await expect(highlighted).toHaveAttribute('data-line', '5')
   })
 
   test('点击预览 Wiki Link 会打开目标文档', async ({ page }) => {
@@ -222,7 +226,7 @@ test.describe('预览渲染与安全补充', () => {
       '',
       'Open [[notes/wiki-target|Target Note]] from preview.',
     ].join('\n'))
-    await runCommand(page, '预览模式')
+    await runCommand(page, '阅读模式')
 
     await page.locator('.preview-content .wiki-link', { hasText: 'Target Note' }).click()
 
@@ -245,7 +249,7 @@ test.describe('预览渲染与安全补充', () => {
       '',
       'Open [[notes/wiki-heading#Deep Heading|Deep Link]] from preview.',
     ].join('\n'))
-    await runCommand(page, '预览模式')
+    await runCommand(page, '阅读模式')
 
     await page.locator('.preview-content .wiki-link', { hasText: 'Deep Link' }).click()
 
@@ -270,7 +274,7 @@ test.describe('预览渲染与安全补充', () => {
       '',
       'unsaved body',
     ].join('\n'))
-    await runCommand(page, '预览模式')
+    await runCommand(page, '阅读模式')
 
     await page.locator('.preview-content .wiki-link', { hasText: 'Deep Link' }).click()
 
@@ -286,7 +290,7 @@ test.describe('预览渲染与安全补充', () => {
       '',
       'Create [[New Idea]] from preview.',
     ].join('\n'))
-    await runCommand(page, '预览模式')
+    await runCommand(page, '阅读模式')
 
     const missingLink = page.locator('.preview-content .wiki-link', { hasText: 'New Idea' })
     await expect(missingLink).toHaveClass(/wiki-link-missing/)

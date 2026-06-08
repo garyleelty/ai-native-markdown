@@ -230,25 +230,34 @@ defineExpose({
   padding: 0 !important;
   justify-content: center;
   height: 40px;
-  width: 44px;
+  width: 36px;
   color: var(--obsidian-text-muted, #999) !important;
   background: transparent !important;
-  border-radius: 8px;
+  border-radius: 4px;
   margin: 2px 4px;
-  transition: color 0.15s ease, background 0.15s ease, transform 0.15s var(--ease-spring);
+  transition: color 0.15s ease, background 0.15s ease;
 }
 
 .sidebar-nav .el-menu-item:hover {
   color: var(--obsidian-text-normal, #dcddde) !important;
   background: var(--obsidian-bg-hover, #303030) !important;
-  transform: scale(1.05);
-  transition: color 0.15s ease, background 0.15s ease, transform 0.15s var(--ease-spring);
 }
 
 .sidebar-nav .el-menu-item.is-active {
-  color: #fff !important;
-  background: linear-gradient(135deg, var(--obsidian-accent), #a78bfa) !important;
+  color: var(--obsidian-text-normal, #dcddde) !important;
+  background: var(--obsidian-bg-active, #363636) !important;
   position: relative;
+}
+
+.sidebar-nav .el-menu-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--obsidian-accent);
 }
 
 .sidebar-nav .el-menu-item .el-icon {

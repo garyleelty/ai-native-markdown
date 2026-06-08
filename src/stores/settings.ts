@@ -4,7 +4,7 @@ import { useDebounceFn } from '@vueuse/core'
 import type { AIConfig, ThemeMode, SidebarTab, GhostTextConfig } from '@/types'
 import { encryptValue, safeStorage, decryptValue } from '@/utils/security'
 
-const sidebarTabs: SidebarTab[] = ['files', 'graph', 'rss', 'ai', 'outline', 'settings']
+const sidebarTabs: SidebarTab[] = ['files', 'graph', 'rss', 'ai', 'properties', 'outline', 'settings']
 
 const defaultAIConfig: AIConfig = {
   provider: 'ollama',
@@ -99,8 +99,12 @@ export const useSettingsStore = defineStore('settings', () => {
   const theme = ref<ThemeMode>(loadFromStorage('theme', 'system'))
   const aiConfig = ref<AIConfig>(loadEncryptedConfig('ai_config', { ...defaultAIConfig }))
   const sidebarWidth = ref(loadFromStorage('sidebar_width', 280))
+  const rightDockWidth = ref(loadFromStorage('right_dock_width', 300))
+  const graphPaneWidth = ref(loadFromStorage('graph_pane_width', 480))
   const aiPanelHeight = ref(loadFromStorage('ai_panel_height', 260))
   const showSidebar = ref(loadFromStorage('show_sidebar', true))
+  const showRightDock = ref(loadFromStorage('show_right_dock', true))
+  const showGraphPane = ref(loadFromStorage('show_graph_pane', true))
   const showAIPanel = ref(loadFromStorage('show_ai_panel', false))
   const activeSidebarTab = ref<SidebarTab>(loadSidebarTab())
   const livePreview = ref(loadFromStorage('live_preview', true))
@@ -166,14 +170,25 @@ export const useSettingsStore = defineStore('settings', () => {
   const updateAIConfig = (config: Partial<AIConfig>) => {
     aiConfig.value = { ...aiConfig.value, ...config }
   }
+  const persistAIConfigNow = async () => {
+    await saveEncryptedConfig('ai_config', aiConfig.value)
+  }
 
   const setSidebarVisible = (visible: boolean) => {
     showSidebar.value = visible
+  }
+  const setRightDockVisible = (visible: boolean) => {
+    showRightDock.value = visible
+  }
+  const setGraphPaneVisible = (visible: boolean) => {
+    showGraphPane.value = visible
   }
   const setAIPanelVisible = (visible: boolean) => {
     showAIPanel.value = visible
   }
   const toggleSidebar = () => { setSidebarVisible(!showSidebar.value) }
+  const toggleRightDock = () => { setRightDockVisible(!showRightDock.value) }
+  const toggleGraphPane = () => { setGraphPaneVisible(!showGraphPane.value) }
   const toggleAIPanel = () => { setAIPanelVisible(!showAIPanel.value) }
   const toggleLivePreview = () => {
     livePreview.value = !livePreview.value
@@ -195,12 +210,20 @@ export const useSettingsStore = defineStore('settings', () => {
   const setSidebarWidth = (width: number) => {
     sidebarWidth.value = width
   }
+  const setRightDockWidth = (width: number) => {
+    rightDockWidth.value = width
+  }
+  const setGraphPaneWidth = (width: number) => {
+    graphPaneWidth.value = width
+  }
   const setAIPanelHeight = (height: number) => {
     aiPanelHeight.value = height
   }
 
   // Unified persistence via watchers with debounced writes for rapid-fire settings
   const debouncedSaveWidth = useDebounceFn((val: number) => { saveToStorage('sidebar_width', val) }, 200)
+  const debouncedSaveRightDockWidth = useDebounceFn((val: number) => { saveToStorage('right_dock_width', val) }, 200)
+  const debouncedSaveGraphPaneWidth = useDebounceFn((val: number) => { saveToStorage('graph_pane_width', val) }, 200)
   const debouncedSaveHeight = useDebounceFn((val: number) => { saveToStorage('ai_panel_height', val) }, 200)
   const debouncedSaveGhost = useDebounceFn((val: GhostTextConfig) => { saveToStorage('ghost_text_config', val) }, 300)
   const debouncedSaveAI = useDebounceFn((val: AIConfig) => { saveEncryptedConfig('ai_config', val) }, 300)
@@ -208,6 +231,8 @@ export const useSettingsStore = defineStore('settings', () => {
   watch(theme, (val) => { saveToStorage('theme', val) })
   watch(aiConfig, (val) => { debouncedSaveAI(val) }, { deep: true })
   watch(showSidebar, (val) => { saveToStorage('show_sidebar', val) })
+  watch(showRightDock, (val) => { saveToStorage('show_right_dock', val) })
+  watch(showGraphPane, (val) => { saveToStorage('show_graph_pane', val) })
   watch(showAIPanel, (val) => { saveToStorage('show_ai_panel', val) })
   watch(enableRAG, (val) => { saveToStorage('enable_rag', val) })
   watch(enableAIActions, (val) => { saveToStorage('enable_ai_actions', val) })
@@ -216,18 +241,21 @@ export const useSettingsStore = defineStore('settings', () => {
   watch(enableInlineEdit, (val) => { saveToStorage('enable_inline_edit', val) })
   watch(activeSidebarTab, (val) => { saveToStorage('active_sidebar_tab', val) })
   watch(sidebarWidth, (val) => { debouncedSaveWidth(val) })
+  watch(rightDockWidth, (val) => { debouncedSaveRightDockWidth(val) })
+  watch(graphPaneWidth, (val) => { debouncedSaveGraphPaneWidth(val) })
   watch(aiPanelHeight, (val) => { debouncedSaveHeight(val) })
   watch(livePreview, (val) => { saveToStorage('live_preview', val) })
 
   applyTheme()
 
   return {
-    theme, aiConfig, sidebarWidth, aiPanelHeight,
-    showSidebar, showAIPanel, activeSidebarTab, livePreview, enableRAG,
+    theme, aiConfig, sidebarWidth, rightDockWidth, graphPaneWidth, aiPanelHeight,
+    showSidebar, showRightDock, showGraphPane, showAIPanel, activeSidebarTab, livePreview, enableRAG,
     enableAIActions, enableSmartPaste, ghostTextConfig, enableInlineEdit,
-    isDark, applyTheme, setTheme, toggleTheme, updateAIConfig,
-    toggleSidebar, toggleAIPanel, toggleLivePreview, setSidebarVisible, setAIPanelVisible, setActiveTab,
+    isDark, applyTheme, setTheme, toggleTheme, updateAIConfig, persistAIConfigNow,
+    toggleSidebar, toggleRightDock, toggleGraphPane, toggleAIPanel, toggleLivePreview,
+    setSidebarVisible, setRightDockVisible, setGraphPaneVisible, setAIPanelVisible, setActiveTab,
     setEnableRAG, setEnableAIActions, setEnableSmartPaste, setEnableInlineEdit,
-    setSidebarWidth, setAIPanelHeight,
+    setSidebarWidth, setRightDockWidth, setGraphPaneWidth, setAIPanelHeight,
   }
 })

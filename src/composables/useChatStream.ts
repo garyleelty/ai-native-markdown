@@ -46,9 +46,12 @@ export function useChatStream(options: {
   onBeforeStream?: () => void
   onAfterStream?: () => void
   onError?: (error: string) => void
+  onStopped?: (message: AIMessage) => void
 }) {
   const streaming = ref(false)
   let currentAbortController: AbortController | null = null
+  let activeAssistantMsg: AIMessage | null = null
+  let stoppedAssistantId: string | null = null
   let userStoppedStreaming = false
   let isDisposed = false
 
@@ -81,6 +84,8 @@ export function useChatStream(options: {
     options.onBeforeStream?.()
     streaming.value = true
     userStoppedStreaming = false
+    stoppedAssistantId = null
+    activeAssistantMsg = assistantMsg
 
     try {
       const provider = aiService.getActiveProvider()
@@ -138,15 +143,22 @@ export function useChatStream(options: {
     } finally {
       if (!isDisposed) streaming.value = false
       currentAbortController = null
+      if (activeAssistantMsg?.id === assistantMsg.id) activeAssistantMsg = null
       userStoppedStreaming = false
       options.onAfterStream?.()
     }
 
+    if (stoppedAssistantId === assistantMsg.id) return undefined
     return assistantMsg
   }
 
   function stopStreaming(): void {
     userStoppedStreaming = true
+    if (activeAssistantMsg && stoppedAssistantId !== activeAssistantMsg.id) {
+      if (!activeAssistantMsg.content.trim()) activeAssistantMsg.content = '已停止生成'
+      stoppedAssistantId = activeAssistantMsg.id
+      options.onStopped?.({ ...activeAssistantMsg })
+    }
     if (currentAbortController) {
       currentAbortController.abort()
       currentAbortController = null

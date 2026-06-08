@@ -23,7 +23,9 @@ function loadTabState(): { tabs: Tab[]; activeTabId: string | null; viewMode: Vi
   const state = safeStorage.get(TAB_STATE_KEY, DEFAULT_TAB_STATE)
   const tabs = Array.isArray(state.tabs) ? state.tabs : []
   const activeTabId = tabs.some(tab => tab.id === state.activeTabId) ? state.activeTabId : null
-  const viewMode: ViewMode = ['source', 'live-preview', 'preview'].includes(state.viewMode) ? state.viewMode : 'preview'
+  const viewMode: ViewMode = ['source', 'live-preview', 'preview'].includes(state.viewMode)
+    ? state.viewMode
+    : DEFAULT_TAB_STATE.viewMode
   return { tabs, activeTabId, viewMode }
 }
 

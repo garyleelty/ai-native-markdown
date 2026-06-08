@@ -299,6 +299,10 @@ const { streaming, streamChat, stopStreaming, dispose: disposeStream } = useChat
   messages: () => messages.value,
   documentContext: props.context,
   onError: (msg: string) => ElMessage.error('AI 请求失败'),
+  onStopped: (msg: AIMessage) => {
+    messages.value.push(msg)
+    void scrollToBottom()
+  },
 })
 
 const {

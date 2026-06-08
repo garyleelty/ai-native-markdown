@@ -224,7 +224,7 @@ async function openMockNativeVault(page: Page) {
 }
 
 async function enableLivePreview(page: Page) {
-  const livePreviewButton = page.getByRole('button', { name: '实时预览' })
+  const livePreviewButton = page.locator('.editor-toolbar').getByRole('button', { name: '实时预览' })
   const isEnabled = await livePreviewButton.evaluate(el => el.classList.contains('el-button--primary'))
   if (!isEnabled) await livePreviewButton.click()
 }
@@ -399,6 +399,12 @@ test.describe('true filesystem vault backend', () => {
     await expect(conflictBanner).toContainText('磁盘上的文件已更新')
     await conflictBanner.getByRole('button', { name: '保存本地快照' }).click()
 
+    await expect.poll(() => page.evaluate(async () => {
+      const { versionHistory } = await import('/src/services/versionHistory.ts')
+      const snapshots = await versionHistory.getSnapshots('/workspace/README.md')
+      return snapshots.at(-1)?.label || ''
+    })).toBe('外部冲突：本地未保存版本')
+
     const snapshots = await page.evaluate(async () => {
       const { versionHistory } = await import('/src/services/versionHistory.ts')
       return versionHistory.getSnapshots('/workspace/README.md')
@@ -409,8 +415,9 @@ test.describe('true filesystem vault backend', () => {
     expect(latestSnapshot?.content).not.toContain('snapshot-remote-conflict-token')
 
     await conflictBanner.getByRole('button', { name: '版本历史' }).click()
-    await expect(page.getByText('外部冲突：本地未保存版本')).toBeVisible()
-    await expect(page.getByText(/snapshot-local-conflict-token/)).toHaveCount(0)
+    const historyDrawer = page.locator('.el-drawer').filter({ hasText: '版本历史' })
+    await expect(historyDrawer.getByText('外部冲突：本地未保存版本')).toBeVisible()
+    await expect(historyDrawer.getByText(/snapshot-remote-conflict-token/)).toHaveCount(0)
   })
 
   test('background native vault conflicts stay visible and can navigate to conflicted tabs', async ({ page }) => {
@@ -471,13 +478,14 @@ test.describe('true filesystem vault backend', () => {
 
     await page.locator('.tree-node').filter({ hasText: 'README.md' }).click()
     await expect(page.locator('.cm-content')).toContainText('Embed Host')
-    await runCommand(page, '分屏模式')
     await enableLivePreview(page)
 
-    const previewEmbed = page.locator('.preview-content .embed-note').first()
     const livePreviewEmbed = page.locator('.cm-live-preview-embed-note').first()
-    await expect(previewEmbed).toContainText('initial-embed-token')
     await expect(livePreviewEmbed).toContainText('initial-embed-token')
+
+    await runCommand(page, '阅读模式')
+    const previewEmbed = page.locator('.preview-content .embed-note').first()
+    await expect(previewEmbed).toContainText('initial-embed-token')
 
     await page.evaluate(() => {
       ;(window as any).__mockElectronVaultExternalWrite('/workspace/docs/Alpha.md', '# Alpha\n\nupdated-embed-token')
@@ -485,8 +493,10 @@ test.describe('true filesystem vault backend', () => {
 
     await expect(previewEmbed).toContainText('updated-embed-token')
     await expect(previewEmbed).not.toContainText('initial-embed-token')
-    await expect(livePreviewEmbed).toContainText('updated-embed-token')
-    await expect(livePreviewEmbed).not.toContainText('initial-embed-token')
+    await runCommand(page, '实时预览模式')
+    const updatedLivePreviewEmbed = page.locator('.cm-live-preview-embed-note').first()
+    await expect(updatedLivePreviewEmbed).toContainText('updated-embed-token')
+    await expect(updatedLivePreviewEmbed).not.toContainText('initial-embed-token')
     await expect(page.locator('.cm-content')).toContainText('Embed Host')
   })
 
@@ -505,20 +515,22 @@ test.describe('true filesystem vault backend', () => {
 
     await page.locator('.tree-node').filter({ hasText: 'README.md' }).click()
     await expect(page.locator('.cm-content')).toContainText('Image Host')
-    await runCommand(page, '分屏模式')
     await enableLivePreview(page)
 
-    const previewImage = page.locator('.preview-content .embed-image img').first()
     const livePreviewImage = page.locator('.cm-live-preview-embed-image img').first()
-    await expect(previewImage).toHaveAttribute('src', firstSvg)
     await expect(livePreviewImage).toHaveAttribute('src', firstSvg)
+
+    await runCommand(page, '阅读模式')
+    const previewImage = page.locator('.preview-content .embed-image img').first()
+    await expect(previewImage).toHaveAttribute('src', firstSvg)
 
     await page.evaluate(({ secondSvg }) => {
       ;(window as any).__mockElectronVaultExternalWrite('/workspace/docs/pixel.svg', secondSvg)
     }, { secondSvg })
 
     await expect(previewImage).toHaveAttribute('src', secondSvg)
-    await expect(livePreviewImage).toHaveAttribute('src', secondSvg)
+    await runCommand(page, '实时预览模式')
+    await expect(page.locator('.cm-live-preview-embed-image img').first()).toHaveAttribute('src', secondSvg)
   })
 
   test('native vault audio video and PDF embeds render as media attachments', async ({ page }) => {
@@ -547,15 +559,16 @@ test.describe('true filesystem vault backend', () => {
 
     await page.locator('.tree-node').filter({ hasText: 'README.md' }).click()
     await expect(page.locator('.cm-content')).toContainText('Media Host')
-    await runCommand(page, '分屏模式')
     await enableLivePreview(page)
 
-    await expect(page.locator('.preview-content .embed-audio audio')).toHaveAttribute('src', audio)
-    await expect(page.locator('.preview-content .embed-video video')).toHaveAttribute('src', video)
-    await expect(page.locator('.preview-content .embed-pdf iframe')).toHaveAttribute('src', pdf)
     await expect(page.locator('.cm-live-preview-embed-audio audio')).toHaveAttribute('src', audio)
     await expect(page.locator('.cm-live-preview-embed-video video')).toHaveAttribute('src', video)
     await expect(page.locator('.cm-live-preview-embed-pdf iframe')).toHaveAttribute('src', pdf)
+
+    await runCommand(page, '阅读模式')
+    await expect(page.locator('.preview-content .embed-audio audio')).toHaveAttribute('src', audio)
+    await expect(page.locator('.preview-content .embed-video video')).toHaveAttribute('src', video)
+    await expect(page.locator('.preview-content .embed-pdf iframe')).toHaveAttribute('src', pdf)
   })
 
   test('restores saved tabs from the active native vault after reload', async ({ page }) => {

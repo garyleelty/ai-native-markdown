@@ -529,7 +529,7 @@ test.describe('侧边栏行为', () => {
     await expect(page.locator('.preview-content')).toContainText('AI Markdown 示例工作区')
     await expect(page.locator('.preview-content')).toContainText('工作流图')
     await expect(page.locator('.cm-content')).toHaveCount(0)
-    await expect(page.locator('.status-bar')).toContainText('预览')
+    await expect(page.locator('.status-bar')).toContainText('阅读')
     await expect(page.locator('.status-bar .status-stats')).toBeHidden()
     await expect(page.locator('.status-bar .status-duration')).toBeHidden()
     await expect(page.locator('.sidebar')).toHaveCount(0)
@@ -552,8 +552,9 @@ test.describe('侧边栏行为', () => {
     await expect(page.locator('.status-bar')).toContainText('源码')
 
     await page.getByRole('button', { name: '切换视图模式' }).click()
-    await expect(page.locator('.editor-preview-view.split-mode')).toBeVisible()
-    await expect(page.locator('.preview-pane')).toBeVisible()
+    await expect(page.locator('.cm-content')).toBeVisible()
+    await expect(page.locator('.preview-pane')).toHaveCount(0)
+    await expect(page.locator('.status-bar')).toContainText('实时预览')
   })
 
   test('移动端从文件树选择文件后关闭侧边栏并显示编辑器', async ({ page }) => {

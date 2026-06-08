@@ -72,7 +72,7 @@ import {
   Download, EditPen, Edit, Document, Link, Picture,
   Expand, ChatDotRound, View, Sunny,
   Delete, Connection, Grid, Monitor, Clock, FullScreen, Notebook, Calendar,
-  Setting, List, Share, Refresh
+  Setting, List, Share, Refresh, Tickets
 } from '@element-plus/icons-vue'
 
 const props = defineProps<{
@@ -117,6 +117,8 @@ const commands: Command[] = [
   { id: 'edit.image', label: '图片', icon: Picture, category: '编辑' },
   { id: 'view.sidebar', label: '切换侧边栏', icon: Expand, category: '视图' },
   { id: 'view.ai-panel', label: '切换 AI 面板', icon: ChatDotRound, category: '视图' },
+  { id: 'view.graph-workbench', label: '切换图谱工作区', icon: Share, category: '视图' },
+  { id: 'view.right-dock', label: '切换右侧工作台', icon: Tickets, category: '视图' },
   { id: 'view.files-panel', label: '打开文件面板', icon: FolderOpened, category: '视图' },
   { id: 'view.knowledge-panel', label: '打开知识面板', icon: Share, category: '视图' },
   { id: 'view.ai-settings', label: '打开 AI 设置', icon: Connection, category: '视图' },
@@ -297,7 +299,10 @@ const safeCommandId = (id: string) =>
 
 .command-item {
   width: 100%;
+  height: 44px;
   min-height: 44px;
+  box-sizing: border-box;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 10px;

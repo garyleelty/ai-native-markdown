@@ -69,11 +69,10 @@ export function serializeFrontmatter(
   frontmatter: Record<string, any>,
   currentContent: string
 ): string {
-  const { frontmatter: existing, body } = parseFrontmatter(currentContent)
-  const merged = { ...existing, ...frontmatter }
+  const { body } = parseFrontmatter(currentContent)
 
   const yamlLines: string[] = []
-  for (const [key, value] of Object.entries(merged)) {
+  for (const [key, value] of Object.entries(frontmatter)) {
     if (value === undefined || value === null ||
         (typeof value === 'string' && value === '') ||
         (Array.isArray(value) && value.length === 0)) {

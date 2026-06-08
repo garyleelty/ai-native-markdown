@@ -92,10 +92,10 @@
     </div>
 
     <div class="graph-stats">
-      <span class="stat-item">节点: {{ visibleGraphData.stats.totalNodes }}</span>
-      <span class="stat-item">链接: {{ visibleGraphData.stats.totalEdges }}</span>
-      <span class="stat-item stat-orphan" v-if="visibleGraphData.stats.orphanCount > 0">
-        孤立: {{ visibleGraphData.stats.orphanCount }}
+      <span class="stat-item">节点: {{ filteredGraphData.stats.totalNodes }}</span>
+      <span class="stat-item">链接: {{ filteredGraphData.stats.totalEdges }}</span>
+      <span class="stat-item stat-orphan" v-if="filteredGraphData.stats.orphanCount > 0">
+        孤立: {{ filteredGraphData.stats.orphanCount }}
       </span>
     </div>
   </div>
@@ -200,14 +200,65 @@ const localGraphData = computed<KnowledgeGraphData>(() => {
 })
 
 const visibleGraphData = computed(() => graphMode.value === 'current' ? localGraphData.value : props.graphData)
-const canRenderGraph = computed(() => visibleGraphData.value.nodes.length > 0)
-const currentNeighborCount = computed(() => Math.max(0, visibleGraphData.value.nodes.length - 1))
+
+const filteredGraphData = computed<KnowledgeGraphData>(() => {
+  const base = visibleGraphData.value
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return base
+
+  const matchedIds = new Set<string>()
+  base.nodes.forEach(node => {
+    const haystack = [
+      node.label,
+      node.id,
+      node.path,
+      ...node.tags.map(tag => `#${tag}`),
+    ].join(' ').toLowerCase()
+    if (haystack.includes(q)) matchedIds.add(node.id)
+  })
+
+  const neighborIds = new Set<string>()
+  base.edges.forEach(edge => {
+    const source = getEdgeSourceId(edge)
+    const target = getEdgeTargetId(edge)
+    if (matchedIds.has(source)) neighborIds.add(target)
+    if (matchedIds.has(target)) neighborIds.add(source)
+  })
+
+  const includedIds = new Set([...matchedIds, ...neighborIds])
+  const nodes = base.nodes.filter(node => includedIds.has(node.id)).map(node => ({ ...node }))
+  const edges = base.edges
+    .filter(edge => includedIds.has(getEdgeSourceId(edge)) && includedIds.has(getEdgeTargetId(edge)))
+    .map(edge => ({
+      source: getEdgeSourceId(edge),
+      target: getEdgeTargetId(edge),
+      weight: edge.weight,
+    }))
+
+  const localLinkCount = new Map(nodes.map(node => [node.id, 0]))
+  edges.forEach(edge => {
+    const source = getEdgeSourceId(edge)
+    const target = getEdgeTargetId(edge)
+    localLinkCount.set(source, (localLinkCount.get(source) || 0) + 1)
+    localLinkCount.set(target, (localLinkCount.get(target) || 0) + 1)
+  })
+  nodes.forEach(node => {
+    node.linkCount = localLinkCount.get(node.id) || 0
+    node.isOrphan = node.linkCount === 0
+  })
+
+  return { nodes, edges, stats: buildStats(nodes, edges) }
+})
+
+const canRenderGraph = computed(() => filteredGraphData.value.nodes.length > 0)
+const currentNeighborCount = computed(() => Math.max(0, filteredGraphData.value.nodes.length - 1))
 const currentFocusLabel = computed(() => currentNode.value?.label || '未选择当前笔记')
-const graphEmptyText = computed(() => (
-  graphMode.value === 'current'
+const graphEmptyText = computed(() => {
+  if (hasSearchQuery.value) return '没有匹配的图谱节点'
+  return graphMode.value === 'current'
     ? '当前笔记还没有进入知识图谱'
     : '暂无可展示的图谱数据'
-))
+})
 
 const searchResults = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
@@ -233,7 +284,7 @@ const buildGraph = () => {
       destroyGraph()
       return
     }
-    initGraph(visibleGraphData.value)
+    initGraph(filteredGraphData.value)
   })
 }
 
@@ -268,7 +319,7 @@ const handleGraphMouseMove = (event: MouseEvent) => {
   }
 }
 
-watch(visibleGraphData, () => {
+watch(filteredGraphData, () => {
   destroyGraph()
   buildGraph()
 }, { deep: true })
