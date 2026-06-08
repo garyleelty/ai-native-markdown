@@ -343,10 +343,8 @@ tags: {tags}
     const feed = await this.getFeed(article.feedId)
     const importPath = feed?.importPath || '/RSS/'
 
-    // 确保目录存在
-    try {
-      await fileSystem.createDirectory(importPath)
-    } catch {}
+    // 确保目录存在（递归创建）
+    await this.ensureDirectoryExists(importPath)
 
     const paths: string[] = []
     const slug = article.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -365,6 +363,19 @@ tags: {tags}
     await this.markImported(articleId, paths[0])
 
     return paths
+  }
+
+  private async ensureDirectoryExists(path: string): Promise<void> {
+    const parts = path.split('/').filter(Boolean)
+    let currentPath = ''
+    for (const part of parts) {
+      currentPath += '/' + part
+      try {
+        await fileSystem.createDirectory(currentPath)
+      } catch {
+        // 目录已存在，忽略错误
+      }
+    }
   }
 }
 
