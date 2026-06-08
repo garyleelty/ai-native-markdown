@@ -21,7 +21,7 @@
         <el-icon><Setting /></el-icon>
       </el-menu-item>
       <el-menu-item index="properties" aria-label="属性面板">
-        <el-icon><Document /></el-icon>
+        <el-icon><Tickets /></el-icon>
       </el-menu-item>
       <el-menu-item index="outline" aria-label="文档大纲">
         <el-icon><List /></el-icon>
@@ -80,7 +80,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
-import { Folder, Share, MagicStick, Setting, List, Document } from '@element-plus/icons-vue'
+import { Folder, Share, MagicStick, Setting, List, Document, Tickets } from '@element-plus/icons-vue'
 import FileExplorer from './sidebar/FileExplorer.vue'
 import KnowledgePanel from './sidebar/KnowledgePanel.vue'
 import RSSPanel from './sidebar/RSSPanel.vue'
