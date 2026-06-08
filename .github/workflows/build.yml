@@ -26,11 +26,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20.11.0'
           cache: 'npm'
 
       - name: Install npm dependencies
@@ -38,7 +40,9 @@ jobs:
 
       - name: Type check
         run: npm run typecheck
-        continue-on-error: true
+
+      - name: Run tests
+        run: npm run test
 
       - name: Build Electron app
         run: npm run electron:build
