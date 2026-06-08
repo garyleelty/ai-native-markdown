@@ -75,14 +75,17 @@
         class="property-input"
         placeholder="user@example.com"
       />
-      <input
+      <el-select
         v-else-if="type === 'select'"
-        type="text"
-        :value="stringValue"
-        @input="handleTextUpdate"
+        v-model="selectValue"
+        @change="handleSelectUpdate"
         class="property-input"
-        placeholder="输入选项"
-      />
+        placeholder="选择选项"
+        allow-create
+        filterable
+      >
+        <el-option v-for="opt in selectOptions" :key="opt" :label="opt" :value="opt" />
+      </el-select>
     </div>
   </div>
 </template>
@@ -158,6 +161,22 @@ const tagsValue = computed(() => {
   return ''
 })
 
+const selectOptions = ['待办', '进行中', '已完成', '已取消']
+
+const selectValue = computed({
+  get: () => {
+    if (typeof props.value === 'string') return props.value
+    return ''
+  },
+  set: (val: string) => {
+    emit('update', props.keyName, val)
+  }
+})
+
+function handleSelectUpdate(value: string) {
+  emit('update', props.keyName, value)
+}
+
 function handleTextUpdate(e: Event) {
   const target = e.target as HTMLInputElement
   emit('update', props.keyName, target.value)
@@ -203,41 +222,57 @@ function handleDelete() {
 
 <style scoped>
 .property-editor {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--obsidian-border);
+  padding: 10px 8px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  transition: all 0.15s ease;
 }
 
-.property-editor:last-child {
-  border-bottom: none;
+.property-editor:hover {
+  background: var(--obsidian-bg-secondary);
 }
 
 .property-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
 .property-key {
   font-weight: 500;
   color: var(--obsidian-text-normal);
   font-size: 13px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .type-button {
   padding: 2px 6px !important;
   font-size: 11px;
   color: var(--obsidian-text-faint);
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.type-button:hover {
+  background: var(--obsidian-bg-tertiary);
+  color: var(--obsidian-text-muted);
 }
 
 .delete-button {
-  padding: 2px 4px !important;
+  padding: 2px 6px !important;
   margin-left: auto;
   color: var(--obsidian-text-faint);
+  border-radius: 4px;
+  transition: all 0.15s ease;
 }
 
 .delete-button:hover {
   color: var(--obsidian-error);
+  background: var(--obsidian-error-bg);
 }
 
 .property-value {
@@ -246,21 +281,78 @@ function handleDelete() {
 
 .property-input {
   width: 100%;
-  padding: 6px 8px;
+  padding: 7px 10px;
   border: 1px solid var(--obsidian-border);
   background: var(--obsidian-bg-primary);
   color: var(--obsidian-text-normal);
   border-radius: 4px;
   font-size: 13px;
+  transition: all 0.15s ease;
 }
 
 .property-input:focus {
   outline: none;
   border-color: var(--obsidian-accent);
+  box-shadow: 0 0 0 3px var(--obsidian-accent-dim);
+}
+
+.property-input::placeholder {
+  color: var(--obsidian-text-faint);
 }
 
 .is-active {
   color: var(--obsidian-accent);
   font-weight: 500;
+}
+
+:deep(.el-checkbox) {
+  margin: 0;
+}
+
+:deep(.el-checkbox__label) {
+  color: var(--obsidian-text-normal);
+  font-size: 13px;
+}
+
+:deep(.el-date-picker) {
+  width: 100%;
+}
+
+:deep(.el-input__wrapper) {
+  background: var(--obsidian-bg-primary);
+  border-color: var(--obsidian-border);
+}
+
+:deep(.el-input__wrapper:hover) {
+  border-color: var(--obsidian-border-hover);
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  border-color: var(--obsidian-accent);
+  box-shadow: 0 0 0 3px var(--obsidian-accent-dim);
+}
+
+:deep(.el-textarea__inner) {
+  background: var(--obsidian-bg-primary);
+  border-color: var(--obsidian-border);
+  color: var(--obsidian-text-normal);
+}
+
+:deep(.el-textarea__inner:focus) {
+  border-color: var(--obsidian-accent);
+  box-shadow: 0 0 0 3px var(--obsidian-accent-dim);
+}
+
+:deep(.el-dropdown-menu__item) {
+  color: var(--obsidian-text-normal);
+}
+
+:deep(.el-dropdown-menu__item:hover) {
+  background: var(--obsidian-bg-hover);
+}
+
+:deep(.el-dropdown-menu__item.active) {
+  background: var(--obsidian-accent-dim);
+  color: var(--obsidian-accent);
 }
 </style>
