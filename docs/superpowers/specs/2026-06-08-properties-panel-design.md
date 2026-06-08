@@ -286,8 +286,13 @@ export function useProperties(props: Props) {
       }
 
       // 2. 从 knowledgeIndex 读取用户偏好
-      // TODO: knowledgeIndex.getByPath() 调用
-      propertyTypes.value = inferredTypes
+      const record = await knowledgeIndex.getByPath(props.filePath)
+      const userPrefs = record?.propertyTypes || {}
+      
+      // 3. 合并类型：用户偏好优先于推断
+      for (const [key, value] of Object.entries(parsed)) {
+        propertyTypes.value[key] = userPrefs[key] || inferredTypes[key]
+      }
     } finally {
       loading.value = false
     }
@@ -306,7 +311,7 @@ export function useProperties(props: Props) {
 
   function setPropertyType(key: string, type: PropertyType) {
     propertyTypes.value[key] = type
-    // TODO: 保存到 knowledgeIndex
+    knowledgeIndex.savePropertyTypePref(props.filePath, key, type)
   }
 
   function save() {
@@ -404,13 +409,23 @@ this.version(3).stores({
 })
 ```
 
-### 索引偏好持久化
+### knowledgeIndex API 扩展
 
 ```typescript
 // src/services/knowledgeIndex.ts
 
-export function savePropertyTypePref(filePath: string, propertyName: string, type: PropertyType) {
-  db.records
+// 新增: 根据文件路径获取记录
+export async function getByPath(filePath: string): Promise<KnowledgeIndexRecord | undefined> {
+  return db.records.where('filePath').equals(filePath).first()
+}
+
+// 新增: 保存属性类型偏好
+export async function savePropertyTypePref(
+  filePath: string,
+  propertyName: string,
+  type: PropertyType
+): Promise<void> {
+  await db.records
     .where('filePath')
     .equals(filePath)
     .modify((record) => {
