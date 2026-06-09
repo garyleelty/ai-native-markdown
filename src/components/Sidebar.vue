@@ -120,7 +120,7 @@ const settingsStore = useSettingsStore()
 const activeTab = computed(() => settingsStore.activeSidebarTab)
 const rootPath = ref('')
 const fileExplorerRef = ref()
-const knowledgePanelRef = ref<{ refreshIndex?: (options?: { notify?: boolean }) => Promise<void> } | null>(null)
+const knowledgePanelRef = ref<{ refreshIndex?: (options?: { notify?: boolean; waitForPanels?: boolean }) => Promise<void> } | null>(null)
 
 const handleNavSelect = (index: string) => {
   if (sidebarTabs.has(index as SidebarTab)) {
@@ -170,13 +170,13 @@ const waitForKnowledgePanel = async () => {
   return knowledgePanelRef.value
 }
 
-const refreshKnowledgeIndex = async () => {
+const refreshKnowledgeIndex = async (options: { waitForPanels?: boolean } = {}) => {
   openTab('graph')
   const panel = await waitForKnowledgePanel()
   if (!panel?.refreshIndex) {
     throw new Error('知识面板未就绪')
   }
-  await panel.refreshIndex({ notify: false })
+  await panel.refreshIndex({ notify: false, waitForPanels: options.waitForPanels })
 }
 
 const focusFileSearch = async (mode: 'name' | 'content', query = '') => {

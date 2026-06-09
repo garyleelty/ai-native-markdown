@@ -1161,8 +1161,8 @@ const refreshKnowledgeIndexFromCommand = async () => {
     if (!sidebar?.refreshKnowledgeIndex) {
       throw new Error('知识面板未就绪')
     }
-    await sidebar.refreshKnowledgeIndex()
-    ElMessage.success('知识索引已刷新')
+    await sidebar.refreshKnowledgeIndex({ waitForPanels: false })
+    ElMessage.success({ message: '知识索引已刷新', duration: 6000 })
   } catch {
     ElMessage.error('刷新知识索引失败')
   }

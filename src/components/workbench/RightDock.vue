@@ -75,9 +75,8 @@
           <el-icon class="section-chevron" :class="{ open: openSections.relations }"><ArrowDown /></el-icon>
         </button>
         <div v-show="openSections.relations" class="dock-section-body relations-body">
-          <KnowledgePanel
+          <RightRelationsPanel
             :current-file="currentFile"
-            @select="path => $emit('select', path)"
             @reference-select="reference => $emit('reference-select', reference)"
             @wiki-navigate="target => $emit('wiki-navigate', target)"
             @link-mention="payload => $emit('link-mention', payload)"
@@ -92,8 +91,8 @@
 import { reactive } from 'vue'
 import { ArrowDown, Close, List, Share, Tickets } from '@element-plus/icons-vue'
 import OutlinePanel from '@/components/editor/OutlinePanel.vue'
-import KnowledgePanel from '@/components/sidebar/KnowledgePanel.vue'
 import PropertiesPanel from '@/components/sidebar/PropertiesPanel.vue'
+import RightRelationsPanel from '@/components/workbench/RightRelationsPanel.vue'
 import type { KnowledgeReference } from '@/services/knowledgeIndex'
 
 defineProps<{
@@ -251,26 +250,4 @@ const openSections = reactive({
   min-height: 0;
 }
 
-.relations-body :deep(.panel),
-.relations-body :deep(.knowledge-tabs),
-.relations-body :deep(.el-tabs__content),
-.relations-body :deep(.el-tab-pane) {
-  min-height: 0;
-}
-
-.relations-body :deep(.panel-header) {
-  display: none;
-}
-
-.relations-body :deep(.index-summary) {
-  padding: 6px;
-}
-
-.relations-body :deep(.summary-item) {
-  padding: 6px;
-}
-
-.relations-body :deep(.graph-panel-content) {
-  min-height: 220px;
-}
 </style>

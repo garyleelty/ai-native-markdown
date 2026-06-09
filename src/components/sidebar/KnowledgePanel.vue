@@ -132,6 +132,7 @@ const unlinkedMentions = ref<KnowledgeReference[]>([])
 
 interface RefreshIndexOptions {
   notify?: boolean
+  waitForPanels?: boolean
 }
 
 const propertyRows = computed(() => {
@@ -195,10 +196,16 @@ const loadGraphData = async () => {
 
 const refreshIndex = async (options: RefreshIndexOptions = {}) => {
   const notify = options.notify ?? true
+  const waitForPanels = options.waitForPanels ?? true
   try {
     await rebuildIndex()
     if (isDisposed) return
-    await Promise.all([loadCurrentFileKnowledge(), loadGraphData()])
+    const reloadPanels = Promise.all([loadCurrentFileKnowledge(), loadGraphData()])
+    if (waitForPanels) {
+      await reloadPanels
+    } else {
+      void reloadPanels.catch(() => {})
+    }
     if (!isDisposed && notify) ElMessage.success('知识索引已刷新')
   } catch (error) {
     if (!notify) throw error

@@ -231,9 +231,9 @@ const navigateUp = () => {
 }
 
 const executeSelected = () => {
-  if (selectedCommandId.value) {
-    executeCommand(selectedCommandId.value)
-  }
+  const cmds = flatFilteredCommands.value
+  const selected = cmds.find(cmd => cmd.id === selectedCommandId.value) || cmds[0]
+  if (selected) executeCommand(selected.id)
 }
 
 const executeCommand = (id: string) => {

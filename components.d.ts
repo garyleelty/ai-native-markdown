@@ -73,6 +73,7 @@ declare module 'vue' {
     QuickActions: typeof import('./src/components/ai-panel/QuickActions.vue')['default']
     ReferenceList: typeof import('./src/components/sidebar/ReferenceList.vue')['default']
     RightDock: typeof import('./src/components/workbench/RightDock.vue')['default']
+    RightRelationsPanel: typeof import('./src/components/workbench/RightRelationsPanel.vue')['default']
     RSSPanel: typeof import('./src/components/sidebar/RSSPanel.vue')['default']
     SettingsPanel: typeof import('./src/components/sidebar/SettingsPanel.vue')['default']
     Sidebar: typeof import('./src/components/Sidebar.vue')['default']
