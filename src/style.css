@@ -18,9 +18,9 @@
   --obsidian-text-normal: #dcddde;
   --obsidian-text-muted: #a3a3a3;
   --obsidian-text-faint: #737373;
-  --obsidian-accent: #705dcf;
-  --obsidian-accent-hover: #7d6be0;
-  --obsidian-accent-soft: rgba(112, 93, 207, 0.16);
+  --obsidian-accent: #8b7cf6;
+  --obsidian-accent-hover: #9b8df7;
+  --obsidian-accent-soft: rgba(139, 124, 246, 0.18);
   --obsidian-border: rgba(255, 255, 255, 0.06);
 
   /* ── Element Plus 变量映射 ── */
@@ -129,9 +129,9 @@
   --obsidian-text-normal: #1e1e1e;
   --obsidian-text-muted: #777;
   --obsidian-text-faint: #aaa;
-  --obsidian-accent: #7f6df2;
-  --obsidian-accent-hover: #6b59e0;
-  --obsidian-accent-soft: rgba(127, 109, 242, 0.08);
+  --obsidian-accent: #8b7cf6;
+  --obsidian-accent-hover: #9b8df7;
+  --obsidian-accent-soft: rgba(139, 124, 246, 0.12);
   --obsidian-border: rgba(0, 0, 0, 0.08);
 
   --bg-deep: var(--obsidian-bg-primary);
@@ -193,7 +193,9 @@
     --obsidian-text-normal: #1e1e1e;
     --obsidian-text-muted: #777;
     --obsidian-text-faint: #aaa;
-    --obsidian-accent: #7f6df2;
+    --obsidian-accent: #8b7cf6;
+    --obsidian-accent-hover: #9b8df7;
+    --obsidian-accent-soft: rgba(139, 124, 246, 0.12);
     --obsidian-border: rgba(0, 0, 0, 0.08);
 
     --bg-deep: var(--obsidian-bg-primary);

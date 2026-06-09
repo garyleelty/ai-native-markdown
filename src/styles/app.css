@@ -18,14 +18,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 40px !important;
+  height: 44px;
   padding: 0 12px;
   background: var(--obsidian-bg-primary);
   border-bottom: 1px solid var(--obsidian-border);
   flex-shrink: 0;
   -webkit-app-region: drag;
   user-select: none;
-  /* 主题切换平滑过渡 */
+  box-shadow: var(--shadow-sm);
   transition: var(--theme-transition);
 }
 
@@ -65,36 +65,44 @@
 }
 
 /* ── Header 按钮: Obsidian 风格 ── */
-.app-header .el-button {
+.app-header .header-left .el-button,
+.app-header .header-center .el-button,
+.app-header .header-right .el-button {
   width: 30px;
   height: 30px;
-  border: none !important;
-  background: transparent !important;
-  color: var(--obsidian-text-muted) !important;
-  border-radius: var(--radius-sm) !important;
+  border: none;
+  background: transparent;
+  color: var(--obsidian-text-muted);
+  border-radius: var(--radius-sm);
   transition: all var(--duration-fast) var(--ease-default);
 }
 
-.app-header .el-button:hover {
-  background: var(--obsidian-bg-hover) !important;
-  color: var(--obsidian-text-normal) !important;
+.app-header .header-left .el-button:hover,
+.app-header .header-center .el-button:hover,
+.app-header .header-right .el-button:hover {
+  background: var(--obsidian-bg-hover);
+  color: var(--obsidian-text-normal);
 }
 
-.app-header .el-button:active {
-  background: var(--obsidian-bg-active) !important;
+.app-header .header-left .el-button:active,
+.app-header .header-center .el-button:active,
+.app-header .header-right .el-button:active {
+  background: var(--obsidian-bg-active);
   transform: scale(0.95);
 }
 
-.app-header .el-button.el-button--primary {
-  color: var(--obsidian-accent) !important;
-  background: var(--obsidian-accent-soft) !important;
+.app-header .header-left .el-button.el-button--primary,
+.app-header .header-center .el-button.el-button--primary,
+.app-header .header-right .el-button.el-button--primary {
+  color: var(--obsidian-accent);
+  background: var(--obsidian-accent-soft);
 }
 
 /* ── 文件名标签 ── */
-.header-center .el-tag {
-  background: transparent !important;
-  border: none !important;
-  color: var(--obsidian-text-muted) !important;
+.app-header .header-center .el-tag {
+  background: transparent;
+  border: none;
+  color: var(--obsidian-text-muted);
   font-size: 12px;
   font-weight: 500;
   padding: 0 8px;
@@ -119,6 +127,7 @@
   overflow: hidden;
   transition: width 0s, var(--theme-transition);
   flex-shrink: 0;
+  box-shadow: var(--shadow-md);
 }
 
 /* ── 编辑器主区域 ── */
@@ -142,14 +151,15 @@
   height: 100%;
   overflow: hidden;
   background: var(--obsidian-bg-primary);
+  box-shadow: var(--shadow-md);
 }
 
 .graph-pane-shell {
-  max-width: min(760px, 44vw);
+  max-width: 760px;
 }
 
 .right-dock-shell {
-  max-width: min(460px, 32vw);
+  max-width: 460px;
 }
 
 .workbench-resize-handle {
@@ -204,9 +214,9 @@
   --el-tabs-header-height: 36px;
 }
 
-.tabs-bar .el-tabs__header {
-  margin: 0 !important;
-  border-bottom: none !important;
+.editor-container-main .tabs-bar .el-tabs__header {
+  margin: 0;
+  border-bottom: none;
   background: var(--obsidian-bg-modifier);
 }
 
@@ -214,26 +224,26 @@
   padding: 0 8px;
 }
 
-.tabs-bar .el-tabs__item {
-  height: 36px !important;
-  line-height: 36px !important;
-  padding: 0 16px !important;
-  font-size: 12px !important;
-  color: var(--obsidian-text-faint) !important;
-  border: none !important;
-  background: transparent !important;
-  border-radius: 0 !important;
+.editor-container-main .tabs-bar .el-tabs__item {
+  height: 36px;
+  line-height: 36px;
+  padding: 0 16px;
+  font-size: 12px;
+  color: var(--obsidian-text-faint);
+  border: none;
+  background: transparent;
+  border-radius: 0;
   transition: all var(--duration-fast) var(--ease-default);
 }
 
-.tabs-bar .el-tabs__item:hover {
-  color: var(--obsidian-text-muted) !important;
-  background: var(--obsidian-bg-hover) !important;
+.editor-container-main .tabs-bar .el-tabs__item:hover {
+  color: var(--obsidian-text-muted);
+  background: var(--obsidian-bg-hover);
 }
 
-.tabs-bar .el-tabs__item.is-active {
-  color: var(--obsidian-text-normal) !important;
-  background: var(--obsidian-bg-primary) !important;
+.editor-container-main .tabs-bar .el-tabs__item.is-active {
+  color: var(--obsidian-text-normal);
+  background: var(--obsidian-bg-primary);
   position: relative;
 }
 
@@ -473,6 +483,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  max-height: min(400px, 50vh);
 }
 
 .ai-slide-enter-active {
@@ -626,6 +637,11 @@
   z-index: 30;
   background: rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(2px);
+  transition: opacity 0.2s ease;
+}
+
+.mobile-sidebar-backdrop.fade-leave-active {
+  pointer-events: none;
 }
 
 /* ── 调整手柄 ── */
@@ -721,7 +737,7 @@
 /* ── 响应式 ── */
 @media (max-width: 768px) {
   .app-header {
-    height: 36px !important;
+    height: 40px;
     padding: 0 8px;
   }
 
@@ -739,8 +755,8 @@
     display: none;
   }
 
-  .header-center {
-    display: none !important;
+  .app-header .header-center {
+    display: none;
   }
 
   .sidebar-aside {
@@ -757,8 +773,8 @@
     transform: translateX(0);
   }
 
-  .sidebar-aside:not(.is-mobile-open) {
-    width: 0 !important;
+  .is-mobile.sidebar-aside:not(.is-mobile-open) {
+    width: 0;
     max-width: 0;
     border-right: 0;
     box-shadow: none;

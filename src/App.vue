@@ -46,10 +46,10 @@
           <el-button :icon="ChatDotRound" native-type="button" circle size="small" aria-label="AI 助手" :type="settingsStore.showAIPanel ? 'primary' : 'default'" @click="toggleAIPanel" />
         </el-tooltip>
         <el-tooltip content="图谱工作区" placement="bottom">
-          <el-button :icon="Share" native-type="button" circle size="small" aria-label="图谱工作区" :type="showDesktopGraphPane ? 'primary' : 'default'" @click="toggleGraphPane" />
+          <el-button :icon="Share" native-type="button" circle size="small" aria-label="图谱工作区" :type="settingsStore.showGraphPane ? 'primary' : 'default'" @click="toggleGraphPane" />
         </el-tooltip>
         <el-tooltip content="右侧工作台" placement="bottom">
-          <el-button :icon="Tickets" native-type="button" circle size="small" aria-label="右侧工作台" :type="showDesktopRightDock ? 'primary' : 'default'" @click="toggleRightDock" />
+          <el-button :icon="Tickets" native-type="button" circle size="small" aria-label="右侧工作台" :type="settingsStore.showRightDock ? 'primary' : 'default'" @click="toggleRightDock" />
         </el-tooltip>
         <el-tooltip :content="viewModeTooltip" placement="bottom">
           <el-button :icon="editorStore.viewMode === 'preview' ? View : EditPen" native-type="button" circle size="small" aria-label="切换视图模式" @click="cycleViewMode" />
@@ -84,6 +84,7 @@
           @click="closeMobileSidebar"
         />
       </Transition>
+
       <el-aside
         :width="sidebarAsideWidth"
         class="sidebar-aside"
@@ -1540,8 +1541,8 @@ const handleResize = (event: MouseEvent) => {
     const diff = startPos.x - event.clientX
     settingsStore.setRightDockWidth(Math.max(280, Math.min(460, startSize.w + diff)))
   } else if (resizing === 'aiPanel') {
-    const diff = window.innerHeight - event.clientY - 28
-    settingsStore.setAIPanelHeight(Math.max(140, Math.min(400, diff)))
+    const diff = startPos.y - event.clientY
+    settingsStore.setAIPanelHeight(Math.max(140, Math.min(400, startSize.h + diff)))
   }
 }
 
