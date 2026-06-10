@@ -21,6 +21,20 @@
     </div>
 
     <el-tabs v-model="activeTab" class="knowledge-tabs" stretch>
+      <!-- 大纲标签 -->
+      <el-tab-pane label="大纲" name="outline">
+        <div class="tab-content">
+          <OutlinePanel
+            v-if="props.content"
+            :content="props.content"
+            :cursor-line="props.cursorLine ?? 0"
+            @navigate="line => emit('navigate', line)"
+          />
+          <el-empty v-else description="打开 Markdown 文件后查看大纲" :image-size="44" />
+        </div>
+      </el-tab-pane>
+
+      <!-- 属性标签 -->
       <el-tab-pane label="属性" name="properties">
         <div class="tab-content">
           <template v-if="currentRecord">
@@ -43,7 +57,7 @@
             </div>
 
             <div class="section" v-if="currentRecord.links.length">
-              <div class="section-label">Outgoing Links</div>
+              <div class="section-label">外链</div>
               <button
                 v-for="link in currentRecord.links"
                 :key="link"
@@ -59,6 +73,7 @@
         </div>
       </el-tab-pane>
 
+      <!-- 反链标签 -->
       <el-tab-pane :label="`反链 ${backlinks.length}`" name="backlinks">
         <div class="tab-content">
           <ReferenceList
@@ -69,6 +84,7 @@
         </div>
       </el-tab-pane>
 
+      <!-- 提及标签 -->
       <el-tab-pane :label="`提及 ${unlinkedMentions.length}`" name="mentions">
         <div class="tab-content">
           <ReferenceList
@@ -81,6 +97,7 @@
         </div>
       </el-tab-pane>
 
+      <!-- 图谱标签 -->
       <el-tab-pane label="图谱" name="graph" lazy>
         <div class="graph-panel-content">
           <KnowledgeGraph
@@ -107,23 +124,30 @@ import { knowledgeIndex, type KnowledgeIndexRecord, type KnowledgeReference } fr
 import { fileSystem } from '../../services/fileSystem'
 import type { GraphNode, KnowledgeGraphData } from '../../types'
 import ReferenceList from './ReferenceList.vue'
+import OutlinePanel from '../editor/OutlinePanel.vue'
 
 const KnowledgeGraph = defineAsyncComponent(() => import('../knowledge/KnowledgeGraph.vue'))
 
 interface Props {
   rootPath?: string
   currentFile?: string
+  content?: string
+  cursorLine?: number
 }
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  content: '',
+  cursorLine: 0,
+})
 
 const emit = defineEmits<{
   (e: 'select', path: string): void
   (e: 'reference-select', reference: KnowledgeReference): void
   (e: 'wiki-navigate', target: string): void
   (e: 'link-mention', payload: { reference: KnowledgeReference; targetTitle: string; targetNames: string[] }): void
+  (e: 'navigate', lineNumber: number): void
 }>()
 
-const activeTab = ref('properties')
+const activeTab = ref('outline')
 const graphData = ref<KnowledgeGraphData | null>(null)
 const graphLoading = ref(false)
 const currentRecord = ref<KnowledgeIndexRecord | null>(null)

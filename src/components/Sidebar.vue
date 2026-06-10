@@ -8,23 +8,11 @@
       <el-menu-item index="files" aria-label="文件管理">
         <el-icon><Folder /></el-icon>
       </el-menu-item>
-      <el-menu-item index="graph" aria-label="知识图谱">
+      <el-menu-item index="graph" aria-label="知识">
         <el-icon><Share /></el-icon>
       </el-menu-item>
       <el-menu-item index="rss" aria-label="RSS 订阅">
         <el-icon><Document /></el-icon>
-      </el-menu-item>
-      <el-menu-item index="ai" aria-label="AI 配置">
-        <el-icon><MagicStick /></el-icon>
-      </el-menu-item>
-      <el-menu-item index="settings" aria-label="设置">
-        <el-icon><Setting /></el-icon>
-      </el-menu-item>
-      <el-menu-item index="properties" aria-label="属性面板">
-        <el-icon><Tickets /></el-icon>
-      </el-menu-item>
-      <el-menu-item index="outline" aria-label="文档大纲">
-        <el-icon><List /></el-icon>
       </el-menu-item>
     </el-menu>
 
@@ -44,35 +32,18 @@
           ref="knowledgePanelRef"
           :root-path="rootPath"
           :current-file="currentFile"
+          :content="editorContent"
+          :cursor-line="cursorLine"
           @select="(path: string) => emit('select', path)"
           @reference-select="reference => emit('reference-select', reference)"
           @wiki-navigate="target => emit('wiki-navigate', target)"
           @link-mention="payload => emit('link-mention', payload)"
+          @navigate="lineNumber => emit('navigate', lineNumber)"
         />
         <RSSPanel
           v-else-if="activeTab === 'rss'"
           @select="(path: string) => emit('select', path)"
         />
-        <AIConfigPanel v-else-if="activeTab === 'ai'" />
-        <SettingsPanel
-          v-else-if="activeTab === 'settings'"
-          :is-dark="isDark"
-          :show-a-i="showAI"
-          @set-theme="(dark: boolean) => emit('set-theme', dark)"
-          @toggle-ai="emit('toggle-ai')"
-        />
-        <PropertiesPanel
-          v-else-if="activeTab === 'properties'"
-          :content="editorContent"
-          :file-path="currentFile"
-          @content-change="handlePropertiesContentChange"
-        />
-        <div v-else-if="activeTab === 'outline'" class="panel">
-          <div class="panel-header">
-            <span class="panel-title">大纲</span>
-          </div>
-          <OutlinePanel :content="editorContent" :cursor-line="cursorLine" @navigate="handleOutlineNavigate" />
-        </div>
       </Transition>
     </div>
   </div>
@@ -80,26 +51,20 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
-import { Folder, Share, MagicStick, Setting, List, Document, Tickets } from '@element-plus/icons-vue'
+import { Folder, Share, Document } from '@element-plus/icons-vue'
 import FileExplorer from './sidebar/FileExplorer.vue'
 import KnowledgePanel from './sidebar/KnowledgePanel.vue'
 import RSSPanel from './sidebar/RSSPanel.vue'
-import AIConfigPanel from './sidebar/AIConfigPanel.vue'
-import SettingsPanel from './sidebar/SettingsPanel.vue'
-import PropertiesPanel from './sidebar/PropertiesPanel.vue'
-import OutlinePanel from './editor/OutlinePanel.vue'
 import { useSettingsStore } from '@/stores/settings'
 import type { SidebarTab } from '@/types'
 import type { KnowledgeReference } from '@/services/knowledgeIndex'
 
 interface Props {
-  isDark?: boolean
-  showAI?: boolean
   currentFile?: string
   editorContent?: string
   cursorLine?: number
 }
-withDefaults(defineProps<Props>(), { isDark: true, showAI: false, currentFile: '', editorContent: '', cursorLine: 0 })
+withDefaults(defineProps<Props>(), { currentFile: '', editorContent: '', cursorLine: 0 })
 
 const emit = defineEmits<{
   (e: 'select', path: string): void
@@ -107,15 +72,13 @@ const emit = defineEmits<{
   (e: 'reference-select', reference: KnowledgeReference): void
   (e: 'wiki-navigate', target: string): void
   (e: 'link-mention', payload: { reference: KnowledgeReference; targetTitle: string; targetNames: string[] }): void
-  (e: 'set-theme', dark: boolean): void
-  (e: 'toggle-ai'): void
   (e: 'navigate', lineNumber: number): void
   (e: 'renamed', payload: { oldPath: string; newPath: string; isDirectory: boolean; renamedPaths?: Array<{ oldPath: string; newPath: string; isDirectory: boolean }>; updatedLinkPaths?: string[] }): void
   (e: 'deleted', payload: { path: string; isDirectory: boolean }): void
-  (e: 'content-change', content: string): void
 }>()
 
-const sidebarTabs = new Set<SidebarTab>(['files', 'graph', 'rss', 'ai', 'properties', 'outline', 'settings'])
+// 精简后的侧边栏 tabs
+const sidebarTabs = new Set<SidebarTab>(['files', 'graph', 'rss'])
 const settingsStore = useSettingsStore()
 const activeTab = computed(() => settingsStore.activeSidebarTab)
 const rootPath = ref('')
@@ -130,14 +93,6 @@ const handleNavSelect = (index: string) => {
 
 const handleRootPathChange = (path: string) => {
   rootPath.value = path
-}
-
-const handleOutlineNavigate = (lineNumber: number) => {
-  emit('navigate', lineNumber)
-}
-
-const handlePropertiesContentChange = (content: string) => {
-  emit('content-change', content)
 }
 
 const readFile = async (filePath: string): Promise<string> => {
