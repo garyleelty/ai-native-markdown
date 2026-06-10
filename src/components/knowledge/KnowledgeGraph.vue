@@ -250,6 +250,30 @@ const filteredGraphData = computed<KnowledgeGraphData>(() => {
   return { nodes, edges, stats: buildStats(nodes, edges) }
 })
 
+const graphRenderSignature = computed(() => {
+  const data = filteredGraphData.value
+  const nodes = data.nodes
+    .map(node => [
+      node.id,
+      node.label,
+      node.path,
+      node.linkCount,
+      node.isOrphan ? '1' : '0',
+      node.tags.join(','),
+    ].join('\u0000'))
+    .sort()
+    .join('\u0001')
+  const edges = data.edges
+    .map(edge => [
+      getEdgeSourceId(edge),
+      getEdgeTargetId(edge),
+      edge.weight,
+    ].join('\u0000'))
+    .sort()
+    .join('\u0001')
+  return `${nodes}\u0002${edges}`
+})
+
 const canRenderGraph = computed(() => filteredGraphData.value.nodes.length > 0)
 const currentNeighborCount = computed(() => Math.max(0, filteredGraphData.value.nodes.length - 1))
 const currentFocusLabel = computed(() => currentNode.value?.label || '未选择当前笔记')
@@ -319,10 +343,9 @@ const handleGraphMouseMove = (event: MouseEvent) => {
   }
 }
 
-watch(filteredGraphData, () => {
-  destroyGraph()
+watch(graphRenderSignature, () => {
   buildGraph()
-}, { deep: true })
+})
 
 onMounted(() => {
   buildGraph()

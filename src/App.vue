@@ -46,10 +46,10 @@
           <el-button :icon="ChatDotRound" native-type="button" circle size="small" aria-label="AI 助手" :type="settingsStore.showAIPanel ? 'primary' : 'default'" @click="toggleAIPanel" />
         </el-tooltip>
         <el-tooltip content="图谱工作区" placement="bottom">
-          <el-button :icon="Share" native-type="button" circle size="small" aria-label="图谱工作区" :type="settingsStore.showGraphPane ? 'primary' : 'default'" @click="toggleGraphPane" />
+          <el-button :icon="Share" native-type="button" circle size="small" aria-label="图谱工作区" :type="showDesktopGraphPane ? 'primary' : 'default'" @click="toggleGraphPane" />
         </el-tooltip>
         <el-tooltip content="右侧工作台" placement="bottom">
-          <el-button :icon="Tickets" native-type="button" circle size="small" aria-label="右侧工作台" :type="settingsStore.showRightDock ? 'primary' : 'default'" @click="toggleRightDock" />
+          <el-button :icon="Tickets" native-type="button" circle size="small" aria-label="右侧工作台" :type="showDesktopRightDock ? 'primary' : 'default'" @click="toggleRightDock" />
         </el-tooltip>
         <el-tooltip :content="viewModeTooltip" placement="bottom">
           <el-button :icon="editorStore.viewMode === 'preview' ? View : EditPen" native-type="button" circle size="small" aria-label="切换视图模式" @click="cycleViewMode" />
@@ -473,8 +473,22 @@ const editorContent = computed({
 const isDark = computed(() => settingsStore.isDark())
 const isNarrowViewport = computed(() => viewportWidth.value <= narrowViewportBreakpoint)
 const sidebarVisible = computed(() => isNarrowViewport.value ? mobileSidebarOpen.value : settingsStore.showSidebar)
-const showDesktopGraphPane = computed(() => !isNarrowViewport.value && viewportWidth.value >= 1320 && settingsStore.showGraphPane && editorStore.openTabs.length > 0)
-const showDesktopRightDock = computed(() => !isNarrowViewport.value && viewportWidth.value >= 1040 && settingsStore.showRightDock && editorStore.openTabs.length > 0)
+const isPrimaryFileWorkspaceVisible = computed(() => !sidebarVisible.value || settingsStore.activeSidebarTab === 'files')
+const showDesktopGraphPane = computed(() => (
+  !isNarrowViewport.value &&
+  viewportWidth.value >= 1040 &&
+  settingsStore.showGraphPane &&
+  editorStore.openTabs.length > 0 &&
+  isPrimaryFileWorkspaceVisible.value
+))
+const showDesktopRightDock = computed(() => (
+  !isNarrowViewport.value &&
+  viewportWidth.value >= 1040 &&
+  settingsStore.showRightDock &&
+  editorStore.openTabs.length > 0 &&
+  isPrimaryFileWorkspaceVisible.value &&
+  (!showDesktopGraphPane.value || viewportWidth.value >= 1500)
+))
 const sidebarAsideWidth = computed(() => {
   if (!sidebarVisible.value) return '0px'
   if (!isNarrowViewport.value) return `${settingsStore.sidebarWidth}px`
@@ -530,8 +544,39 @@ const toggleSidebar = () => {
     settingsStore.toggleSidebar()
   }
 }
-const toggleGraphPane = () => settingsStore.toggleGraphPane()
-const toggleRightDock = () => settingsStore.toggleRightDock()
+const revealPrimaryFileWorkspace = () => {
+  if (!isNarrowViewport.value && sidebarVisible.value && settingsStore.activeSidebarTab !== 'files') {
+    settingsStore.setActiveTab('files')
+  }
+}
+
+const toggleGraphPane = () => {
+  if (isNarrowViewport.value) {
+    settingsStore.toggleGraphPane()
+    return
+  }
+  if (showDesktopGraphPane.value) {
+    settingsStore.setGraphPaneVisible(false)
+    return
+  }
+  revealPrimaryFileWorkspace()
+  settingsStore.setGraphPaneVisible(true)
+  if (viewportWidth.value < 1500) settingsStore.setRightDockVisible(false)
+}
+
+const toggleRightDock = () => {
+  if (isNarrowViewport.value) {
+    settingsStore.toggleRightDock()
+    return
+  }
+  if (showDesktopRightDock.value) {
+    settingsStore.setRightDockVisible(false)
+    return
+  }
+  revealPrimaryFileWorkspace()
+  settingsStore.setRightDockVisible(true)
+  if (viewportWidth.value < 1500) settingsStore.setGraphPaneVisible(false)
+}
 const toggleAIPanel = () => settingsStore.toggleAIPanel()
 
 const cycleViewMode = () => {

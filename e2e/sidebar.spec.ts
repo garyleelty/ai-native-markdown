@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { createWorkspaceFile, loadDemoWorkspace, runCommand } from './helpers'
+import { createWorkspaceFile, loadDemoWorkspace, openFirstMarkdownFile, runCommand } from './helpers'
 
 test.describe('侧边栏行为', () => {
   test.beforeEach(async ({ page }) => {
@@ -61,6 +61,35 @@ test.describe('侧边栏行为', () => {
 
     await page.getByRole('menuitem', { name: '文档大纲' }).click()
     await expect(page.locator('.panel-title')).toContainText('大纲')
+  })
+
+  test('顶部工作台按钮会从工具侧栏切回文件工作区并显示对应面板', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await loadDemoWorkspace(page)
+    await openFirstMarkdownFile(page)
+
+    await expect(page.locator('.graph-pane-shell')).toBeVisible()
+    await expect(page.locator('.right-dock-shell')).toHaveCount(0)
+
+    await page.getByRole('menuitem', { name: '设置' }).click()
+    await expect(page.locator('.panel-title')).toContainText('设置')
+    await expect(page.locator('.graph-pane-shell')).toHaveCount(0)
+
+    await page.getByRole('button', { name: '图谱工作区' }).click()
+    await expect(page.locator('.panel-title')).toHaveText('资源管理器')
+    await expect(page.locator('.graph-pane-shell')).toBeVisible()
+
+    await page.getByRole('button', { name: '右侧工作台' }).click()
+    await expect(page.locator('.graph-pane-shell')).toHaveCount(0)
+    await expect(page.locator('.right-dock-shell')).toBeVisible()
+
+    await page.getByRole('menuitem', { name: '文档大纲' }).click()
+    await expect(page.locator('.panel-title')).toContainText('大纲')
+    await expect(page.locator('.right-dock-shell')).toHaveCount(0)
+
+    await page.getByRole('button', { name: '右侧工作台' }).click()
+    await expect(page.locator('.panel-title')).toHaveText('资源管理器')
+    await expect(page.locator('.right-dock-shell')).toBeVisible()
   })
 
   test('刷新页面后会恢复上次打开的侧边栏面板', async ({ page }) => {

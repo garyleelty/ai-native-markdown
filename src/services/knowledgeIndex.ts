@@ -151,7 +151,7 @@ export const knowledgeIndex = {
   },
 
   isStale(): boolean {
-    const stale = safeStorage.get<boolean | number | string>(STALE_KEY, true)
+    const stale = safeStorage.get<boolean | number | string>(STALE_KEY, false)
     return stale === true || stale === 1 || stale === '1'
   },
 

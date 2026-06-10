@@ -239,7 +239,6 @@ function highlightCurrentLine() {
   const el = findElementForLine(props.cursorLine)
   if (el) {
     el.classList.add('current-line')
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 }
 

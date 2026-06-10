@@ -29,6 +29,8 @@ export function useKnowledgeGraph(
   const GRAPH_TRANSITION_DURATION = 200
   const GRAPH_FOCUS_DURATION = 500
   const GRAPH_FOCUS_SCALE = 1.5
+  const GRAPH_PRELAYOUT_TICKS = 90
+  let renderFrame: number | null = null
 
   const TAG_COLORS = [
     '#89b4fa', '#a6e3a1', '#f9e2af', '#f38ba8', '#cba6f7',
@@ -167,6 +169,24 @@ export function useKnowledgeGraph(
           .attr('stroke', 'var(--text-muted)')
       })
 
+    const renderPositions = () => {
+      edgeSelection
+        .attr('x1', d => (d.source as SimulationNode).x ?? 0)
+        .attr('y1', d => (d.source as SimulationNode).y ?? 0)
+        .attr('x2', d => (d.target as SimulationNode).x ?? 0)
+        .attr('y2', d => (d.target as SimulationNode).y ?? 0)
+
+      nodeSelection.attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
+    }
+
+    const scheduleRender = () => {
+      if (renderFrame !== null) return
+      renderFrame = requestAnimationFrame(() => {
+        renderFrame = null
+        renderPositions()
+      })
+    }
+
     const sim = d3.forceSimulation<SimulationNode>(simNodes)
       .force('link', d3.forceLink<SimulationNode, SimulationEdge>(simEdges)
         .id(d => d.id)
@@ -177,19 +197,11 @@ export function useKnowledgeGraph(
       .force('collision', d3.forceCollide<SimulationNode>().radius(d => getNodeRadius(d.linkCount) + GRAPH_COLLISION_PADDING))
       .alphaDecay(GRAPH_ALPHA_DECAY)
       .velocityDecay(GRAPH_VELOCITY_DECAY)
-      .on('tick', () => {
-        // Throttle tick updates to improve performance for large graphs
-        if (sim.alpha() < sim.alphaMin()) return
-        requestAnimationFrame(() => {
-          edgeSelection
-            .attr('x1', d => (d.source as SimulationNode).x ?? 0)
-            .attr('y1', d => (d.source as SimulationNode).y ?? 0)
-            .attr('x2', d => (d.target as SimulationNode).x ?? 0)
-            .attr('y2', d => (d.target as SimulationNode).y ?? 0)
+      .stop()
 
-          nodeSelection.attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
-        })
-      })
+    sim.tick(GRAPH_PRELAYOUT_TICKS)
+    renderPositions()
+    sim.on('tick', scheduleRender)
 
     simulation.value = sim
   }
@@ -220,6 +232,10 @@ export function useKnowledgeGraph(
   }
 
   function destroyGraph() {
+    if (renderFrame !== null) {
+      cancelAnimationFrame(renderFrame)
+      renderFrame = null
+    }
     if (simulation.value) {
       simulation.value.stop()
       simulation.value = null
