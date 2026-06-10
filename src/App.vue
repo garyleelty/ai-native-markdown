@@ -48,27 +48,31 @@
         <el-tooltip content="图谱工作区" placement="bottom">
           <el-button :icon="Share" native-type="button" circle size="small" aria-label="图谱工作区" :type="showDesktopGraphPane ? 'primary' : 'default'" @click="toggleGraphPane" />
         </el-tooltip>
-        <el-tooltip content="右侧工作台" placement="bottom">
-          <el-button :icon="Tickets" native-type="button" circle size="small" aria-label="右侧工作台" :type="showDesktopRightDock ? 'primary' : 'default'" @click="toggleRightDock" />
+        <el-tooltip content="检查器" placement="bottom">
+          <el-button :icon="Tickets" native-type="button" circle size="small" aria-label="检查器" :type="showDesktopRightDock ? 'primary' : 'default'" @click="toggleRightDock" />
         </el-tooltip>
-        <el-tooltip :content="viewModeTooltip" placement="bottom">
-          <el-button :icon="editorStore.viewMode === 'preview' ? View : EditPen" native-type="button" circle size="small" aria-label="切换视图模式" @click="cycleViewMode" />
-        </el-tooltip>
-        <el-tooltip content="版本历史" placement="bottom" v-if="editorStore.currentFile">
-          <el-button :icon="Clock" native-type="button" circle size="small" aria-label="版本历史" @click="showVersionHistory = true" />
-        </el-tooltip>
-        <el-dropdown trigger="click" hide-on-click @command="handleExport">
-          <el-button :icon="Download" native-type="button" circle size="small" aria-label="导出" />
+
+        <!-- 视图切换下拉菜单（包含专注模式） -->
+        <el-dropdown trigger="click" hide-on-click @command="handleViewDropdown">
+          <el-tooltip :content="viewModeTooltip" placement="bottom">
+            <el-button :icon="focusMode ? Grid : (editorStore.viewMode === 'preview' ? View : EditPen)" native-type="button" circle size="small" :type="focusMode ? 'primary' : 'default'" />
+          </el-tooltip>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="export">导出...</el-dropdown-item>
-              <el-dropdown-item command="cheatsheet">Markdown 语法</el-dropdown-item>
+              <el-dropdown-item command="source" :icon="EditPen">源码模式</el-dropdown-item>
+              <el-dropdown-item command="live" :icon="View">实时预览</el-dropdown-item>
+              <el-dropdown-item command="preview" :icon="View">阅读模式</el-dropdown-item>
+              <el-dropdown-item command="focus" divided :icon="FullScreen">专注模式</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-tooltip content="专注模式 (F11)" placement="bottom">
-          <el-button :icon="FullScreen" native-type="button" circle size="small" aria-label="专注模式" :type="focusMode ? 'primary' : 'default'" @click="focusMode = !focusMode" />
+
+        <!-- 命令面板入口 -->
+        <el-tooltip content="命令面板 (Ctrl+P)" placement="bottom">
+          <el-button :icon="Promotion" native-type="button" circle size="small" aria-label="命令面板" @click="showCommandPalette = true" />
         </el-tooltip>
+
+        <!-- 主题切换（移至最右侧） -->
         <el-tooltip content="切换主题" placement="bottom">
           <el-button :icon="isDark ? Moon : Sunny" native-type="button" circle size="small" aria-label="切换主题" @click="toggleTheme" />
         </el-tooltip>
@@ -359,7 +363,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Operation, Document, ChatDotRound, View, EditPen, Download, Moon, Sunny, Clock, Upload, FullScreen, WarningFilled, RefreshLeft, Select, Share, Tickets } from '@element-plus/icons-vue'
+import { Operation, Document, ChatDotRound, View, EditPen, Download, Moon, Sunny, Clock, Upload, FullScreen, WarningFilled, RefreshLeft, Select, Share, Tickets, Menu, MoreFilled, Grid, Promotion } from '@element-plus/icons-vue'
 import { useSettingsStore } from './stores/settings'
 import { useEditorStore } from './stores/editor'
 import { aiService, configureAIProvider } from './services/ai'
@@ -586,9 +590,28 @@ const cycleViewMode = () => {
 }
 
 const viewModeTooltip = computed(() => {
+  if (focusMode.value) return '专注模式 (F11)'
   const map: Record<string, string> = { source: '源码模式', 'live-preview': '实时预览', preview: '阅读模式' }
   return map[editorStore.viewMode] || '切换视图'
 })
+
+// 处理视图下拉菜单命令
+const handleViewDropdown = (command: string) => {
+  switch (command) {
+    case 'source':
+      editorStore.setViewMode('source')
+      break
+    case 'live':
+      editorStore.setViewMode('live-preview')
+      break
+    case 'preview':
+      editorStore.setViewMode('preview')
+      break
+    case 'focus':
+      focusMode.value = !focusMode.value
+      break
+  }
+}
 
 const viewModeLabel = computed(() => {
   const map: Record<string, string> = { source: '源码', 'live-preview': '实时预览', preview: '阅读' }
