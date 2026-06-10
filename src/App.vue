@@ -59,10 +59,10 @@
           </el-tooltip>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="source" :icon="EditPen">源码模式</el-dropdown-item>
-              <el-dropdown-item command="live" :icon="View">实时预览</el-dropdown-item>
-              <el-dropdown-item command="preview" :icon="View">阅读模式</el-dropdown-item>
-              <el-dropdown-item command="focus" divided :icon="FullScreen">专注模式</el-dropdown-item>
+              <el-dropdown-item command="source" :icon="EditPen" :class="{ 'is-active': editorStore.viewMode === 'source' && !focusMode }">源码模式</el-dropdown-item>
+              <el-dropdown-item command="live" :icon="View" :class="{ 'is-active': editorStore.viewMode === 'live-preview' && !focusMode }">实时预览</el-dropdown-item>
+              <el-dropdown-item command="preview" :icon="View" :class="{ 'is-active': editorStore.viewMode === 'preview' && !focusMode }">阅读模式</el-dropdown-item>
+              <el-dropdown-item command="focus" divided :icon="FullScreen" :class="{ 'is-active': focusMode }">专注模式</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>

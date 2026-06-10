@@ -276,6 +276,15 @@ const safeCommandId = (id: string) =>
 
 .command-palette :deep(.el-input__wrapper) {
   border-radius: var(--radius-md);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.command-palette :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px var(--obsidian-accent-soft);
+}
+
+.command-palette :deep(.el-input__wrapper:focus-within) {
+  box-shadow: 0 0 0 2px var(--obsidian-accent);
 }
 
 .command-list-scroll {
@@ -311,10 +320,11 @@ const safeCommandId = (id: string) =>
   border-radius: var(--radius-sm);
   background: transparent;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, transform 0.1s ease;
   text-align: left;
   font: inherit;
   touch-action: manipulation;
+  position: relative;
 }
 
 .command-item:hover,
@@ -324,6 +334,10 @@ const safeCommandId = (id: string) =>
 
 .command-item.active {
   background: var(--obsidian-accent-soft);
+}
+
+.command-item:active {
+  transform: scale(0.99);
 }
 
 .command-item:focus-visible {
@@ -336,6 +350,12 @@ const safeCommandId = (id: string) =>
   color: var(--obsidian-text-muted);
   flex-shrink: 0;
   font-size: 18px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.command-item:hover .el-icon {
+  color: var(--obsidian-text-normal);
+  transform: scale(1.1);
 }
 
 .command-item.active .el-icon {
@@ -357,6 +377,15 @@ const safeCommandId = (id: string) =>
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.command-item:hover .command-label {
+  color: var(--obsidian-text-normal);
+}
+
+.command-item.active .command-label {
+  color: var(--obsidian-accent);
 }
 
 .command-description {
@@ -366,6 +395,7 @@ const safeCommandId = (id: string) =>
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 0.15s ease;
 }
 
 .command-shortcut {
@@ -376,10 +406,23 @@ const safeCommandId = (id: string) =>
   white-space: nowrap;
   font-size: 12px;
   color: var(--obsidian-text-faint);
-  background: var(--obsidian-bg-tertiary);
+  background: var(--obsidian-bg-hover);
   padding: 2px 6px;
   border-radius: var(--radius-xs);
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
+  border: 1px solid var(--obsidian-border);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.command-item:hover .command-shortcut {
+  background: var(--obsidian-bg-active);
+  border-color: var(--obsidian-border);
+}
+
+.command-item.active .command-shortcut {
+  background: var(--obsidian-accent-soft);
+  border-color: var(--obsidian-accent);
+  color: var(--obsidian-accent);
 }
 
 .command-empty {
