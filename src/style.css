@@ -595,6 +595,167 @@ button {
   cursor: pointer;
 }
 
+/* 代码块语法高亮 - Obsidian 风格 */
+.markdown-body .hljs {
+  background: var(--obsidian-bg-secondary) !important;
+  color: var(--obsidian-text-normal);
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.markdown-body .hljs-keyword,
+.markdown-body .hljs-selector-tag,
+.markdown-body .hljs-built_in,
+.markdown-body .hljs-name,
+.markdown-body .hljs-tag {
+  color: #cba6f7;
+}
+
+.markdown-body .hljs-string,
+.markdown-body .hljs-title,
+.markdown-body .hljs-section,
+.markdown-body .hljs-attribute,
+.markdown-body .hljs-literal,
+.markdown-body .hljs-template-tag,
+.markdown-body .hljs-template-variable,
+.markdown-body .hljs-type,
+.markdown-body .hljs-addition {
+  color: #a6e3a1;
+}
+
+.markdown-body .hljs-deletion,
+.markdown-body .hljs-selector-attr,
+.markdown-body .hljs-selector-pseudo,
+.markdown-body .hljs-meta {
+  color: #f38ba8;
+}
+
+.markdown-body .hljs-comment,
+.markdown-body .hljs-quote {
+  color: #6c7086;
+  font-style: italic;
+}
+
+.markdown-body .hljs-variable,
+.markdown-body .hljs-template-variable,
+.markdown-body .hljs-number,
+.markdown-body .hljs-bullet,
+.markdown-body .hljs-link {
+  color: #fab387;
+}
+
+.markdown-body .hljs-emphasis {
+  font-style: italic;
+}
+
+.markdown-body .hljs-strong {
+  font-weight: bold;
+}
+
+.markdown-body .hljs-link {
+  text-decoration: underline;
+}
+
+/* 代码块容器样式 */
+.markdown-body pre {
+  position: relative;
+  margin: 16px 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--obsidian-border);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.markdown-body pre:hover {
+  box-shadow: var(--shadow-md);
+  border-color: rgba(139, 124, 246, 0.3);
+}
+
+.markdown-body pre .hljs {
+  margin: 0;
+  border-radius: 0;
+  border: none;
+}
+
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.markdown-body :not(pre) > code {
+  background: var(--obsidian-bg-secondary);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--obsidian-border);
+  color: var(--obsidian-accent);
+}
+
+/* 图片样式 */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--obsidian-border);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.markdown-body img:hover {
+  transform: scale(1.02);
+  box-shadow: var(--shadow-md);
+}
+
+/* 水平线样式 */
+.markdown-body hr {
+  border: none;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--obsidian-border), transparent);
+  margin: 24px 0;
+}
+
+/* 删除线样式 */
+.markdown-body del {
+  color: var(--obsidian-text-faint);
+}
+
+/* 脚注样式 */
+.markdown-body sup,
+.markdown-body sub {
+  color: var(--obsidian-accent);
+}
+
+/* 缩写样式 */
+.markdown-body abbr[title] {
+  border-bottom: 1px dotted var(--obsidian-border);
+  cursor: help;
+}
+
+/* 测量/标记样式 */
+.markdown-body mark {
+  background: rgba(249, 226, 175, 0.3);
+  color: inherit;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+/* 定义列表 */
+.markdown-body dl {
+  margin: 16px 0;
+}
+
+.markdown-body dt {
+  font-weight: 600;
+  color: var(--obsidian-text-normal);
+  margin-top: 12px;
+}
+
+.markdown-body dd {
+  margin-left: 24px;
+  color: var(--obsidian-text-muted);
+}
+
 @media (max-width: 768px) {
   .mobile-hidden { display: none !important; }
   .desktop-hidden { display: block !important; }
@@ -615,3 +776,206 @@ button {
 .slide-enter-active, .slide-leave-active { transition: transform 0.3s ease, opacity 0.3s ease; }
 .slide-enter-from { transform: translateY(10px); opacity: 0; }
 .slide-leave-to { transform: translateY(-10px); opacity: 0; }
+
+/* 增强的过渡动画 */
+.scale-enter-active, .scale-leave-active {
+  transition: all 0.2s var(--ease-spring);
+}
+.scale-enter-from, .scale-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+/* Element Plus 空状态增强 */
+.el-empty__description {
+  color: var(--obsidian-text-faint) !important;
+  font-size: 13px;
+}
+
+.el-empty__image svg {
+  opacity: 0.4;
+}
+
+/* Element Plus 加载动画增强 */
+.el-loading-mask {
+  background-color: rgba(32, 32, 32, 0.85) !important;
+  backdrop-filter: blur(4px);
+}
+
+.el-loading-spinner .circular {
+  animation: rotate 2s linear infinite;
+}
+
+.el-loading-spinner .path {
+  stroke: var(--obsidian-accent) !important;
+  animation: dash 1.5s ease-in-out infinite;
+}
+
+@keyframes rotate {
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes dash {
+  0% { stroke-dasharray: 1, 150; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
+  100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
+}
+
+/* 提示消息增强 */
+.el-message {
+  border-radius: var(--radius-md) !important;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-lg) !important;
+  border: 1px solid var(--obsidian-border) !important;
+}
+
+.el-message--success {
+  background: rgba(166, 227, 161, 0.1) !important;
+  border-color: rgba(166, 227, 161, 0.3) !important;
+}
+
+.el-message--warning {
+  background: rgba(249, 226, 175, 0.1) !important;
+  border-color: rgba(249, 226, 175, 0.3) !important;
+}
+
+.el-message--error {
+  background: rgba(243, 139, 168, 0.1) !important;
+  border-color: rgba(243, 139, 168, 0.3) !important;
+}
+
+.el-message--info {
+  background: rgba(137, 180, 250, 0.1) !important;
+  border-color: rgba(137, 180, 250, 0.3) !important;
+}
+
+/* 通知提示增强 */
+.el-notification {
+  border-radius: var(--radius-md) !important;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-lg) !important;
+  border: 1px solid var(--obsidian-border) !important;
+  background: var(--obsidian-bg-secondary) !important;
+}
+
+/* 标签样式增强 */
+.el-tag {
+  border-radius: var(--radius-xs) !important;
+  transition: all 0.15s ease;
+}
+
+.el-tag:hover {
+  transform: translateY(-1px);
+}
+
+/* 折叠面板增强 */
+.el-collapse-item__header {
+  transition: background 0.15s ease;
+}
+
+.el-collapse-item__header:hover {
+  background: var(--obsidian-bg-hover);
+}
+
+.el-collapse-item__wrap {
+  border-top: none;
+}
+
+/* 对话框增强 */
+.el-dialog {
+  border-radius: var(--radius-lg) !important;
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-lg) !important;
+  border: 1px solid var(--obsidian-border) !important;
+}
+
+.el-dialog__header {
+  padding: 16px 20px !important;
+  border-bottom: 1px solid var(--obsidian-border) !important;
+}
+
+.el-dialog__body {
+  padding: 20px !important;
+}
+
+.el-dialog__footer {
+  padding: 12px 20px !important;
+  border-top: 1px solid var(--obsidian-border) !important;
+}
+
+/* 工具提示增强 */
+.el-tooltip__popper {
+  border-radius: var(--radius-sm) !important;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* 下拉菜单项悬停动画 */
+.el-select-dropdown__item {
+  transition: all 0.15s ease;
+}
+
+.el-select-dropdown__item:hover {
+  transform: translateX(2px);
+}
+
+.el-select-dropdown__item.selected {
+  color: var(--obsidian-accent) !important;
+  font-weight: 600;
+}
+
+/* 滑块增强 */
+.el-slider__runway {
+  background: var(--obsidian-bg-tertiary) !important;
+  border-radius: var(--radius-full);
+}
+
+.el-slider__bar {
+  background: var(--obsidian-accent) !important;
+  border-radius: var(--radius-full);
+}
+
+.el-slider__button {
+  border-color: var(--obsidian-accent) !important;
+  box-shadow: 0 0 8px var(--obsidian-accent);
+}
+
+/* 开关增强 */
+.el-switch.is-checked .el-switch__core {
+  background: var(--obsidian-accent) !important;
+  border-color: var(--obsidian-accent) !important;
+}
+
+/* 复选框增强 */
+.el-checkbox__input.is-checked .el-checkbox__inner {
+  background: var(--obsidian-accent) !important;
+  border-color: var(--obsidian-accent) !important;
+}
+
+.el-checkbox__input.is-checked + .el-checkbox__label {
+  color: var(--obsidian-accent);
+}
+
+/* 单选框增强 */
+.el-radio__input.is-checked .el-radio__inner {
+  background: var(--obsidian-accent) !important;
+  border-color: var(--obsidian-accent) !important;
+}
+
+.el-radio__input.is-checked + .el-radio__label {
+  color: var(--obsidian-accent);
+}
+
+/* 输入框增强 */
+.el-input__wrapper {
+  border-radius: var(--radius-sm) !important;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease !important;
+}
+
+.el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--obsidian-border) !important;
+}
+
+.el-input__wrapper:focus-within {
+  box-shadow: 0 0 0 2px var(--obsidian-accent) !important;
+}

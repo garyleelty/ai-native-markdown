@@ -84,6 +84,7 @@ const selectedCharCount = computed(() => props.selectedText.length)
   color: var(--text-muted);
   user-select: none;
   overflow: hidden;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .status-left,
@@ -96,11 +97,12 @@ const selectedCharCount = computed(() => props.selectedText.length)
 .status-item {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 1px 5px;
+  gap: 4px;
+  padding: 2px 6px;
   border-radius: var(--radius-xs);
   cursor: default;
   white-space: nowrap;
+  transition: all 0.15s ease;
 }
 
 .status-item:hover {
@@ -108,24 +110,53 @@ const selectedCharCount = computed(() => props.selectedText.length)
   color: var(--text-secondary);
 }
 
+.status-item:active {
+  transform: scale(0.95);
+}
+
+.status-item svg {
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.status-item:hover svg {
+  opacity: 1;
+}
+
 .status-divider {
   width: 1px;
   height: 10px;
   background: var(--border-default);
-  margin: 0 2px;
+  margin: 0 4px;
 }
 
 .status-selection {
   color: var(--accent-primary);
   font-weight: 600;
+  background: rgba(127, 109, 242, 0.1);
+}
+
+.status-selection:hover {
+  background: rgba(127, 109, 242, 0.15);
+}
+
+.status-item.connected {
+  color: #22c55e;
 }
 
 .status-item.connected svg {
   color: #22c55e;
+  opacity: 1;
+  animation: pulse 2s ease-in-out infinite;
 }
 
 .status-item:not(.connected) svg {
   color: var(--text-muted);
   opacity: 0.5;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 </style>

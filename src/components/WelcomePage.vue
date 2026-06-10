@@ -77,6 +77,20 @@
           <span class="recent-path">{{ f.path }}</span>
         </button>
       </section>
+
+      <!-- 键盘快捷键提示 -->
+      <section class="welcome-shortcuts" aria-labelledby="shortcuts-title">
+        <div class="section-heading">
+          <h2 id="shortcuts-title">快捷键</h2>
+          <span>效率加倍</span>
+        </div>
+        <div class="shortcut-grid">
+          <div v-for="shortcut in shortcuts" :key="shortcut.key" class="shortcut-item">
+            <kbd class="shortcut-key">{{ shortcut.key }}</kbd>
+            <span class="shortcut-desc">{{ shortcut.desc }}</span>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -115,6 +129,16 @@ const workflow = [
   { index: '02', title: '✍️ 写 Markdown', desc: '源码、实时预览、阅读随时切换' },
   { index: '03', title: '🔗 连接笔记', desc: '用 Wiki Link、反链和图谱整理知识' },
   { index: '04', title: '⚡ 用 AI 加速', desc: '基于当前内容继续写作和问答' },
+]
+
+// 键盘快捷键
+const shortcuts = [
+  { key: 'Ctrl/Cmd + P', desc: '命令面板' },
+  { key: 'Ctrl/Cmd + B', desc: '粗体' },
+  { key: 'Ctrl/Cmd + I', desc: '斜体' },
+  { key: 'Ctrl/Cmd + K', desc: '插入链接' },
+  { key: 'Ctrl/Cmd + S', desc: '保存' },
+  { key: 'F11', desc: '专注模式' },
 ]
 </script>
 
@@ -400,6 +424,66 @@ const workflow = [
   white-space: nowrap;
 }
 
+/* 键盘快捷键样式 */
+.welcome-shortcuts {
+  grid-column: 1 / -1;
+  padding: 18px;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--obsidian-bg-primary);
+  border: 1px solid var(--obsidian-border);
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.shortcut-item:hover {
+  border-color: var(--obsidian-accent);
+  background: var(--obsidian-accent-soft);
+}
+
+.shortcut-key {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--obsidian-bg-tertiary);
+  border: 1px solid var(--obsidian-border);
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--obsidian-text-muted);
+}
+
+.shortcut-item:hover .shortcut-key {
+  border-color: var(--obsidian-accent);
+  color: var(--obsidian-accent);
+}
+
+.shortcut-desc {
+  font-size: 12px;
+  color: var(--obsidian-text-muted);
+  white-space: nowrap;
+}
+
+.shortcut-item:hover .shortcut-desc {
+  color: var(--obsidian-text-normal);
+}
+
 @media (max-width: 900px) {
   .welcome-content {
     grid-template-columns: 1fr;
@@ -407,6 +491,7 @@ const workflow = [
       "primary"
       "capabilities"
       "workflow"
+      "shortcuts"
       "recent";
   }
 
