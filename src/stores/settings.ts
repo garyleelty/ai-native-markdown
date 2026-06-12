@@ -4,7 +4,7 @@ import { useDebounceFn } from '@vueuse/core'
 import type { AIConfig, ThemeMode, SidebarTab, GhostTextConfig } from '@/types'
 import { encryptValue, safeStorage, decryptValue } from '@/utils/security'
 
-const sidebarTabs: SidebarTab[] = ['files', 'graph', 'rss', 'ai', 'properties', 'outline', 'settings']
+const sidebarTabs: SidebarTab[] = ['files', 'outline', 'knowledge', 'tools', 'settings']
 
 const defaultAIConfig: AIConfig = {
   provider: 'ollama',
@@ -95,8 +95,47 @@ function loadSidebarTab(): SidebarTab {
   return sidebarTabs.includes(tab) ? tab : 'files'
 }
 
+const defaultGhostTextConfig: GhostTextConfig = {
+  enabled: true,
+  debounceMs: 1500,
+  maxPrefixChars: 500,
+  maxCompletionChars: 200,
+  triggerMode: 'manual',
+}
+
+function loadGhostTextConfig(): GhostTextConfig {
+  const loaded = loadFromStorage<Partial<GhostTextConfig>>('ghost_text_config', {})
+  return {
+    ...defaultGhostTextConfig,
+    ...loaded,
+    // Legacy configs were created before there was a visible mode control, so avoid silent network calls.
+    triggerMode: loaded.triggerMode === 'pause' ? 'manual' : (loaded.triggerMode ?? defaultGhostTextConfig.triggerMode),
+  }
+}
+
+/**
+ * 推断 AI 是否已配置：如果 storage 中没有 ai_configured 键，
+ * 但 ai_config 已有非默认配置（用户之前保存过），则视为已配置。
+ */
+function inferAIConfigured(): boolean {
+  const stored = loadFromStorage<boolean | null>('ai_configured', null)
+  if (stored !== null) return stored
+  // ai_configured 键不存在，检查 ai_config 是否有用户保存过的配置
+  const config = loadEncryptedConfig('ai_config', { ...defaultAIConfig })
+  // 如果 provider 或 model 与默认值不同，说明用户之前配置过
+  if (config.provider !== defaultAIConfig.provider || config.model !== defaultAIConfig.model) {
+    return true
+  }
+  // 如果 baseURL 不是默认值，也说明配置过
+  if (config.baseURL !== defaultAIConfig.baseURL) {
+    return true
+  }
+  return false
+}
+
 export const useSettingsStore = defineStore('settings', () => {
   const theme = ref<ThemeMode>(loadFromStorage('theme', 'system'))
+  const aiConfigured = ref<boolean>(inferAIConfigured())
   const aiConfig = ref<AIConfig>(loadEncryptedConfig('ai_config', { ...defaultAIConfig }))
   const sidebarWidth = ref(loadFromStorage('sidebar_width', 280))
   const rightDockWidth = ref(loadFromStorage('right_dock_width', 300))
@@ -111,13 +150,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const enableRAG = ref(loadFromStorage('enable_rag', false))
   const enableAIActions = ref(loadFromStorage('enable_ai_actions', true))
   const enableSmartPaste = ref(loadFromStorage('enable_smart_paste', true))
-  const ghostTextConfig = ref<GhostTextConfig>(loadFromStorage('ghost_text_config', {
-    enabled: true,
-    debounceMs: 1500,
-    maxPrefixChars: 500,
-    maxCompletionChars: 200,
-    triggerMode: 'pause' as const,
-  }))
+  const ghostTextConfig = ref<GhostTextConfig>(loadGhostTextConfig())
   const enableInlineEdit = ref(loadFromStorage('enable_inline_edit', true))
 
   const systemThemeQuery = typeof window.matchMedia === 'function'
@@ -172,6 +205,12 @@ export const useSettingsStore = defineStore('settings', () => {
   }
   const persistAIConfigNow = async () => {
     await saveEncryptedConfig('ai_config', aiConfig.value)
+    aiConfigured.value = true
+    saveToStorage('ai_configured', true)
+  }
+  const markAIConfigured = () => {
+    aiConfigured.value = true
+    saveToStorage('ai_configured', true)
   }
 
   const setSidebarVisible = (visible: boolean) => {
@@ -249,10 +288,10 @@ export const useSettingsStore = defineStore('settings', () => {
   applyTheme()
 
   return {
-    theme, aiConfig, sidebarWidth, rightDockWidth, graphPaneWidth, aiPanelHeight,
+    theme, aiConfig, aiConfigured, sidebarWidth, rightDockWidth, graphPaneWidth, aiPanelHeight,
     showSidebar, showRightDock, showGraphPane, showAIPanel, activeSidebarTab, livePreview, enableRAG,
     enableAIActions, enableSmartPaste, ghostTextConfig, enableInlineEdit,
-    isDark, applyTheme, setTheme, toggleTheme, updateAIConfig, persistAIConfigNow,
+    isDark, applyTheme, setTheme, toggleTheme, updateAIConfig, persistAIConfigNow, markAIConfigured,
     toggleSidebar, toggleRightDock, toggleGraphPane, toggleAIPanel, toggleLivePreview,
     setSidebarVisible, setRightDockVisible, setGraphPaneVisible, setAIPanelVisible, setActiveTab,
     setEnableRAG, setEnableAIActions, setEnableSmartPaste, setEnableInlineEdit,

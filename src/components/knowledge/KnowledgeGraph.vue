@@ -122,7 +122,7 @@ const mousePos = ref({ x: 0, y: 0 })
 let graphRenderVersion = 0
 let isDisposed = false
 
-const { initGraph, hoveredNode, focusNode, destroyGraph } = useKnowledgeGraph(
+const { initGraph, hoveredNode, focusNode, setCurrentNode, destroyGraph } = useKnowledgeGraph(
   graphContainer,
   (node) => emit('nodeClick', node)
 )
@@ -309,8 +309,16 @@ const buildGraph = () => {
       return
     }
     initGraph(filteredGraphData.value)
+    if (props.currentFile) setCurrentNode(props.currentFile)
   })
 }
+
+watch(
+  () => props.currentFile,
+  (newFile) => {
+    if (newFile) setCurrentNode(newFile)
+  }
+)
 
 const handleSearch = () => {
   const match = searchResults.value[0]

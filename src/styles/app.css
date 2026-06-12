@@ -141,26 +141,36 @@
   box-shadow: var(--shadow-md);
 }
 
+.sidebar-aside.is-collapsed {
+  border-right: 0;
+  box-shadow: none;
+}
+
 /* 侧边栏导航菜单 */
 .sidebar-nav {
   display: flex;
-  flex-direction: row;
-  justify-content: center;
+  flex-direction: column;
+  justify-content: flex-start;
   align-items: center;
-  gap: 2px;
-  padding: 4px;
+  gap: 4px;
+  width: 72px;
+  padding: 8px 4px;
   background: var(--obsidian-bg-secondary);
-  border-bottom: 1px solid var(--obsidian-border);
+  border-right: 1px solid var(--obsidian-border);
+  border-bottom: 0;
 }
 
 .sidebar-nav .el-menu-item {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  gap: 3px;
+  width: 62px;
+  height: 52px;
   padding: 0 !important;
   margin: 0 !important;
+  line-height: 1;
   border-radius: var(--radius-sm) !important;
   color: var(--obsidian-text-faint) !important;
   transition: all 0.2s var(--ease-spring);
@@ -177,7 +187,22 @@
 
 .sidebar-nav .el-menu-item .el-icon {
   font-size: 18px;
+  margin: 0 !important;
   transition: transform 0.2s var(--ease-spring);
+}
+
+.sidebar-nav .nav-label {
+  display: block;
+  max-width: 58px;
+  overflow: hidden;
+  color: currentColor;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 12px;
+  letter-spacing: 0;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-nav .el-menu-item.is-active {
@@ -670,23 +695,6 @@
   color: var(--obsidian-text-muted);
 }
 
-.status-bar .view-mode-btn {
-  cursor: pointer;
-  padding: 0 6px;
-  border-radius: var(--radius-xs);
-  transition: all var(--duration-fast);
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  height: 20px;
-}
-
-.status-bar .view-mode-btn:hover {
-  background: var(--obsidian-bg-hover);
-  color: var(--obsidian-text-muted);
-}
-
 .status-bar .el-tag {
   background: transparent !important;
   border: none !important;
@@ -703,8 +711,13 @@
   gap: 4px;
 }
 
-.status-bar .ai-status {
-  color: var(--obsidian-accent);
+/* ── AI 状态指示点 ── */
+.status-bar .ai-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--obsidian-accent, #7f6df2);
+  opacity: 0.7;
 }
 
 /* ── 拖放覆盖层 ── */
@@ -1009,7 +1022,7 @@
   .status-bar .status-line,
   .status-bar .status-stats,
   .status-bar .status-duration,
-  .status-bar .ai-status,
+  .status-bar .ai-indicator,
   .status-bar .writing-goal {
     display: none;
   }
@@ -1025,15 +1038,6 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-
-  .status-bar .view-mode-btn {
-    height: 22px;
-    min-width: 44px;
-    justify-content: center;
-    padding: 0 8px;
-    background: var(--obsidian-bg-hover);
-    color: var(--obsidian-text-muted);
   }
 
   .ai-panel-section {

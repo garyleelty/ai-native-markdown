@@ -39,6 +39,26 @@ export interface AgentContext {
   mentions: Array<{ path: string; context: string }>
   recentFiles: string[]
   ragContext?: string
+  // 图谱洞察
+  graphInsights?: GraphInsights
+}
+
+// 图谱洞察
+export interface GraphInsights {
+  totalNotes: number
+  totalLinks: number
+  orphanCount: number
+  currentNotePosition?: {
+    linkCount: number
+    isOrphan: boolean
+    neighbors: Array<{ title: string; path: string }>
+  }
+  suggestions?: Array<{
+    type: 'connect-orphan' | 'similar-topic' | 'missing-link'
+    note: string
+    path: string
+    reason: string
+  }>
 }
 
 export interface AgentOptions {

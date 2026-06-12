@@ -31,6 +31,19 @@
             @navigate="line => emit('navigate', line)"
           />
           <el-empty v-else description="打开 Markdown 文件后查看大纲" :image-size="44" />
+
+          <div v-if="currentRecord?.links.length" class="section outline-link-section">
+            <div class="section-label">外链</div>
+            <button
+              v-for="link in currentRecord.links"
+              :key="link"
+              type="button"
+              class="link-chip"
+              @click="emit('wiki-navigate', link)"
+            >
+              [[{{ link }}]]
+            </button>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -62,7 +75,7 @@
                 v-for="link in currentRecord.links"
                 :key="link"
                 type="button"
-                class="link-chip"
+                class="property-link-chip"
                 @click="emit('wiki-navigate', link)"
               >
                 [[{{ link }}]]
@@ -456,7 +469,8 @@ defineExpose({ refreshIndex })
   gap: 5px;
 }
 
-.link-chip {
+.link-chip,
+.property-link-chip {
   display: block;
   width: 100%;
   padding: 5px 6px;
@@ -468,7 +482,8 @@ defineExpose({ refreshIndex })
   text-align: left;
 }
 
-.link-chip:hover {
+.link-chip:hover,
+.property-link-chip:hover {
   background: var(--obsidian-bg-hover, #303030);
 }
 

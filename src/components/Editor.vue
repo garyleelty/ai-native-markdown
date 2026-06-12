@@ -65,12 +65,6 @@
         <el-divider direction="vertical" />
 
         <el-button-group>
-          <el-tooltip content="无序列表" placement="bottom">
-            <el-button :icon="List" native-type="button" aria-label="无序列表" @click="wrapSelection('- ', '')" />
-          </el-tooltip>
-          <el-tooltip content="有序列表" placement="bottom">
-            <el-button :icon="Finished" native-type="button" aria-label="有序列表" @click="wrapSelection('1. ', '')" />
-          </el-tooltip>
           <el-tooltip content="链接" placement="bottom">
             <el-button :icon="Link" native-type="button" aria-label="链接" @click="insertLink" />
           </el-tooltip>
@@ -773,7 +767,7 @@ onBeforeUnmount(() => {
   font-size: 14px;
   line-height: 1.8;
   padding: 0 var(--space-8);
-  max-width: 720px;
+  max-width: min(720px, 100% - 32px);
   margin: 0 auto;
   caret-color: var(--obsidian-accent);
 }
@@ -902,6 +896,18 @@ onBeforeUnmount(() => {
 
   .editor-container :deep(.cm-scroller) {
     font-size: 14px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .editor-container :deep(.cm-content) {
+    max-width: 800px;
+  }
+}
+
+@media (min-width: 1920px) {
+  .editor-container :deep(.cm-content) {
+    max-width: 900px;
   }
 }
 </style>

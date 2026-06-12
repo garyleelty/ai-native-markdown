@@ -3,10 +3,21 @@
     <div class="panel-header">
       <span class="panel-title">资源管理器</span>
       <div class="panel-actions" v-if="rootPath">
+        <el-button :icon="Upload" native-type="button" size="small" circle aria-label="导入文件" @click="handleImportFile" title="导入文件" />
         <el-button :icon="DocumentAdd" native-type="button" size="small" circle aria-label="新建文件" @click="handleCreateFile" title="新建文件" />
         <el-button :icon="FolderAdd" native-type="button" size="small" circle aria-label="新建文件夹" @click="handleCreateFolder" title="新建文件夹" />
       </div>
     </div>
+
+    <!-- 隐藏的文件输入框 -->
+    <input
+      ref="fileInputRef"
+      type="file"
+      multiple
+      :accept="supportedFileTypes"
+      style="display: none"
+      @change="handleFileInputChange"
+    />
 
     <div class="search-bar" v-if="rootPath">
       <el-input
@@ -87,6 +98,9 @@
               <el-dropdown-menu>
                 <el-dropdown-item command="rename">重命名</el-dropdown-item>
                 <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+                <el-dropdown-item command="import" v-if="!data.isDirectory">
+                  <el-icon><Upload /></el-icon> 导入到知识库
+                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -110,10 +124,14 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Folder, Document, DocumentAdd, FolderAdd, Search, Picture } from '@element-plus/icons-vue'
+import { Folder, Document, DocumentAdd, FolderAdd, Search, Picture, Upload } from '@element-plus/icons-vue'
 import { vaultService } from '../../services/vault'
 import { sanitizeFilePath, isValidFileName, safeStorage } from '../../utils/security'
+import { fileImporter } from '../../services/fileImporter'
 import type { TreeNode } from '../../types'
+
+// 支持导入的文件类型
+const SUPPORTED_IMPORT_TYPES = ['.md', '.markdown', '.txt', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']
 
 const WORKSPACE_ROOT_STORAGE_KEY = 'workspace_root_path'
 
@@ -123,7 +141,12 @@ const emit = defineEmits<{
   (e: 'root-path-change', path: string): void
   (e: 'renamed', payload: { oldPath: string; newPath: string; isDirectory: boolean; renamedPaths?: Array<{ oldPath: string; newPath: string; isDirectory: boolean }>; updatedLinkPaths?: string[] }): void
   (e: 'deleted', payload: { path: string; isDirectory: boolean }): void
+  (e: 'imported', payload: { path: string; notePath?: string }): void
 }>()
+
+// 文件导入相关
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const supportedFileTypes = computed(() => SUPPORTED_IMPORT_TYPES.join(','))
 
 const rootPath = ref(safeStorage.get<string>(WORKSPACE_ROOT_STORAGE_KEY, ''))
 const treeData = ref<TreeNode[]>([])
@@ -272,7 +295,65 @@ const handleTreeAction = async (command: string, data: TreeNode) => {
     } catch (e: any) {
       if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '重命名失败')
     }
+  } else if (command === 'import') {
+    // 导入文件到知识库
+    await handleImportExternalFile(data.path)
   }
+}
+
+// 导入外部文件到知识库
+const handleImportExternalFile = async (filePath: string) => {
+  try {
+    const result = await fileImporter.importExternalFile(filePath)
+    if (result.success) {
+      await loadTreeFromFS()
+      ElMessage.success(result.message || '已导入到知识库')
+      emit('imported', { path: filePath, notePath: result.notePath })
+    } else {
+      ElMessage.warning(result.message || '导入失败')
+    }
+  } catch (e: any) {
+    ElMessage.error('导入失败: ' + e.message)
+  }
+}
+
+// 点击导入按钮
+const handleImportFile = () => {
+  fileInputRef.value?.click()
+}
+
+// 处理文件输入变化
+const handleFileInputChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const files = input.files
+  if (!files || files.length === 0) return
+
+  let successCount = 0
+  let failCount = 0
+
+  for (const file of Array.from(files)) {
+    try {
+      const result = await fileImporter.importFile(file, rootPath.value)
+      if (result.success) {
+        successCount++
+      } else {
+        failCount++
+      }
+    } catch {
+      failCount++
+    }
+  }
+
+  await loadTreeFromFS()
+
+  if (successCount > 0) {
+    ElMessage.success(`成功导入 ${successCount} 个文件${failCount > 0 ? `，失败 ${failCount} 个` : ''}`)
+  } else if (failCount > 0) {
+    ElMessage.error(`导入失败 ${failCount} 个文件`)
+  }
+
+  // 清空 input 以允许重复选择相同文件
+  input.value = ''
 }
 
 const openFolder = async () => {

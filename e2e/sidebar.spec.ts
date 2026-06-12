@@ -16,6 +16,16 @@ test.describe('侧边栏行为', () => {
 
     const box = await sidebarAside.boundingBox()
     expect(box?.width).toBeGreaterThan(200)
+
+    await expect(page.locator('.sidebar-nav .nav-label')).toHaveText([
+      '文件管理',
+      '知识图谱',
+      'RSS订阅',
+      'AI配置',
+      '文档大纲',
+      '属性',
+      '设置',
+    ])
   })
 
   test('点击切换按钮可以隐藏和恢复侧边栏', async ({ page }) => {

@@ -5,14 +5,25 @@
       class="sidebar-nav"
       @select="handleNavSelect"
     >
-      <el-menu-item index="files" aria-label="文件管理">
+      <el-menu-item index="files" aria-label="文件管理" title="文件管理">
         <el-icon><Folder /></el-icon>
+        <span class="nav-label">文件</span>
       </el-menu-item>
-      <el-menu-item index="graph" aria-label="知识">
+      <el-menu-item index="outline" aria-label="文档大纲" title="文档大纲">
+        <el-icon><List /></el-icon>
+        <span class="nav-label">大纲</span>
+      </el-menu-item>
+      <el-menu-item index="knowledge" aria-label="知识" title="知识">
         <el-icon><Share /></el-icon>
+        <span class="nav-label">知识</span>
       </el-menu-item>
-      <el-menu-item index="rss" aria-label="RSS 订阅">
-        <el-icon><Document /></el-icon>
+      <el-menu-item index="tools" aria-label="工具" title="工具">
+        <el-icon><Connection /></el-icon>
+        <span class="nav-label">工具</span>
+      </el-menu-item>
+      <el-menu-item index="settings" aria-label="设置" title="设置">
+        <el-icon><Setting /></el-icon>
+        <span class="nav-label">设置</span>
       </el-menu-item>
     </el-menu>
 
@@ -27,22 +38,58 @@
           @renamed="payload => emit('renamed', payload)"
           @deleted="payload => emit('deleted', payload)"
         />
-        <KnowledgePanel
-          v-else-if="activeTab === 'graph'"
-          ref="knowledgePanelRef"
-          :root-path="rootPath"
-          :current-file="currentFile"
-          :content="editorContent"
-          :cursor-line="cursorLine"
-          @select="(path: string) => emit('select', path)"
-          @reference-select="reference => emit('reference-select', reference)"
-          @wiki-navigate="target => emit('wiki-navigate', target)"
-          @link-mention="payload => emit('link-mention', payload)"
-          @navigate="lineNumber => emit('navigate', lineNumber)"
-        />
-        <RSSPanel
-          v-else-if="activeTab === 'rss'"
-          @select="(path: string) => emit('select', path)"
+        <div v-else-if="activeTab === 'outline'" class="panel">
+          <div class="panel-header">
+            <span class="panel-title">大纲</span>
+          </div>
+          <OutlinePanel
+            v-if="editorContent"
+            :content="editorContent"
+            :cursor-line="cursorLine"
+            @navigate="lineNumber => emit('navigate', lineNumber)"
+          />
+          <el-empty v-else description="打开 Markdown 文件后查看大纲" :image-size="44" />
+        </div>
+        <div v-else-if="activeTab === 'knowledge'" class="panel">
+          <div class="panel-header">
+            <div class="sub-tab-bar">
+              <button class="sub-tab" :class="{ active: knowledgeSubTab === 'graph' }" @click="knowledgeSubTab = 'graph'">
+                <el-icon><Share /></el-icon>
+                <span>知识图谱</span>
+              </button>
+              <button class="sub-tab" :class="{ active: knowledgeSubTab === 'rss' }" @click="knowledgeSubTab = 'rss'">
+                <el-icon><Document /></el-icon>
+                <span>RSS订阅</span>
+              </button>
+            </div>
+          </div>
+          <KnowledgePanel
+            v-if="knowledgeSubTab === 'graph'"
+            ref="knowledgePanelRef"
+            :root-path="rootPath"
+            :current-file="currentFile"
+            :content="editorContent"
+            :cursor-line="cursorLine"
+            @select="(path: string) => emit('select', path)"
+            @reference-select="reference => emit('reference-select', reference)"
+            @wiki-navigate="target => emit('wiki-navigate', target)"
+            @link-mention="payload => emit('link-mention', payload)"
+            @navigate="lineNumber => emit('navigate', lineNumber)"
+          />
+          <RSSPanel
+            v-else
+            @select="(path: string) => emit('select', path)"
+          />
+        </div>
+        <div v-else-if="activeTab === 'tools'" class="panel">
+          <AIConfigPanel />
+        </div>
+        <SettingsPanel
+          v-else-if="activeTab === 'settings'"
+          :is-dark="isDark"
+          :show-a-i="showAI"
+          @set-theme="dark => emit('set-theme', dark)"
+          @toggle-ai="emit('toggle-ai')"
         />
       </Transition>
     </div>
@@ -51,10 +98,13 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
-import { Folder, Share, Document } from '@element-plus/icons-vue'
+import { Connection, Document, Folder, List, Setting, Share } from '@element-plus/icons-vue'
 import FileExplorer from './sidebar/FileExplorer.vue'
 import KnowledgePanel from './sidebar/KnowledgePanel.vue'
 import RSSPanel from './sidebar/RSSPanel.vue'
+import AIConfigPanel from './sidebar/AIConfigPanel.vue'
+import SettingsPanel from './sidebar/SettingsPanel.vue'
+import OutlinePanel from './editor/OutlinePanel.vue'
 import { useSettingsStore } from '@/stores/settings'
 import type { SidebarTab } from '@/types'
 import type { KnowledgeReference } from '@/services/knowledgeIndex'
@@ -63,8 +113,10 @@ interface Props {
   currentFile?: string
   editorContent?: string
   cursorLine?: number
+  isDark?: boolean
+  showAI?: boolean
 }
-withDefaults(defineProps<Props>(), { currentFile: '', editorContent: '', cursorLine: 0 })
+withDefaults(defineProps<Props>(), { currentFile: '', editorContent: '', cursorLine: 0, isDark: true, showAI: false })
 
 const emit = defineEmits<{
   (e: 'select', path: string): void
@@ -75,12 +127,15 @@ const emit = defineEmits<{
   (e: 'navigate', lineNumber: number): void
   (e: 'renamed', payload: { oldPath: string; newPath: string; isDirectory: boolean; renamedPaths?: Array<{ oldPath: string; newPath: string; isDirectory: boolean }>; updatedLinkPaths?: string[] }): void
   (e: 'deleted', payload: { path: string; isDirectory: boolean }): void
+  (e: 'set-theme', dark: boolean): void
+  (e: 'toggle-ai'): void
+  (e: 'content-change', content: string): void
 }>()
 
-// 精简后的侧边栏 tabs
-const sidebarTabs = new Set<SidebarTab>(['files', 'graph', 'rss'])
+const sidebarTabs = new Set<SidebarTab>(['files', 'outline', 'knowledge', 'tools', 'settings'])
 const settingsStore = useSettingsStore()
 const activeTab = computed(() => settingsStore.activeSidebarTab)
+const knowledgeSubTab = ref<'graph' | 'rss'>('graph')
 const rootPath = ref('')
 const fileExplorerRef = ref()
 const knowledgePanelRef = ref<{ refreshIndex?: (options?: { notify?: boolean; waitForPanels?: boolean }) => Promise<void> } | null>(null)
@@ -126,7 +181,8 @@ const waitForKnowledgePanel = async () => {
 }
 
 const refreshKnowledgeIndex = async (options: { waitForPanels?: boolean } = {}) => {
-  openTab('graph')
+  openTab('knowledge')
+  knowledgeSubTab.value = 'graph'
   const panel = await waitForKnowledgePanel()
   if (!panel?.refreshIndex) {
     throw new Error('知识面板未就绪')
@@ -174,22 +230,34 @@ defineExpose({
 }
 
 .sidebar-nav {
-  width: 44px;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 4px !important;
+  padding: 8px 4px !important;
+  width: 72px;
   flex-shrink: 0;
   border-right: 1px solid var(--obsidian-border, rgba(255, 255, 255, 0.06));
+  border-bottom: 0 !important;
   background: var(--obsidian-bg-primary, #1e1e1e) !important;
   border-right-color: var(--obsidian-border, rgba(255, 255, 255, 0.06)) !important;
 }
 
 .sidebar-nav .el-menu-item {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
   padding: 0 !important;
   justify-content: center;
-  height: 40px;
-  width: 36px;
+  gap: 3px;
+  height: 52px;
+  width: 62px;
   color: var(--obsidian-text-muted, #999) !important;
   background: transparent !important;
   border-radius: 4px;
-  margin: 2px 4px;
+  margin: 0 !important;
+  line-height: 1;
   transition: color 0.15s ease, background 0.15s ease;
 }
 
@@ -216,7 +284,22 @@ defineExpose({
 }
 
 .sidebar-nav .el-menu-item .el-icon {
-  font-size: 16px;
+  margin: 0 !important;
+  font-size: 17px;
+}
+
+.nav-label {
+  display: block;
+  max-width: 58px;
+  overflow: hidden;
+  color: currentColor;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 12px;
+  letter-spacing: 0;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-content {
@@ -258,5 +341,44 @@ defineExpose({
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.sub-tab-bar {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+}
+
+.sub-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--obsidian-text-muted, #999);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.sub-tab:hover {
+  color: var(--obsidian-text-normal, #dcddde);
+  background: var(--obsidian-bg-hover, #303030);
+}
+
+.sub-tab.active {
+  color: var(--obsidian-text-normal, #dcddde);
+  background: var(--obsidian-bg-active, #363636);
+}
+
+.sub-tab .el-icon {
+  font-size: 14px;
+  margin: 0;
 }
 </style>

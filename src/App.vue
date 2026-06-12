@@ -42,37 +42,55 @@
         </el-tag>
       </div>
       <div class="header-right">
+        <!-- AI 助手 - 高频入口 -->
         <el-tooltip content="AI 助手" placement="bottom">
           <el-button :icon="ChatDotRound" native-type="button" circle size="small" aria-label="AI 助手" :type="settingsStore.showAIPanel ? 'primary' : 'default'" @click="toggleAIPanel" />
         </el-tooltip>
-        <el-tooltip content="图谱工作区" placement="bottom">
-          <el-button :icon="Share" native-type="button" circle size="small" aria-label="图谱工作区" :type="showDesktopGraphPane ? 'primary' : 'default'" @click="toggleGraphPane" />
-        </el-tooltip>
-        <el-tooltip content="检查器" placement="bottom">
-          <el-button :icon="Tickets" native-type="button" circle size="small" aria-label="检查器" :type="showDesktopRightDock ? 'primary' : 'default'" @click="toggleRightDock" />
-        </el-tooltip>
 
-        <!-- 视图切换下拉菜单（包含专注模式） -->
+        <!-- 视图切换 -->
         <el-dropdown trigger="click" hide-on-click @command="handleViewDropdown">
-          <el-tooltip :content="viewModeTooltip" placement="bottom">
-            <el-button :icon="focusMode ? Grid : (editorStore.viewMode === 'preview' ? View : EditPen)" native-type="button" circle size="small" :type="focusMode ? 'primary' : 'default'" />
-          </el-tooltip>
+          <el-button
+            :icon="viewModeIcon"
+            native-type="button"
+            circle
+            size="small"
+            aria-label="切换视图模式"
+            :title="viewModeTooltip"
+            @click="handleViewModeTriggerClick"
+          />
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="source" :icon="EditPen" :class="{ 'is-active': editorStore.viewMode === 'source' && !focusMode }">源码模式</el-dropdown-item>
-              <el-dropdown-item command="live" :icon="View" :class="{ 'is-active': editorStore.viewMode === 'live-preview' && !focusMode }">实时预览</el-dropdown-item>
-              <el-dropdown-item command="preview" :icon="View" :class="{ 'is-active': editorStore.viewMode === 'preview' && !focusMode }">阅读模式</el-dropdown-item>
-              <el-dropdown-item command="focus" divided :icon="FullScreen" :class="{ 'is-active': focusMode }">专注模式</el-dropdown-item>
+              <el-dropdown-item command="source" :icon="EditPen" :class="{ 'is-active': editorStore.viewMode === 'source' }">源码模式</el-dropdown-item>
+              <el-dropdown-item command="live" :icon="View" :class="{ 'is-active': editorStore.viewMode === 'live-preview' }">实时预览</el-dropdown-item>
+              <el-dropdown-item command="preview" :icon="View" :class="{ 'is-active': editorStore.viewMode === 'preview' }">阅读模式</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
 
-        <!-- 命令面板入口 -->
-        <el-tooltip content="命令面板 (Ctrl+P)" placement="bottom">
-          <el-button :icon="Promotion" native-type="button" circle size="small" aria-label="命令面板" @click="showCommandPalette = true" />
-        </el-tooltip>
+        <!-- 更多菜单（低频功能聚合） -->
+        <el-dropdown trigger="click" hide-on-click @command="handleMoreMenu">
+          <el-button
+            :icon="MoreFilled"
+            native-type="button"
+            circle
+            size="small"
+            aria-label="更多功能"
+            title="更多"
+          />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="graph" :icon="Share" :class="{ 'is-active': showDesktopGraphPane }">图谱工作区</el-dropdown-item>
+              <el-dropdown-item command="dock" :icon="Tickets" :class="{ 'is-active': showDesktopRightDock }">右侧工作台</el-dropdown-item>
+              <el-dropdown-item command="focus" :icon="FullScreen" :class="{ 'is-active': focusMode }">专注模式</el-dropdown-item>
+              <el-dropdown-item command="history" :icon="Clock">版本历史</el-dropdown-item>
+              <el-dropdown-item command="palette" :icon="Promotion">命令面板</el-dropdown-item>
+              <el-dropdown-item divided command="export" :icon="Download">导出...</el-dropdown-item>
+              <el-dropdown-item command="cheatsheet" :icon="Document">Markdown 速查表</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
 
-        <!-- 主题切换（移至最右侧） -->
+        <!-- 主题切换 -->
         <el-tooltip content="切换主题" placement="bottom">
           <el-button :icon="isDark ? Moon : Sunny" native-type="button" circle size="small" aria-label="切换主题" @click="toggleTheme" />
         </el-tooltip>
@@ -92,7 +110,7 @@
       <el-aside
         :width="sidebarAsideWidth"
         class="sidebar-aside"
-        :class="{ 'is-mobile': isNarrowViewport, 'is-mobile-open': isNarrowViewport && mobileSidebarOpen }"
+        :class="{ 'is-mobile': isNarrowViewport, 'is-mobile-open': isNarrowViewport && mobileSidebarOpen, 'is-collapsed': !sidebarVisible }"
       >
         <Sidebar
           v-if="sidebarVisible"
@@ -275,8 +293,10 @@
             <ChatPanel
               ref="chatPanelRef"
               :context="selectedText || editorContent.slice(0, 2000)"
+              :current-file="editorStore.currentFile"
               @insert="handleAIInsert"
               @open-source="handleAIRAGSourceOpen"
+              @navigate="handleFileSelect"
             />
           </div>
         </Transition>
@@ -336,17 +356,11 @@
           已保存
         </template>
       </span>
-      <button class="status-item view-mode-btn" type="button" @click="cycleViewMode">
-        {{ viewModeLabel }}
-      </button>
       <DocumentStats :content="editorContent">
         <span class="status-item status-clickable status-stats">{{ wordCount }} 词 · {{ editorContent.length }} 字符</span>
       </DocumentStats>
       <span class="status-item status-duration" v-if="sessionDuration">{{ sessionDuration }}</span>
-      <span class="status-item ai-status" v-if="settingsStore.showAIPanel">
-        <span class="status-dot primary" />
-        AI 已启用
-      </span>
+      <span class="status-item ai-indicator" v-if="settingsStore.showAIPanel" title="AI 已启用" />
       <WritingGoal :current="wordCount" />
     </el-footer>
     <Transition name="fade">
@@ -463,11 +477,6 @@ const {
   exportAsMarkdown,
   exportAsHTML,
 } = useExport()
-
-const handleExport = (command: string) => {
-  if (command === 'export') showExportDialog.value = true
-  else if (command === 'cheatsheet') showCheatsheet.value = true
-}
 
 const editorContent = computed({
   get: () => editorStore.content,
@@ -589,10 +598,22 @@ const cycleViewMode = () => {
   editorStore.setViewMode(modes[(idx + 1) % modes.length])
 }
 
+const handleViewModeTriggerClick = (event: MouseEvent) => {
+  if (!isNarrowViewport.value) return
+  event.preventDefault()
+  event.stopPropagation()
+  event.stopImmediatePropagation?.()
+  cycleViewMode()
+}
+
 const viewModeTooltip = computed(() => {
   if (focusMode.value) return '专注模式 (F11)'
   const map: Record<string, string> = { source: '源码模式', 'live-preview': '实时预览', preview: '阅读模式' }
   return map[editorStore.viewMode] || '切换视图'
+})
+
+const viewModeIcon = computed(() => {
+  return editorStore.viewMode === 'source' ? EditPen : View
 })
 
 // 处理视图下拉菜单命令
@@ -607,16 +628,35 @@ const handleViewDropdown = (command: string) => {
     case 'preview':
       editorStore.setViewMode('preview')
       break
-    case 'focus':
-      focusMode.value = !focusMode.value
-      break
   }
 }
 
-const viewModeLabel = computed(() => {
-  const map: Record<string, string> = { source: '源码', 'live-preview': '实时预览', preview: '阅读' }
-  return map[editorStore.viewMode] || '源码'
-})
+// 处理更多菜单命令
+const handleMoreMenu = (command: string) => {
+  switch (command) {
+    case 'graph':
+      toggleGraphPane()
+      break
+    case 'dock':
+      toggleRightDock()
+      break
+    case 'focus':
+      focusMode.value = !focusMode.value
+      break
+    case 'history':
+      showVersionHistory.value = true
+      break
+    case 'palette':
+      showCommandPalette.value = true
+      break
+    case 'export':
+      showExportDialog.value = true
+      break
+    case 'cheatsheet':
+      showCheatsheet.value = true
+      break
+  }
+}
 
 const toggleTheme = () => settingsStore.toggleTheme()
 const setThemeFromSwitch = (dark: boolean) => settingsStore.setTheme(dark ? 'dark' : 'light')
@@ -1556,8 +1596,8 @@ const handleCommandExecute = (command: string) => {
     'view.graph-workbench': () => toggleGraphPane(),
     'view.right-dock': () => toggleRightDock(),
     'view.files-panel': () => openSidebarTab('files'),
-    'view.knowledge-panel': () => openSidebarTab('graph'),
-    'view.ai-settings': () => openSidebarTab('ai'),
+    'view.knowledge-panel': () => openSidebarTab('knowledge'),
+    'view.ai-settings': () => openSidebarTab('tools'),
     'view.outline': () => openSidebarTab('outline'),
     'view.settings': () => openSidebarTab('settings'),
     'view.source': () => editorStore.setViewMode('source'),

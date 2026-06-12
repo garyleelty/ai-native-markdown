@@ -153,11 +153,12 @@ const shortcuts = [
 }
 
 .welcome-content {
+  box-sizing: border-box;
   width: min(100%, 1040px);
   margin: 0 auto;
   padding: clamp(28px, 6vh, 64px) clamp(16px, 4vw, 40px);
   display: grid;
-  grid-template-columns: minmax(280px, 1.08fr) minmax(280px, 0.92fr);
+  grid-template-columns: minmax(260px, 1.08fr) minmax(260px, 0.92fr);
   grid-template-areas:
     "primary capabilities"
     "primary workflow"

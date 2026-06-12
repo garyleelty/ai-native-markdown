@@ -87,7 +87,7 @@ export function useAgentChat(options?: {
       // Build context from current editor state
       const currentFile = editorStore.currentFile
       const content = editorStore.content
-      const contextOptions = currentFile ? { currentFile: { path: currentFile, content } } : undefined
+      const contextOptions = currentFile ? { currentFile: { path: currentFile, content }, withGraphInsights: true } : undefined
       const context = await contextBuilder.build(contextOptions)
 
       const result = await agentController.execute(prompt, {

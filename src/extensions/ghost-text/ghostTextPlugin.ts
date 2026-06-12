@@ -119,10 +119,15 @@ export const ghostTextPlugin = ViewPlugin.fromClass(class {
         }
       }
 
-      // 普通输入：清除 ghost text 并请求新补全
+      // 普通输入：清除 ghost text；仅 pause 模式自动请求新补全。
       currentGhostText = ''
       currentGhostPos = -1
       this.decorations = Decoration.none
+
+      if (config.triggerMode !== 'pause') {
+        cancelCompletion()
+        return
+      }
 
       const prefix = update.state.doc.sliceString(0, pos)
       requestCompletion(

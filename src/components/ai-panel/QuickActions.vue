@@ -7,6 +7,7 @@
         :key="action.label"
         size="small"
         native-type="button"
+        :disabled="disabled"
         @click="$emit('action', action.prompt, action.label)"
       >
         <el-icon><component :is="action.icon" /></el-icon>
@@ -18,6 +19,10 @@
 
 <script setup lang="ts">
 import { EditPen, MagicStick, Document, Edit, Expand, Fold } from '@element-plus/icons-vue'
+
+defineProps<{
+  disabled?: boolean
+}>()
 
 defineEmits<{
   (e: 'action', prompt: string, label: string): void

@@ -12,6 +12,16 @@
       </div>
       <div class="chat-header-right">
         <el-button
+          :icon="Connection"
+          native-type="button"
+          circle
+          size="small"
+          :type="showGraphInsights ? 'primary' : 'default'"
+          aria-label="图谱洞察"
+          @click="toggleGraphInsights"
+          title="图谱洞察"
+        />
+        <el-button
           :icon="SetUp"
           native-type="button"
           circle
@@ -30,6 +40,64 @@
           @click="clearMessages"
           title="清空对话"
         />
+      </div>
+    </div>
+
+    <!-- 图谱洞察面板 -->
+    <div v-if="showGraphInsights" class="graph-insights-panel">
+      <div class="graph-insights-header">
+        <span class="graph-insights-title">图谱洞察</span>
+        <el-button
+          :icon="Refresh"
+          native-type="button"
+          circle
+          size="small"
+          aria-label="刷新"
+          @click="refreshGraphInsights"
+          :loading="insightsLoading"
+          title="刷新"
+        />
+      </div>
+      <div class="graph-stats">
+        <div class="stat-item">
+          <span class="stat-value">{{ graphStats.totalNotes }}</span>
+          <span class="stat-label">笔记</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">{{ graphStats.totalLinks }}</span>
+          <span class="stat-label">连接</span>
+        </div>
+        <div class="stat-item" :class="{ warning: graphStats.orphanCount > 0 }">
+          <span class="stat-value">{{ graphStats.orphanCount }}</span>
+          <span class="stat-label">孤立</span>
+        </div>
+        <div v-if="currentNotePosition" class="stat-item" :class="{ success: currentNotePosition.linkCount > 0, muted: currentNotePosition.isOrphan }">
+          <span class="stat-value">{{ currentNotePosition.linkCount }}</span>
+          <span class="stat-label">当前连接</span>
+        </div>
+      </div>
+
+      <div v-if="connectionSuggestions.length > 0" class="suggestions-section">
+        <div class="suggestions-header">推荐连接</div>
+        <div class="suggestion-list">
+          <div
+            v-for="sug in connectionSuggestions"
+            :key="`${sug.type}-${sug.path}`"
+            class="suggestion-item"
+            :class="sug.type"
+            @click="handleSuggestionClick(sug)"
+          >
+            <span class="suggestion-icon">{{ getSuggestionIcon(sug.type) }}</span>
+            <div class="suggestion-content">
+              <span class="suggestion-note">{{ sug.note }}</span>
+              <span class="suggestion-reason">{{ sug.reason }}</span>
+            </div>
+            <span class="suggestion-action">+ 链接</span>
+          </div>
+        </div>
+      </div>
+      <div v-else class="no-suggestions">
+        <span>暂无连接建议</span>
       </div>
     </div>
 
@@ -176,50 +244,97 @@
     </div>
 
     <div class="chat-input-area">
-      <QuickActions v-if="messages.length === 0" @action="handleQuickAction" />
-      <el-input
-        v-model="inputText"
-        type="textarea"
-        :rows="2"
-        placeholder="输入问题..."
-        resize="none"
-        @keydown.enter.exact.prevent="sendMessage"
-        @keydown.shift.enter.exact.stop
-      />
-      <el-button
-          v-if="streaming || isAgentRunning"
-          type="danger"
-          :icon="VideoPause"
-          native-type="button"
-          circle
-          aria-label="停止"
-          @click="stopAll"
-          title="停止"
+      <template v-if="aiPanelState === 'connected' || aiPanelState === 'idle'">
+        <QuickActions v-if="messages.length === 0" @action="handleQuickAction" />
+        <el-input
+          v-model="inputText"
+          type="textarea"
+          :rows="2"
+          placeholder="输入问题..."
+          resize="none"
+          @keydown.enter.exact.prevent="sendMessage"
+          @keydown.shift.enter.exact.stop
         />
-      <template v-else>
-        <VoiceInputButton mode="toggle" @result="handleVoiceResult" />
         <el-button
-          type="primary"
-          :icon="Promotion"
-          native-type="button"
-          circle
-          aria-label="发送"
-          @click="sendMessage"
-          :disabled="!inputText.trim()"
-          title="发送"
-        />
+            v-if="streaming || isAgentRunning"
+            type="danger"
+            :icon="VideoPause"
+            native-type="button"
+            circle
+            aria-label="停止"
+            @click="stopAll"
+            title="停止"
+          />
+        <template v-else>
+          <VoiceInputButton mode="toggle" @result="handleVoiceResult" />
+          <el-button
+            type="primary"
+            :icon="Promotion"
+            native-type="button"
+            circle
+            aria-label="发送"
+            @click="sendMessage"
+            :disabled="!inputText.trim()"
+            title="发送"
+          />
+        </template>
+      </template>
+
+      <template v-else-if="aiPanelState === 'connecting'">
+        <div class="chat-status-panel">
+          <div class="chat-status-icon" style="color: var(--obsidian-accent)">
+            <el-icon :size="24"><Loading /></el-icon>
+          </div>
+          <div class="chat-status-title">正在连接 AI 服务…</div>
+          <div class="chat-status-desc">请稍候，正在验证与模型服务的连接。</div>
+        </div>
+      </template>
+
+      <template v-else-if="aiPanelState === 'error'">
+        <div class="chat-status-panel">
+          <div class="chat-status-icon" style="color: var(--el-color-danger, #f56c6c)">⚠️</div>
+          <div class="chat-status-title">AI 服务连接失败</div>
+          <div class="chat-status-desc">
+            <span v-if="providerError">{{ providerError }}</span>
+            <span v-else>请检查您的配置信息与服务是否正常运行。</span>
+          </div>
+          <div class="chat-status-actions">
+            <el-button size="small" @click="testProviderConnection">重试连接</el-button>
+            <el-button type="primary" size="small" @click="goToAIConfig">去配置</el-button>
+          </div>
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="chat-status-panel">
+          <div class="chat-status-icon">🤖</div>
+          <div class="chat-status-title">AI 助手未启用</div>
+          <div class="chat-status-desc">
+            请完成 AI 配置后使用以下功能：对话问答、内容续写、润色改写、摘要生成、知识图谱洞察。
+          </div>
+          <div class="chat-status-actions">
+            <el-button type="primary" size="small" @click="goToAIConfig">
+              <el-icon style="margin-right: 4px"><Setting /></el-icon>
+              去配置 AI
+            </el-button>
+          </div>
+          <div class="chat-status-hint">
+            💡 支持本地 Ollama 或 OpenAI 兼容的云端服务
+          </div>
+        </div>
       </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
+import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { aiService } from '@/services/ai'
-import type { AIMessage, AIRAGSource } from '@/types'
+import type { AIMessage, AIRAGSource, GraphNode, KnowledgeGraphData } from '@/types'
 import { throttle } from '@/composables/useDebounce'
 import { useAgentChat } from '@/composables/useAgentChat'
 import { useChatStream } from '@/composables/useChatStream'
+import { useSettingsStore } from '@/stores/settings'
 import { ElMessage } from 'element-plus'
 import { escapeHtml, sanitizeMarkdown, safeCopyToClipboard, safeStorage } from '@/utils/security'
 import {
@@ -231,19 +346,232 @@ import {
   Refresh,
   Promotion,
   VideoPause,
-  SetUp
+  SetUp,
+  Connection,
+  Loading,
+  Setting
 } from '@element-plus/icons-vue'
 import QuickActions from './QuickActions.vue'
 import VoiceInputButton from '@/components/ui/VoiceInputButton.vue'
 
+import { knowledgeIndex } from '@/services/knowledgeIndex'
+import type { GraphInsights } from '@/services/agent/types'
+
 const props = defineProps<{
   context?: string
+  currentFile?: string | null
 }>()
 
 const emit = defineEmits<{
   (e: 'insert', content: string): void
   (e: 'open-source', payload: { path: string; lineNumber?: number }): void
+  (e: 'navigate', path: string): void
 }>()
+
+const settingsStore = useSettingsStore()
+
+const providerStatus = ref<string>('idle')
+const providerError = ref<string>('')
+
+const refreshProviderStatus = () => {
+  const p = aiService.getActiveProvider()
+  providerStatus.value = p?.status ?? 'idle'
+  providerError.value = p?.lastError ?? ''
+}
+
+const aiPanelState = computed(() => {
+  if (!settingsStore.aiConfigured) return 'unconfigured'
+  return providerStatus.value // 'idle' | 'connecting' | 'connected' | 'error'
+})
+
+const goToAIConfig = () => {
+  settingsStore.setSidebarVisible(true)
+  settingsStore.setActiveTab('tools')
+}
+
+const testProviderConnection = async () => {
+  const p = aiService.getActiveProvider()
+  if (!p) return
+  providerStatus.value = 'connecting'
+  try {
+    const result = await p.testConnection()
+    refreshProviderStatus()
+    if (!result.ok) {
+      ElMessage.error(`连接失败: ${result.error ?? '未知错误'}`)
+    } else {
+      ElMessage.success('连接成功')
+    }
+  } catch (e: any) {
+    refreshProviderStatus()
+    ElMessage.error(`连接错误: ${e?.message ?? String(e)}`)
+  }
+}
+
+// 图谱洞察状态
+const showGraphInsights = ref(false)
+const insightsLoading = ref(false)
+const graphInsightsData = ref<GraphInsights | null>(null)
+
+const graphStats = computed(() => ({
+  totalNotes: graphInsightsData.value?.totalNotes || 0,
+  totalLinks: graphInsightsData.value?.totalLinks || 0,
+  orphanCount: graphInsightsData.value?.orphanCount || 0,
+}))
+
+const currentNotePosition = computed(() => graphInsightsData.value?.currentNotePosition)
+
+const connectionSuggestions = computed(() => graphInsightsData.value?.suggestions || [])
+
+const getSuggestionIcon = (type: string): string => {
+  switch (type) {
+    case 'connect-orphan': return '🔗'
+    case 'similar-topic': return '🏷️'
+    case 'missing-link': return '⭐'
+    default: return '📌'
+  }
+}
+
+type ConnectionSuggestion = NonNullable<GraphInsights['suggestions']>[number]
+
+const getEndpointPath = (endpoint: string | GraphNode): string => (
+  typeof endpoint === 'string' ? endpoint : endpoint.path
+)
+
+const getNeighborPaths = (graphData: KnowledgeGraphData, currentPath: string): Set<string> => {
+  const neighborPaths = new Set<string>()
+  graphData.edges.forEach(edge => {
+    const source = getEndpointPath(edge.source)
+    const target = getEndpointPath(edge.target)
+    if (source === currentPath) neighborPaths.add(target)
+    if (target === currentPath) neighborPaths.add(source)
+  })
+  return neighborPaths
+}
+
+const buildConnectionSuggestions = (
+  graphData: KnowledgeGraphData,
+  currentNode: GraphNode,
+  neighborPaths: Set<string>
+): ConnectionSuggestion[] => {
+  const currentTags = new Set(currentNode.tags)
+  const excludedPaths = new Set<string>([currentNode.path, ...neighborPaths])
+  const suggestions = new Map<string, ConnectionSuggestion & { priority: number }>()
+
+  if (currentNode.isOrphan && graphData.stats.orphanCount > 1) {
+    graphData.nodes
+      .filter(node => node.isOrphan && !excludedPaths.has(node.path))
+      .slice(0, 3)
+      .forEach(node => {
+        suggestions.set(node.path, {
+          type: 'connect-orphan',
+          note: node.label,
+          path: node.path,
+          reason: '同为孤立笔记，可考虑建立入口连接',
+          priority: 3,
+        })
+      })
+  }
+
+  if (currentTags.size > 0) {
+    graphData.nodes
+      .map(node => ({
+        node,
+        sharedTags: node.tags.filter(tag => currentTags.has(tag)),
+      }))
+      .filter(item => item.sharedTags.length > 0 && !excludedPaths.has(item.node.path))
+      .sort((a, b) => b.sharedTags.length - a.sharedTags.length || b.node.linkCount - a.node.linkCount)
+      .slice(0, 5)
+      .forEach(({ node, sharedTags }) => {
+        suggestions.set(node.path, {
+          type: 'similar-topic',
+          note: node.label,
+          path: node.path,
+          reason: `共享标签: ${sharedTags.join(', ')}`,
+          priority: 2,
+        })
+      })
+  }
+
+  graphData.nodes
+    .filter(node => node.linkCount >= 3 && !excludedPaths.has(node.path))
+    .sort((a, b) => b.linkCount - a.linkCount)
+    .slice(0, 5)
+    .forEach(node => {
+      if (suggestions.has(node.path)) return
+      suggestions.set(node.path, {
+        type: 'missing-link',
+        note: node.label,
+        path: node.path,
+        reason: `这篇笔记已有 ${node.linkCount} 个连接，可能值得引用`,
+        priority: 1,
+      })
+    })
+
+  return [...suggestions.values()]
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, 10)
+    .map(({ priority: _priority, ...suggestion }) => suggestion)
+}
+
+const toggleGraphInsights = async () => {
+  showGraphInsights.value = !showGraphInsights.value
+  if (showGraphInsights.value && !graphInsightsData.value) {
+    await refreshGraphInsights()
+  }
+}
+
+const refreshGraphInsights = async () => {
+  insightsLoading.value = true
+  try {
+    const graphData = await knowledgeIndex.buildGraphData()
+    const insights: GraphInsights = {
+      totalNotes: graphData.stats.totalNodes,
+      totalLinks: graphData.stats.totalEdges,
+      orphanCount: graphData.stats.orphanCount,
+      suggestions: [],
+    }
+
+    if (props.currentFile) {
+      const currentNode = graphData.nodes.find(node => node.path === props.currentFile)
+      if (currentNode) {
+        const neighborPaths = getNeighborPaths(graphData, props.currentFile)
+        insights.currentNotePosition = {
+          linkCount: currentNode.linkCount,
+          isOrphan: currentNode.isOrphan,
+          neighbors: graphData.nodes
+            .filter(node => neighborPaths.has(node.path))
+            .map(node => ({ title: node.label, path: node.path })),
+        }
+        insights.suggestions = buildConnectionSuggestions(graphData, currentNode, neighborPaths)
+      }
+    }
+
+    graphInsightsData.value = insights
+  } catch (e) {
+    console.error('Failed to load graph insights:', e)
+  } finally {
+    insightsLoading.value = false
+  }
+}
+
+const handleSuggestionClick = (sug: ConnectionSuggestion) => {
+  // 从路径提取笔记名称（去掉路径和扩展名）
+  const noteName = sug.path.split('/').pop()?.replace(/\.(md|markdown)$/i, '') || sug.note
+  // 创建 Wiki Link 格式的文本
+  const wikiLink = `[[${noteName}]]`
+  // 插入到编辑器
+  emit('insert', wikiLink)
+  // 同时打开目标笔记供用户参考
+  emit('navigate', sug.path)
+}
+
+watch(() => props.currentFile, () => {
+  if (showGraphInsights.value) {
+    void refreshGraphInsights()
+  } else {
+    graphInsightsData.value = null
+  }
+})
 
 const CHAT_HISTORY_KEY = 'ai_chat_history'
 const MAX_HISTORY_MESSAGES = 50
@@ -298,7 +626,10 @@ const activeSourcePreview = ref<{ messageId: string; source: AIRAGSource } | nul
 const { streaming, streamChat, stopStreaming, dispose: disposeStream } = useChatStream({
   messages: () => messages.value,
   documentContext: props.context,
-  onError: (msg: string) => ElMessage.error('AI 请求失败'),
+  onError: (msg: string) => {
+    ElMessage.error(`AI 请求失败: ${msg}`)
+    refreshProviderStatus()
+  },
   onStopped: (msg: AIMessage) => {
     messages.value.push(msg)
     void scrollToBottom()
@@ -320,8 +651,7 @@ const {
 })
 
 const activeModel = computed(() => {
-  const provider = aiService.getActiveProvider()
-  return provider ? provider.getConfig().model : null
+  return settingsStore.aiConfigured ? (settingsStore.aiConfig.model || null) : null
 })
 
 const scrollToBottom = throttle(async () => {
@@ -448,6 +778,7 @@ const addCopyButtons = () => {
 }
 
 const sendMessage = async () => {
+  if (aiPanelState.value !== 'connected' && aiPanelState.value !== 'idle') return
   const text = inputText.value.trim()
   if (!text || streaming.value || isAgentRunning.value) return
 
@@ -508,7 +839,20 @@ const handleVoiceResult = (text: string) => { inputText.value += text }
 
 watch(messages, () => { scrollToBottom(); addCopyButtons(); saveChatHistory(messages.value) }, { deep: true })
 
-onUnmounted(() => { disposeStream(); stopAgent() })
+let unsubscribeStatus: (() => void) | null = null
+
+onMounted(() => {
+  refreshProviderStatus()
+  unsubscribeStatus = aiService.onStatusChange((_id, _status, _error) => {
+    refreshProviderStatus()
+  })
+})
+
+onUnmounted(() => {
+  disposeStream()
+  stopAgent()
+  unsubscribeStatus?.()
+})
 
 defineExpose({ clearMessages })
 </script>
@@ -871,6 +1215,153 @@ defineExpose({ clearMessages })
 .tool-call-error-msg { margin-top: 2px; color: var(--el-color-danger, #f56c6c); }
 .agent-status { font-size: 11px; color: var(--obsidian-text-muted); margin-top: 4px; }
 
+/* 图谱洞察面板样式 */
+.graph-insights-panel {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--obsidian-border);
+  background: var(--obsidian-bg-secondary);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.graph-insights-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.graph-insights-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--obsidian-text-normal);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.graph-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 6px;
+  background: var(--obsidian-bg-primary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--obsidian-border);
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--obsidian-accent);
+  font-family: var(--font-mono);
+}
+
+.stat-label {
+  font-size: 10px;
+  color: var(--obsidian-text-muted);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.stat-item.warning .stat-value { color: var(--el-color-warning, #e6a23c); }
+.stat-item.success .stat-value { color: var(--el-color-success, #67c23a); }
+.stat-item.muted .stat-value { color: var(--obsidian-text-faint); }
+
+.suggestions-section {
+  border-top: 1px solid var(--obsidian-border);
+  padding-top: 8px;
+}
+
+.suggestions-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--obsidian-text-muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.suggestion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--obsidian-bg-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-default);
+  border: 1px solid transparent;
+}
+
+.suggestion-item:hover {
+  border-color: var(--obsidian-accent);
+  background: var(--obsidian-accent-soft);
+}
+
+.suggestion-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.suggestion-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.suggestion-note {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--obsidian-text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-reason {
+  font-size: 11px;
+  color: var(--obsidian-text-muted);
+  line-height: 1.3;
+  margin-top: 1px;
+}
+
+.suggestion-action {
+  font-size: 10px;
+  color: var(--obsidian-accent);
+  background: var(--obsidian-accent-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.suggestion-item:hover .suggestion-action {
+  background: var(--obsidian-accent);
+  color: white;
+}
+
+.no-suggestions {
+  text-align: center;
+  padding: 12px;
+  color: var(--obsidian-text-faint);
+  font-size: 12px;
+}
+
 .copy-btn {
   position: absolute;
   top: 6px;
@@ -889,4 +1380,45 @@ defineExpose({ clearMessages })
 
 pre:hover .copy-btn { opacity: 1; }
 .copy-btn:hover { background: var(--obsidian-bg-hover); color: var(--obsidian-text-normal); }
+
+/* AI 状态面板（未配置 / 连接中 / 错误） */
+.chat-status-panel {
+  padding: 16px;
+  text-align: center;
+  color: var(--obsidian-text-muted);
+}
+
+.chat-status-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  opacity: 0.85;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.chat-status-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--obsidian-text-normal);
+  margin-bottom: 6px;
+}
+
+.chat-status-desc {
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.chat-status-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.chat-status-hint {
+  font-size: 11px;
+  color: var(--obsidian-text-faint);
+}
 </style>

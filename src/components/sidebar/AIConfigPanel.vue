@@ -81,7 +81,7 @@ const openaiBaseURL = ref('https://api.openai.com/v1')
 const configSaved = ref(false)
 const testing = ref(false)
 const testResult = ref<{ type: 'success' | 'error'; message: string } | null>(null)
-const connectionStatus = ref<'idle' | 'connected' | 'error'>('idle')
+const connectionStatus = ref<'idle' | 'connecting' | 'connected' | 'error'>('idle')
 const ollamaModels = ref<string[]>([])
 const loadingModels = ref(false)
 let configSavedTimer: ReturnType<typeof setTimeout> | null = null
@@ -92,9 +92,17 @@ let modelAbortController: AbortController | null = null
 let connectionAbortController: AbortController | null = null
 
 const connectionStatusText = computed(() => {
-  const map = { idle: '未连接', connected: '已连接', error: '连接失败' }
+  const map = { idle: '未连接', connected: '已连接', connecting: '连接中…', error: '连接失败' }
   return map[connectionStatus.value]
 })
+
+const refreshConnectionStatus = () => {
+  const p = aiService.getActiveProvider()
+  if (!p) return
+  connectionStatus.value = p.status as 'idle' | 'connected' | 'connecting' | 'error'
+}
+
+let unsubscribeStatus: (() => void) | null = null
 
 const onProviderChange = () => {
   testResult.value = null
@@ -193,6 +201,7 @@ const saveAIConfig = async () => {
   applyAIConfig()
   settingsStore.updateAIConfig(buildAIConfig())
   await settingsStore.persistAIConfigNow()
+  settingsStore.markAIConfigured()
   configSaved.value = true
   if (configSavedTimer) clearTimeout(configSavedTimer)
   configSavedTimer = setTimeout(() => {
@@ -216,6 +225,10 @@ onMounted(() => {
   }
   applyAIConfig()
   if (selectedProvider.value === 'ollama') fetchOllamaModels()
+  refreshConnectionStatus()
+  unsubscribeStatus = aiService.onStatusChange((_id, _status) => {
+    refreshConnectionStatus()
+  })
 })
 
 onUnmounted(() => {
@@ -225,6 +238,7 @@ onUnmounted(() => {
   modelAbortController?.abort()
   connectionAbortController?.abort()
   if (configSavedTimer) clearTimeout(configSavedTimer)
+  unsubscribeStatus?.()
 })
 </script>
 
