@@ -1,6 +1,5 @@
 <template>
   <div class="quick-actions">
-    <div class="quick-actions-label">快捷操作</div>
     <el-button-group class="quick-actions-group">
       <el-button
         v-for="action in actions"
@@ -44,35 +43,15 @@ const actions = [
   flex-shrink: 0;
 }
 
-.quick-actions-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--obsidian-text-faint);
-  margin-bottom: 6px;
-  letter-spacing: 0;
-}
-
 .quick-actions-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 0;
+  gap: 4px;
 }
 
 .quick-actions-group :deep(.el-button) {
   font-size: 12px;
   padding: 4px 10px;
-  border-radius: 0;
-}
-
-.quick-actions-group :deep(.el-button:first-child) {
-  border-radius: 4px 0 0 4px;
-}
-
-.quick-actions-group :deep(.el-button:last-child) {
-  border-radius: 0 4px 4px 0;
-}
-
-.quick-actions-group :deep(.el-button .el-icon) {
-  margin-right: 2px;
+  border-radius: 4px;
 }
 </style>

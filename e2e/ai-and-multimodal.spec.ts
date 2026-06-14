@@ -1080,4 +1080,77 @@ test.describe('AI 与多模态回归', () => {
     await expect(page.locator('.el-message').filter({ hasText: 'OCR 提取失败' })).toBeVisible()
     await expect(page.locator('.el-message').filter({ hasText: 'PDF 提取失败' })).toBeVisible()
   })
+
+  test('外部文件导入同名笔记时不会静默覆盖', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.locator('.app-container')).toBeVisible()
+    await loadDemoWorkspace(page)
+
+    const existingPath = '/workspace/duplicate-target.md'
+    await createWorkspaceFile(page, existingPath, '# existing content')
+
+    const result = await page.evaluate(async (existingPath) => {
+      const { importExternalFile } = await import('/src/services/fileImporter.ts')
+      const { fileSystem } = await import('/src/services/fileSystem.ts')
+      await fileSystem.init()
+
+      const importResult = await importExternalFile(existingPath)
+      const currentContent = await fileSystem.readFile(existingPath)
+      return { importResult, currentContent }
+    }, existingPath)
+
+    expect(result.importResult.success).toBe(false)
+    expect(result.importResult.message).toContain('已存在')
+    expect(result.currentContent).toContain('existing content')
+  })
+
+  test('Agent Chat dispose 后不会更新已卸载组件的消息状态', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.locator('.app-container')).toBeVisible()
+
+    const result = await page.evaluate(async () => {
+      const { useAgentChat } = await import('/src/composables/useAgentChat.ts')
+      const { createApp, h, nextTick, ref } = await import('/node_modules/.vite/deps/vue.js')
+
+      const messages = ref<Array<{ id: string; role: string; content: string; timestamp: number }>>([])
+      const receivedUpdates: string[] = []
+      let disposed = false
+
+      const host = document.createElement('div')
+      document.body.appendChild(host)
+
+      const app = createApp({
+        setup() {
+          const agent = useAgentChat({
+            messages: () => messages.value,
+            onMessageUpdate: (msg) => {
+              if (disposed) {
+                receivedUpdates.push(msg.id)
+              }
+            },
+          })
+
+          // Simulate starting then disposing
+          agent.executeAgent('test prompt').catch(() => {})
+          agent.disposeAgent()
+          disposed = true
+
+          return () => h('div')
+        },
+      })
+
+      app.mount(host)
+      await nextTick()
+
+      // Wait a bit for any async callbacks
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      app.unmount()
+      host.remove()
+
+      return { receivedUpdates, isRunningAfterDispose: false }
+    })
+
+    expect(result.receivedUpdates).toEqual([])
+  })
 })

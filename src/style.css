@@ -42,7 +42,7 @@
   --info: #60a5fa;
   --info-dim: rgba(96, 165, 250, 0.14);
 
-  /* ── Obsidian-compatible aliases ── */
+  /* ── Obsidian-compatible aliases (推荐在组件中使用) ── */
   --obsidian-bg-primary: var(--ink-800);
   --obsidian-bg-secondary: var(--ink-700);
   --obsidian-bg-tertiary: var(--ink-600);
@@ -56,8 +56,11 @@
   --obsidian-accent-hover: var(--violet-bright);
   --obsidian-accent-soft: var(--violet-dim);
   --obsidian-border: rgba(255, 255, 255, 0.05);
+  --obsidian-warning: #d6a04b;
+  --obsidian-danger: #d66f6f;
+  --obsidian-warning-light: #e0b76c;
 
-  /* ── Mapped aliases used across app ── */
+  /* ── Mapped aliases (内部映射，组件中优先使用 --obsidian-* 系列) ── */
   --bg-deep: var(--ink-900);
   --bg-base: var(--ink-800);
   --bg-elevated: var(--ink-700);
@@ -142,10 +145,6 @@
   --duration-slow: 250ms;
   --duration-slower: 350ms;
 
-  /* ── Typography ── */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
-
   /* ── Theme transition ── */
   --theme-transition: background-color var(--duration-slow) var(--ease-default),
                       color var(--duration-slow) var(--ease-default),
@@ -190,10 +189,21 @@
   --obsidian-accent-hover: var(--violet-bright);
   --obsidian-accent-soft: var(--violet-dim);
   --obsidian-border: rgba(0, 0, 0, 0.06);
+  --obsidian-warning: #d6a04b;
+  --obsidian-danger: #d66f6f;
+  --obsidian-warning-light: #e0b76c;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.10);
+
+  --violet-deep: #5a4a9e;
+  --border-default: rgba(0, 0, 0, 0.09);
+  --bg-hover: rgba(0, 0, 0, 0.03);
+  --bg-active: rgba(0, 0, 0, 0.06);
+  --text-disabled: #bbb;
+  --accent-soft-hover: rgba(107, 92, 181, 0.15);
+  --accent-teal: #5a9e8f;
 }
 
 @media (prefers-color-scheme: light) {
@@ -230,6 +240,9 @@
     --obsidian-accent-hover: var(--violet-bright);
     --obsidian-accent-soft: var(--violet-dim);
     --obsidian-border: rgba(0, 0, 0, 0.06);
+    --obsidian-warning: #d6a04b;
+    --obsidian-danger: #d66f6f;
+    --obsidian-warning-light: #e0b76c;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -627,4 +640,120 @@ button {
   color: #a8c9a8;
 }
 
-.hljs-deletion, .hljs-selector-attr, .hljs-selector
+.hljs-deletion, .hljs-selector-attr, .hljs-selector-pseudo, .hljs-meta {
+  color: #e8a8a8;
+}
+
+.hljs-comment, .hljs-quote {
+  color: var(--paper-500);
+  font-style: italic;
+}
+
+.hljs-variable, .hljs-number, .hljs-bullet, .hljs-link {
+  color: #d4b896;
+}
+
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: bold; }
+
+/* ── Reduced Motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .anim-fade-in,
+  .anim-fade-in-up,
+  .anim-fade-in-scale,
+  .anim-slide-in-right {
+    animation: none !important;
+  }
+
+  .fade-enter-active, .fade-leave-active,
+  .slide-enter-active, .slide-leave-active,
+  .scale-enter-active, .scale-leave-active,
+  .workbench-pane-enter-active, .workbench-pane-leave-active,
+  .ai-slide-enter-active, .ai-slide-leave-active {
+    transition: none !important;
+  }
+}
+
+/* ── Print ── */
+@media print {
+  .app-header,
+  .sidebar-aside,
+  .status-bar,
+  .editor-toolbar,
+  .ai-panel-shell,
+  .ai-panel-section,
+  .graph-pane-shell,
+  .right-dock-shell,
+  .tabs-bar,
+  .drag-overlay,
+  .mobile-sidebar-backdrop,
+  .resize-handle-v,
+  .resize-handle-h,
+  .workbench-resize-handle {
+    display: none !important;
+  }
+
+  .app-container {
+    height: auto !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .main-container {
+    display: block !important;
+  }
+
+  .editor-container-main {
+    display: block !important;
+  }
+
+  .editor-main {
+    padding: 0 !important;
+  }
+
+  .editor-workspace,
+  .editor-preview-view,
+  .split-view {
+    display: block !important;
+  }
+
+  .split-pane {
+    width: 100% !important;
+  }
+
+  .split-divider-handle {
+    display: none !important;
+  }
+
+  .preview-content,
+  .markdown-body {
+    max-width: 100% !important;
+    padding: 0 !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  .markdown-body pre {
+    border: 1px solid #ccc !important;
+    background: #f5f5f5 !important;
+  }
+
+  .markdown-body a {
+    color: #000 !important;
+    text-decoration: underline !important;
+  }
+
+  .markdown-body blockquote {
+    border-left-color: #999 !important;
+    color: #333 !important;
+  }
+}

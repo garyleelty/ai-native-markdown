@@ -4,8 +4,6 @@
  */
 import { vaultService } from './vault'
 import { knowledgeIndex } from './knowledgeIndex'
-import { extractTextFromPDF } from './pdf'
-import { extractTextFromImage } from './ocr'
 import { isMarkdownPath } from '@/utils/pathHelpers'
 
 export interface ImportResult {
@@ -49,6 +47,10 @@ export async function importFile(
   file: File,
   rootPath: string
 ): Promise<ImportResult> {
+  if (!rootPath) {
+    return { success: false, message: '无法确定目标工作区路径，请先打开一个工作区' }
+  }
+
   const fileType = getFileType(file.name)
 
   if (!fileType) {
@@ -126,7 +128,17 @@ async function importMarkdownContent(
 ): Promise<ImportResult> {
   // 直接将 Markdown 内容保存为 .md 文件
   const notePath = `${noteRootPath}/${fileName}`
-  await vaultService.writeFile(notePath, content)
+  try {
+    await vaultService.writeFile(notePath, content)
+  } catch (e: any) {
+    if (e?.message?.includes('already exists') || e?.name === 'ConstraintError') {
+      return {
+        success: false,
+        message: `导入失败: ${fileName} 已存在，请重命名后重试。`,
+      }
+    }
+    throw e
+  }
 
   return {
     success: true,
@@ -166,7 +178,17 @@ async function importTextContent(
   ].join('\n')
 
   const notePath = `${noteRootPath}/${baseName}.md`
-  await vaultService.writeFile(notePath, markdownContent)
+  try {
+    await vaultService.writeFile(notePath, markdownContent)
+  } catch (e: any) {
+    if (e?.message?.includes('already exists') || e?.name === 'ConstraintError') {
+      return {
+        success: false,
+        message: `导入失败: ${baseName}.md 已存在，请重命名后重试。`,
+      }
+    }
+    throw e
+  }
 
   return {
     success: true,
@@ -180,6 +202,7 @@ async function importTextContent(
  * 导入 PDF 文件（自动 OCR）
  */
 async function importPDF(file: File, rootPath: string): Promise<ImportResult> {
+  const { extractTextFromPDF } = await import('./pdf')
   const arrayBuffer = await file.arrayBuffer()
   const text = await extractTextFromPDF(arrayBuffer)
   return importPDFContent(file.name, text, rootPath, arrayBuffer, rootPath)
@@ -228,7 +251,17 @@ async function importPDFContent(
   ].join('\n')
 
   const notePath = `${noteRootPath}/${baseName}.md`
-  await vaultService.writeFile(notePath, markdownContent)
+  try {
+    await vaultService.writeFile(notePath, markdownContent)
+  } catch (e: any) {
+    if (e?.message?.includes('already exists') || e?.name === 'ConstraintError') {
+      return {
+        success: false,
+        message: `导入失败: ${baseName}.md 已存在，请重命名后重试。`,
+      }
+    }
+    throw e
+  }
 
   return {
     success: true,
@@ -242,9 +275,14 @@ async function importPDFContent(
  * 导入图片文件（自动 OCR）
  */
 async function importImage(file: File, rootPath: string): Promise<ImportResult> {
+  const { extractTextFromImage } = await import('./ocr')
   const imageUrl = URL.createObjectURL(file)
-  const text = await extractTextFromImage(imageUrl)
-  URL.revokeObjectURL(imageUrl)
+  let text: string | null = null
+  try {
+    text = await extractTextFromImage(imageUrl)
+  } finally {
+    URL.revokeObjectURL(imageUrl)
+  }
 
   return importImageContent(file.name, text, rootPath, await file.arrayBuffer(), rootPath)
 }
@@ -291,7 +329,17 @@ async function importImageContent(
   ].join('\n')
 
   const notePath = `${noteRootPath}/${baseName}.md`
-  await vaultService.writeFile(notePath, markdownContent)
+  try {
+    await vaultService.writeFile(notePath, markdownContent)
+  } catch (e: any) {
+    if (e?.message?.includes('already exists') || e?.name === 'ConstraintError') {
+      return {
+        success: false,
+        message: `导入失败: ${baseName}.md 已存在，请重命名后重试。`,
+      }
+    }
+    throw e
+  }
 
   return {
     success: true,
@@ -310,6 +358,10 @@ export async function importFiles(
   files: File[],
   rootPath: string
 ): Promise<{ success: number; failed: number; results: ImportResult[] }> {
+  if (!rootPath) {
+    return { success: 0, failed: files.length, results: files.map(f => ({ success: false, message: '无法确定目标工作区路径，请先打开一个工作区' })) }
+  }
+
   const results: ImportResult[] = []
   let success = 0
   let failed = 0

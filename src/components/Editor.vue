@@ -1,122 +1,138 @@
 <template>
   <div class="editor-wrapper">
     <div class="editor-toolbar">
-      <div class="toolbar-inner">
-        <el-button-group>
-          <el-tooltip content="粗体 (Ctrl+B)" placement="bottom">
-            <el-button :icon="EditPen" native-type="button" aria-label="加粗" @click="wrapSelection('**', '**')" />
-          </el-tooltip>
-          <el-tooltip content="斜体 (Ctrl+I)" placement="bottom">
-            <el-button native-type="button" aria-label="斜体" @click="wrapSelection('*', '*')">
-              <template #icon>
-                <span style="font-style: italic; font-weight: 600;">I</span>
-              </template>
-            </el-button>
-          </el-tooltip>
-          <el-tooltip content="删除线" placement="bottom">
-            <el-button native-type="button" aria-label="删除线" @click="wrapSelection('~~', '~~')">
-              <template #icon>
-                <span style="text-decoration: line-through; font-weight: 600;">S</span>
-              </template>
-            </el-button>
-          </el-tooltip>
-        </el-button-group>
+      <div class="toolbar-inner" ref="toolbarInnerRef">
+        <div class="toolbar-scroll-area">
+          <el-button-group>
+            <el-tooltip content="撤销 (Ctrl+Z)" placement="bottom">
+              <el-button :icon="RefreshLeft" native-type="button" aria-label="撤销" @click="handleUndo" />
+            </el-tooltip>
+            <el-tooltip content="重做 (Ctrl+Shift+Z)" placement="bottom">
+              <el-button :icon="RefreshRight" native-type="button" aria-label="重做" @click="handleRedo" />
+            </el-tooltip>
+            <el-tooltip content="保存 (Ctrl+S)" placement="bottom">
+              <el-button :icon="FolderChecked" native-type="button" aria-label="保存" @click="handleSave" />
+            </el-tooltip>
+          </el-button-group>
 
-        <el-divider direction="vertical" />
+          <el-divider direction="vertical" />
 
-        <el-button-group>
-          <el-tooltip content="一级标题" placement="bottom">
-            <el-button native-type="button" aria-label="一级标题" @click="insertLine('# ')">
-              <template #icon>
-                <span style="font-weight: 700; font-size: 14px;">H1</span>
-              </template>
-            </el-button>
-          </el-tooltip>
-          <el-tooltip content="二级标题" placement="bottom">
-            <el-button native-type="button" aria-label="二级标题" @click="insertLine('## ')">
-              <template #icon>
-                <span style="font-weight: 700; font-size: 14px;">H2</span>
-              </template>
-            </el-button>
-          </el-tooltip>
-          <el-tooltip content="三级标题" placement="bottom">
-            <el-button native-type="button" aria-label="三级标题" @click="insertLine('### ')">
-              <template #icon>
-                <span style="font-weight: 700; font-size: 14px;">H3</span>
-              </template>
-            </el-button>
-          </el-tooltip>
-        </el-button-group>
+          <el-button-group>
+            <el-tooltip content="粗体 (Ctrl+B)" placement="bottom">
+              <el-button :icon="EditPen" native-type="button" aria-label="加粗" @click="wrapSelection('**', '**')" />
+            </el-tooltip>
+            <el-tooltip content="斜体 (Ctrl+I)" placement="bottom">
+              <el-button native-type="button" aria-label="斜体" @click="wrapSelection('*', '*')">
+                <template #icon>
+                  <span style="font-style: italic; font-weight: 600;">I</span>
+                </template>
+              </el-button>
+            </el-tooltip>
+          </el-button-group>
 
-        <el-divider direction="vertical" />
+          <el-divider direction="vertical" />
 
-        <el-button-group>
-          <el-tooltip content="行内代码" placement="bottom">
-            <el-button :icon="DocumentCopy" native-type="button" aria-label="行内代码" @click="wrapSelection('`', '`')" />
-          </el-tooltip>
-          <el-tooltip content="代码块" placement="bottom">
-            <el-button :icon="Monitor" native-type="button" aria-label="代码块" @click="wrapSelection('```\n', '\n```')" />
-          </el-tooltip>
-          <el-tooltip content="引用" placement="bottom">
-            <el-button :icon="ChatDotRound" native-type="button" aria-label="引用" @click="wrapSelection('> ', '')" />
-          </el-tooltip>
-        </el-button-group>
+          <el-button-group>
+            <el-tooltip content="行内代码" placement="bottom">
+              <el-button :icon="DocumentCopy" native-type="button" aria-label="行内代码" @click="wrapSelection('`', '`')" />
+            </el-tooltip>
+            <el-tooltip content="代码块" placement="bottom">
+              <el-button :icon="Monitor" native-type="button" aria-label="代码块" @click="wrapSelection('```\n', '\n```')" />
+            </el-tooltip>
+          </el-button-group>
 
-        <el-divider direction="vertical" />
+          <el-divider direction="vertical" />
 
-        <el-button-group>
-          <el-tooltip content="链接" placement="bottom">
+          <el-tooltip content="链接 (Ctrl+K)" placement="bottom">
             <el-button :icon="Link" native-type="button" aria-label="链接" @click="insertLink" />
           </el-tooltip>
-          <el-tooltip content="图片" placement="bottom">
-            <el-button :icon="Picture" native-type="button" aria-label="图片" @click="insertImage" />
+
+          <el-divider direction="vertical" />
+
+          <el-button-group>
+            <el-tooltip content="无序列表" placement="bottom">
+              <el-button native-type="button" aria-label="无序列表" @click="insertUnorderedList">
+                <template #icon>
+                  <el-icon><List /></el-icon>
+                </template>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="有序列表" placement="bottom">
+              <el-button native-type="button" aria-label="有序列表" @click="insertOrderedList">
+                <template #icon>
+                  <span style="font-weight: 700; font-size: 12px;">1.</span>
+                </template>
+              </el-button>
+            </el-tooltip>
+          </el-button-group>
+
+          <el-divider direction="vertical" />
+
+          <el-tooltip :content="props.livePreview ? '源码模式' : '实时预览'" placement="bottom">
+            <el-button
+              :type="props.livePreview ? 'primary' : 'default'"
+              native-type="button"
+              :icon="props.livePreview ? View : EditPen"
+              aria-label="实时预览"
+              @click="toggleLivePreview"
+            />
           </el-tooltip>
-        </el-button-group>
 
-        <el-divider direction="vertical" />
+          <el-divider direction="vertical" />
 
-        <el-tooltip :content="props.livePreview ? '源码模式' : '实时预览'" placement="bottom">
-          <el-button
-            :type="props.livePreview ? 'primary' : 'default'"
-            native-type="button"
-            :icon="props.livePreview ? View : EditPen"
-            aria-label="实时预览"
-            @click="toggleLivePreview"
-          />
-        </el-tooltip>
-
-        <el-divider direction="vertical" />
-
-        <el-tooltip content="自动换行" placement="bottom">
-          <el-button
-            :type="wordWrap ? 'primary' : 'default'"
-            native-type="button"
-            :icon="ScaleToOriginal"
-            circle
-            aria-label="自动换行"
-            @click="toggleWordWrap"
-          />
-        </el-tooltip>
-
-        <el-divider direction="vertical" />
-
-        <el-tooltip content="语音输入" placement="bottom">
-          <VoiceInputButton mode="toggle" @result="insertText" />
-        </el-tooltip>
-
-        <el-divider direction="vertical" />
-
-        <el-tooltip content="智能补全 (Alt+\ 切换)" placement="bottom">
-          <el-button
-            :type="settingsStore.ghostTextConfig.enabled ? 'primary' : 'default'"
-            native-type="button"
-            :icon="MagicStick"
-            circle
-            aria-label="智能补全"
-            @click="toggleGhostText"
-          />
-        </el-tooltip>
+          <el-dropdown trigger="click" placement="bottom-end" class="toolbar-more-dropdown">
+            <el-button native-type="button" aria-label="更多编辑操作">
+              更多
+              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu class="toolbar-more-menu">
+                <el-dropdown-item @click="insertLine('# ')">
+                  <span class="menu-action-icon">H1</span>
+                  一级标题
+                </el-dropdown-item>
+                <el-dropdown-item @click="insertLine('## ')">
+                  <span class="menu-action-icon">H2</span>
+                  二级标题
+                </el-dropdown-item>
+                <el-dropdown-item @click="insertLine('### ')">
+                  <span class="menu-action-icon">H3</span>
+                  三级标题
+                </el-dropdown-item>
+                <el-dropdown-item divided @click="wrapSelection('~~', '~~')">
+                  <span class="menu-action-icon strike-icon">S</span>
+                  删除线
+                </el-dropdown-item>
+                <el-dropdown-item @click="wrapSelection('> ', '')">
+                  <el-icon><ChatDotRound /></el-icon>
+                  引用
+                </el-dropdown-item>
+                <el-dropdown-item @click="insertImage">
+                  <el-icon><Picture /></el-icon>
+                  图片
+                </el-dropdown-item>
+                <el-dropdown-item @click="insertTaskList">
+                  <el-icon><Finished /></el-icon>
+                  任务列表
+                </el-dropdown-item>
+                <el-dropdown-item divided @click="toggleWordWrap">
+                  <el-icon><ScaleToOriginal /></el-icon>
+                  {{ wordWrap ? '关闭自动换行' : '开启自动换行' }}
+                </el-dropdown-item>
+                <el-dropdown-item @click="toggleGhostText">
+                  <el-icon><MagicStick /></el-icon>
+                  {{ settingsStore.ghostTextConfig.enabled ? '关闭智能补全' : '开启智能补全' }}
+                </el-dropdown-item>
+                <el-dropdown-item class="voice-menu-item">
+                  <VoiceInputButton mode="toggle" @result="insertText" />
+                  <span>语音输入</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
       </div>
+      <div v-if="toolbarScrollRight" class="toolbar-scroll-fade" />
     </div>
       <FindReplace ref="findReplaceRef" :visible="showFindReplace" @update:visible="showFindReplace = $event" @close="showFindReplace = false" @find="handleFind" @replace="handleReplace" @replace-all="handleReplaceAll" />
     <div class="editor-container" ref="editorContainer"></div>
@@ -183,7 +199,7 @@ import { getObsidianSyntaxHighlighting } from '@/extensions/obsidianTheme'
 import { basicSetup } from 'codemirror'
 import { indentWithTab } from '@codemirror/commands'
 import { useSettingsStore } from '@/stores/settings'
-import { ghostTextPlugin, updateGhostTextConfig, ghostTextKeymap } from '@/extensions/ghost-text/ghostTextPlugin'
+import { ghostTextPlugin, updateGhostTextConfig, ghostTextKeymap, clearGhostText } from '@/extensions/ghost-text/ghostTextPlugin'
 import { inlineEditPlugin, inlineEditKeymap } from '@/extensions/inline-edit/inlineEditPlugin'
 import { dropHandlerExtension } from '@/extensions/multimodal/dropHandler'
 import { aiActionPlugin, aiActionKeymap } from '@/extensions/ai-actions/aiActionPlugin'
@@ -197,6 +213,7 @@ import { embedSyncService } from '@/services/embedSyncService'
 import { useWikiLinkCompletion } from '@/composables/useWikiLinkCompletion'
 import { useTagCompletion } from '@/composables/useTagCompletion'
 import { useFindReplace } from '@/composables/useFindReplace'
+import { useEditorToolbar } from '@/composables/useEditorToolbar'
 import FindReplace from './editor/FindReplace.vue'
 import VoiceInputButton from '@/components/ui/VoiceInputButton.vue'
 import {
@@ -210,7 +227,12 @@ import {
   Picture,
   View,
   ScaleToOriginal,
-  MagicStick
+  MagicStick,
+  RefreshLeft,
+  RefreshRight,
+  FolderChecked,
+  Check,
+  ArrowDown
 } from '@element-plus/icons-vue'
 
 interface Props {
@@ -237,12 +259,15 @@ const emit = defineEmits<{
   'selection-change': [text: string]
   'embed-navigate': [target: string]
   'toggle-live-preview': []
+  save: []
 }>()
 
 const settingsStore = useSettingsStore()
 
 const editorContainer = ref<HTMLElement>()
 const editorView = shallowRef<EditorView>()
+const toolbarInnerRef = ref<HTMLElement>()
+const toolbarScrollRight = ref(false)
 const showFindReplace = ref(false)
 const findReplaceRef = ref()
 const readOnlyCompartment = new Compartment()
@@ -253,9 +278,8 @@ const themeCompartment = new Compartment()
 const syntaxHighlightCompartment = new Compartment()
 const lineWrappingCompartment = new Compartment()
 const smartPasteCompartment = new Compartment()
+const fontStyleCompartment = new Compartment()
 let ignoreNextUpdate = false
-
-const wordWrap = ref(true)
 
 const aiActionCompartment = new Compartment()
 const activeHeadingFrom = ref(-1)
@@ -316,6 +340,36 @@ const {
   findReplaceRef: () => findReplaceRef.value,
 })
 
+const {
+  wordWrap,
+  wrapSelection,
+  insertLine,
+  insertLink,
+  insertImage,
+  insertUnorderedList,
+  insertOrderedList,
+  insertTaskList,
+  insertText,
+  setContent,
+  getSelectedText,
+  scrollToLine,
+  toggleWordWrap,
+  toggleLivePreview,
+  toggleGhostText,
+  handleUndo,
+  handleRedo,
+} = useEditorToolbar({
+  editorView: () => editorView.value,
+  livePreview: () => props.livePreview,
+  currentFile: () => props.currentFile,
+  settingsStore: () => settingsStore,
+  emit,
+})
+
+const handleSave = () => {
+  emit('save')
+}
+
 const createEditor = () => {
   if (!editorContainer.value) return
 
@@ -325,7 +379,7 @@ const createEditor = () => {
       basicSetup,
       markdown(),
       themeCompartment.of(oneDark),
-      syntaxHighlightCompartment.of(getObsidianSyntaxHighlighting(settingsStore.isDark())),
+      syntaxHighlightCompartment.of(getObsidianSyntaxHighlighting(settingsStore.isDark)),
       wikiLinkCompletionKeymap,
       tagCompletionKeymap,
       keymap.of([indentWithTab]),
@@ -337,7 +391,7 @@ const createEditor = () => {
       ghostTextCompartment.of(settingsStore.ghostTextConfig.enabled ? [ghostTextPlugin, ghostTextKeymap] : []),
       inlineEditCompartment.of(settingsStore.enableInlineEdit ? [inlineEditPlugin, inlineEditKeymap] : []),
       dropHandlerExtension,
-      lineWrappingCompartment.of(EditorView.lineWrapping),
+      lineWrappingCompartment.of(settingsStore.wordWrap ? EditorView.lineWrapping : []),
       placeholder('开始写作...'),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
@@ -385,21 +439,21 @@ const createEditor = () => {
           return false
         }
       }),
-      EditorView.theme({
+      fontStyleCompartment.of(EditorView.theme({
         '&': {
           height: '100%',
-          fontSize: '14px',
-          fontFamily: 'var(--font-mono)',
-          lineHeight: '1.8'
+          fontSize: `${settingsStore.editorFontSize}px`,
+          fontFamily: settingsStore.editorFontFamily,
+          lineHeight: `${settingsStore.editorLineHeight}`
         },
         '.cm-scroller': {
           overflow: 'auto',
-          fontFamily: 'var(--font-mono)'
+          fontFamily: settingsStore.editorFontFamily
         },
         '&.cm-focused': {
           outline: 'none'
         }
-      })
+      }))
     ]
   })
 
@@ -446,7 +500,7 @@ watch(() => props.livePreview, (enabled) => {
   }
 })
 
-watch(() => settingsStore.isDark(), (isDark) => {
+watch(() => settingsStore.isDark, (isDark) => {
   if (editorView.value) {
     editorView.value.dispatch({
       effects: [
@@ -498,133 +552,38 @@ watch(() => settingsStore.enableSmartPaste, (enabled) => {
   }
 })
 
-const wrapSelection = (before: string, after: string) => {
-  if (!editorView.value) return
-  const { from, to } = editorView.value.state.selection.main
-  const selected = editorView.value.state.sliceDoc(from, to)
-  const hasSelection = selected.length > 0
-
-  if (hasSelection) {
-    const wrapped = before + selected + after
-    editorView.value.dispatch({
-      changes: { from, to, insert: wrapped },
-      selection: { anchor: from + before.length, head: from + before.length + selected.length }
-    })
-  } else {
-    editorView.value.dispatch({
-      changes: { from, to, insert: before + after },
-      selection: { anchor: from + before.length, head: from + before.length }
-    })
-  }
-  editorView.value.focus()
-}
-
-const insertLine = (prefix: string) => {
-  if (!editorView.value) return
-  const { from } = editorView.value.state.selection.main
-  const line = editorView.value.state.doc.lineAt(from)
-  const lineText = line.text
-  const hasContent = lineText.length > 0
-
-  if (hasContent) {
-    editorView.value.dispatch({
-      changes: { from: line.from, to: line.from, insert: prefix },
-      selection: { anchor: line.from + prefix.length }
-    })
-  } else {
-    editorView.value.dispatch({
-      changes: { from: line.from, to: line.to, insert: prefix },
-      selection: { anchor: line.from + prefix.length }
-    })
-  }
-  editorView.value.focus()
-}
-
-const insertLink = () => {
-  if (!editorView.value) return
-  const { from, to } = editorView.value.state.selection.main
-  const selected = editorView.value.state.sliceDoc(from, to)
-  const linkText = selected || '链接文字'
-  const insert = `[${linkText}](url)`
-
-  editorView.value.dispatch({
-    changes: { from, to, insert },
-    selection: { anchor: from + linkText.length + 3, head: from + linkText.length + 6 }
-  })
-  editorView.value.focus()
-}
-
-const insertImage = () => {
-  if (!editorView.value) return
-  const { from, to } = editorView.value.state.selection.main
-  const selected = editorView.value.state.sliceDoc(from, to)
-  const altText = selected || '图片描述'
-  const insert = `![${altText}](url)`
-
-  editorView.value.dispatch({
-    changes: { from, to, insert },
-    selection: { anchor: from + altText.length + 4, head: from + altText.length + 7 }
-  })
-  editorView.value.focus()
-}
-
-const setContent = (content: string) => {
-  if (!editorView.value) return
-  editorView.value.dispatch({
-    changes: {
-      from: 0,
-      to: editorView.value.state.doc.length,
-      insert: content
-    }
-  })
-}
-
-const insertText = (text: string) => {
-  if (!editorView.value) return
-  const { from } = editorView.value.state.selection.main
-  editorView.value.dispatch({
-    changes: { from, insert: text },
-    selection: { anchor: from + text.length }
-  })
-  editorView.value.focus()
-}
-
-const getSelectedText = (): string => {
-  if (!editorView.value) return ''
-  const { from, to } = editorView.value.state.selection.main
-  return editorView.value.state.sliceDoc(from, to)
-}
-
-const toggleLivePreview = () => {
-  emit('toggle-live-preview')
-}
-
-const toggleWordWrap = () => {
-  wordWrap.value = !wordWrap.value
+watch(wordWrap, (enabled) => {
   if (editorView.value) {
     editorView.value.dispatch({
-      effects: lineWrappingCompartment.reconfigure(wordWrap.value ? EditorView.lineWrapping : [])
+      effects: lineWrappingCompartment.reconfigure(enabled ? EditorView.lineWrapping : [])
     })
   }
-}
+})
 
-const toggleGhostText = () => {
-  settingsStore.ghostTextConfig = {
-    ...settingsStore.ghostTextConfig,
-    enabled: !settingsStore.ghostTextConfig.enabled
+watch(
+  () => [settingsStore.editorFontSize, settingsStore.editorLineHeight, settingsStore.editorFontFamily],
+  () => {
+    if (editorView.value) {
+      editorView.value.dispatch({
+        effects: fontStyleCompartment.reconfigure(EditorView.theme({
+          '&': {
+            height: '100%',
+            fontSize: `${settingsStore.editorFontSize}px`,
+            fontFamily: settingsStore.editorFontFamily,
+            lineHeight: `${settingsStore.editorLineHeight}`
+          },
+          '.cm-scroller': {
+            overflow: 'auto',
+            fontFamily: settingsStore.editorFontFamily
+          },
+          '&.cm-focused': {
+            outline: 'none'
+          }
+        }))
+      })
+    }
   }
-}
-
-const scrollToLine = (lineNumber: number) => {
-  const view = editorView.value
-  if (!view) return
-  const line = view.state.doc.line(Math.min(lineNumber, view.state.doc.lines))
-  view.dispatch({
-    selection: { anchor: line.from },
-    scrollIntoView: true
-  })
-  view.focus()
-}
+)
 
 defineExpose({
   setContent,
@@ -638,6 +597,28 @@ defineExpose({
 
 onMounted(() => {
   createEditor()
+
+  const checkToolbarScroll = () => {
+    if (!toolbarInnerRef.value) return
+    const el = toolbarInnerRef.value
+    toolbarScrollRight.value = el.scrollWidth > el.clientWidth + 4 && el.scrollLeft < el.scrollWidth - el.clientWidth - 4
+  }
+
+  const handleToolbarScroll = () => {
+    requestAnimationFrame(checkToolbarScroll)
+  }
+
+  if (toolbarInnerRef.value) {
+    toolbarInnerRef.value.addEventListener('scroll', handleToolbarScroll, { passive: true })
+    checkToolbarScroll()
+    const resizeObserver = new ResizeObserver(checkToolbarScroll)
+    resizeObserver.observe(toolbarInnerRef.value)
+    onUnmounted(() => {
+      resizeObserver.disconnect()
+      toolbarInnerRef.value?.removeEventListener('scroll', handleToolbarScroll)
+    })
+  }
+
   const handleEditorKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && (completionContext.value || tagCompletionContext.value)) {
       e.preventDefault()
@@ -666,6 +647,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (props.currentFile) embedSyncService.clearOwnerDependencies(`editor:${props.currentFile}`)
   unsubscribeTagCompletion()
+  clearGhostText()
   if (editorView.value) {
     editorView.value.destroy()
   }
@@ -691,6 +673,7 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--obsidian-border);
   overflow: hidden;
   box-shadow: none;
+  position: relative;
 }
 
 .toolbar-inner {
@@ -703,6 +686,18 @@ onBeforeUnmount(() => {
   overflow-y: hidden;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+
+.toolbar-scroll-fade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 32px;
+  height: 100%;
+  background: linear-gradient(to right, transparent, var(--obsidian-bg-secondary));
+  pointer-events: none;
+  z-index: 1;
 }
 
 .toolbar-inner::-webkit-scrollbar {
@@ -736,6 +731,51 @@ onBeforeUnmount(() => {
 .toolbar-inner :deep(.el-button--primary:hover) {
   background: var(--obsidian-accent-soft);
   color: var(--obsidian-accent);
+}
+
+.toolbar-scroll-area {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.toolbar-more-dropdown {
+  flex: 0 0 auto;
+}
+
+:global(.toolbar-more-menu .el-dropdown-menu__item) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+}
+
+:global(.toolbar-more-menu .el-dropdown-menu__item .el-icon) {
+  margin-right: 0;
+}
+
+:global(.toolbar-more-menu .voice-menu-item) {
+  gap: 10px;
+}
+
+:global(.toolbar-more-menu .voice-menu-item .el-button) {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+}
+
+.menu-action-icon {
+  display: inline-flex;
+  width: 16px;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--obsidian-text-muted);
+}
+
+.strike-icon {
+  text-decoration: line-through;
 }
 
 .toolbar-inner :deep(.el-divider--vertical) {

@@ -61,7 +61,17 @@
         </ol>
       </section>
 
-      <section v-if="recentFiles.length > 0" class="welcome-recent" aria-labelledby="recent-title">
+      <section v-if="recentFilesLoading" class="welcome-recent" aria-labelledby="recent-title">
+        <div class="section-heading">
+          <h2 id="recent-title">最近文件</h2>
+          <span>加载中...</span>
+        </div>
+        <div class="recent-skeleton">
+          <div v-for="i in 3" :key="i" class="recent-skeleton-item" />
+        </div>
+      </section>
+
+      <section v-else-if="recentFiles.length > 0" class="welcome-recent" aria-labelledby="recent-title">
         <div class="section-heading">
           <h2 id="recent-title">最近文件</h2>
           <span>继续上次写作</span>
@@ -96,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { shallowRef } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import {
   Collection,
   Connection,
@@ -107,6 +117,8 @@ import {
   MagicStick,
   Microphone,
 } from '@element-plus/icons-vue'
+import { safeStorage } from '@/utils/security'
+import { vaultService } from '@/services/vault'
 
 defineEmits<{
   (e: 'new-file'): void
@@ -115,20 +127,41 @@ defineEmits<{
   (e: 'open-file', path: string): void
 }>()
 
-const recentFiles = shallowRef<Array<{ name: string; path: string }>>([])
+const recentFiles = ref<Array<{ name: string; path: string }>>([])
+const recentFilesLoading = ref(true)
+
+onMounted(async () => {
+  recentFilesLoading.value = true
+  const stored = safeStorage.get<Array<{ name: string; path: string }>>('recent_files', [])
+  const validFiles: Array<{ name: string; path: string }> = []
+  for (const file of stored.filter(file => file.name && file.path).slice(0, 8)) {
+    try {
+      await vaultService.readFile(file.path)
+      validFiles.push(file)
+    } catch {
+      // 文件不存在或无法访问，跳过
+    }
+  }
+  recentFiles.value = validFiles.slice(0, 8)
+  recentFilesLoading.value = false
+  // 清理无效条目
+  if (validFiles.length < stored.length) {
+    safeStorage.set('recent_files', validFiles)
+  }
+})
 
 const capabilities = [
-  { title: '📁 本地工作区', desc: '导入、重命名、删除和导出 Markdown', icon: Collection },
-  { title: '👁 实时预览', desc: 'Mermaid、KaTeX 与 Wiki Link 导航', icon: Connection },
-  { title: '🤖 AI 写作', desc: 'Ollama 与 OpenAI-compatible Provider', icon: Cpu },
-  { title: '🎙 多模态输入', desc: '语音输入、OCR、PDF 拖拽和知识图谱', icon: Microphone },
+  { title: '本地工作区', desc: '导入、重命名、删除和导出 Markdown', icon: Collection },
+  { title: '实时预览', desc: 'Mermaid、KaTeX 与 Wiki Link 导航', icon: Connection },
+  { title: 'AI 写作', desc: 'Ollama 与 OpenAI-compatible Provider', icon: Cpu },
+  { title: '多模态输入', desc: '语音输入、OCR、PDF 拖拽和知识图谱', icon: Microphone },
 ]
 
 const workflow = [
-  { index: '01', title: '📂 选择工作区', desc: '打开本地文件夹或直接试用示例库' },
-  { index: '02', title: '✍️ 写 Markdown', desc: '源码、实时预览、阅读随时切换' },
-  { index: '03', title: '🔗 连接笔记', desc: '用 Wiki Link、反链和图谱整理知识' },
-  { index: '04', title: '⚡ 用 AI 加速', desc: '基于当前内容继续写作和问答' },
+  { index: '01', title: '选择工作区', desc: '打开本地文件夹或直接试用示例库' },
+  { index: '02', title: '写 Markdown', desc: '源码、实时预览、阅读随时切换' },
+  { index: '03', title: '连接笔记', desc: '用 Wiki Link、反链和图谱整理知识' },
+  { index: '04', title: '用 AI 加速', desc: '基于当前内容继续写作和问答' },
 ]
 
 // 键盘快捷键
@@ -138,6 +171,10 @@ const shortcuts = [
   { key: 'Ctrl/Cmd + I', desc: '斜体' },
   { key: 'Ctrl/Cmd + K', desc: '插入链接' },
   { key: 'Ctrl/Cmd + S', desc: '保存' },
+  { key: 'Ctrl/Cmd + F', desc: '查找替换' },
+  { key: 'Ctrl/Cmd + H', desc: '替换模式' },
+  { key: 'Ctrl/Cmd + Shift + H', desc: '版本历史' },
+  { key: 'Ctrl/Cmd + 1-4', desc: '编辑器视图切换' },
   { key: 'F11', desc: '专注模式' },
 ]
 </script>
@@ -162,6 +199,7 @@ const shortcuts = [
   grid-template-areas:
     "primary capabilities"
     "primary workflow"
+    "shortcuts shortcuts"
     "recent recent";
   gap: 16px;
 }
@@ -428,7 +466,11 @@ const shortcuts = [
 /* 键盘快捷键样式 */
 .welcome-shortcuts {
   grid-column: 1 / -1;
+  grid-area: shortcuts;
   padding: 18px;
+  border: 1px solid var(--obsidian-border);
+  background: var(--obsidian-bg-secondary);
+  border-radius: var(--radius-md);
 }
 
 .shortcut-grid {
@@ -483,6 +525,25 @@ const shortcuts = [
 
 .shortcut-item:hover .shortcut-desc {
   color: var(--obsidian-text-normal);
+}
+
+.recent-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recent-skeleton-item {
+  height: 48px;
+  border-radius: var(--radius-sm);
+  background: var(--obsidian-bg-primary);
+  border: 1px solid var(--obsidian-border);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
 }
 
 @media (max-width: 900px) {

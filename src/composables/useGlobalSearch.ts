@@ -22,6 +22,7 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
   const { maxMatchesPerFile = 5, maxResults = 50 } = options
 
   const query = ref('')
+  const scopePath = ref('')
   const results = ref<SearchResult[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -99,9 +100,11 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
     const searchResults: SearchResult[] = []
     const allRecords = await knowledgeIndex.getAll()
     const cleanQuery = originalQuery.replace(/^\/|\/$/g, '')
+    const scope = scopePath.value.trim()
 
     // First filter using knowledge index searchableText (faster)
     const candidateFiles = allRecords.filter(record => {
+      if (scope && !record.filePath.startsWith(scope)) return false
       // Also include filename match
       return record.searchableText.toLowerCase().includes(cleanQuery.toLowerCase()) ||
              record.filePath.toLowerCase().includes(cleanQuery.toLowerCase())
@@ -148,9 +151,11 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
   const searchWithText = async (lowerQuery: string, originalQuery: string) => {
     const searchResults: SearchResult[] = []
     const allRecords = await knowledgeIndex.getAll()
+    const scope = scopePath.value.trim()
 
     // First filter using knowledge index searchableText (faster)
     const candidateFiles = allRecords.filter(record => {
+      if (scope && !record.filePath.startsWith(scope)) return false
       // Also include filename match
       return record.searchableText.toLowerCase().includes(lowerQuery) ||
              record.filePath.toLowerCase().includes(lowerQuery)
@@ -232,6 +237,7 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
 
   return {
     query,
+    scopePath,
     results,
     loading,
     error,

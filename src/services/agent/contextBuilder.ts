@@ -143,7 +143,8 @@ class ContextBuilderImpl {
     backlinks: AgentContext['backlinks']
   ): GraphInsights['suggestions'] {
     const suggestions: GraphInsights['suggestions'] = []
-    const currentPath = currentFile!.path
+    if (!currentFile) return suggestions
+    const currentPath = currentFile.path
 
     // 1. 孤立节点建议（如果当前笔记是孤立的）
     if (currentNode.isOrphan && graphData.stats.orphanCount > 1) {

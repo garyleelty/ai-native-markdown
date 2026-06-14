@@ -87,9 +87,11 @@ export interface Workspace {
   lastOpened: number
 }
 
-export type ViewMode = 'source' | 'live-preview' | 'preview'
+export type ViewMode = 'source' | 'live-preview' | 'preview' | 'split'
 export type ThemeMode = 'dark' | 'light' | 'system'
-export type SidebarTab = 'files' | 'outline' | 'knowledge' | 'tools' | 'settings'
+export type SidebarTab = 'files' | 'search' | 'knowledge' | 'rss' | 'settings'
+
+export const SIDEBAR_TABS: SidebarTab[] = ['files', 'search', 'knowledge', 'rss', 'settings']
 
 export interface GraphNode {
   id: string
@@ -116,6 +118,12 @@ export interface GhostTextConfig {
   maxPrefixChars: number
   maxCompletionChars: number
   triggerMode: 'pause' | 'manual'
+}
+
+export interface QuickActionItem {
+  label: string
+  prompt: string
+  icon?: string
 }
 
 export interface KnowledgeGraphData {
@@ -156,6 +164,7 @@ export interface RSSArticle {
   content: string
   categories: string[]
   imageUrl?: string
+  isRead: boolean
   isImported: boolean
   importedPath?: string
   importedAt?: number
@@ -175,4 +184,12 @@ export interface RSSFetchResult {
   updatedArticles: number
   skippedArticles: number
   error?: string
+}
+
+export interface FileTreeRenamePayload {
+  oldPath: string
+  newPath: string
+  isDirectory: boolean
+  renamedPaths?: Array<{ oldPath: string; newPath: string; isDirectory: boolean }>
+  updatedLinkPaths?: string[]
 }

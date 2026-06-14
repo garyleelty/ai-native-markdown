@@ -5,6 +5,7 @@ import type { ToolCallRecord, AgentConfig } from '@/services/agent/types'
 import { DEFAULT_AGENT_CONFIG } from '@/services/agent/types'
 import type { AIMessage, ToolCallDisplay } from '@/types'
 import { useEditorStore } from '@/stores'
+import { vaultService } from '@/services/vault'
 
 const AGENT_CONFIG_KEY = 'agent_config'
 
@@ -48,6 +49,7 @@ export function useAgentChat(options?: {
   const agentConfig = ref<AgentConfig>(loadAgentConfig())
   const isAgentRunning = ref(false)
   let currentAbortController: AbortController | null = null
+  let isDisposed = false
 
   const editorStore = useEditorStore()
 
@@ -72,6 +74,11 @@ export function useAgentChat(options?: {
     isAgentRunning.value = false
   }
 
+  function disposeAgent(): void {
+    isDisposed = true
+    stopAgent()
+  }
+
   async function executeAgent(prompt: string): Promise<{
     message: string
     toolCalls: ToolCallDisplay[]
@@ -90,6 +97,10 @@ export function useAgentChat(options?: {
       const contextOptions = currentFile ? { currentFile: { path: currentFile, content }, withGraphInsights: true } : undefined
       const context = await contextBuilder.build(contextOptions)
 
+      if (isDisposed || abortController.signal.aborted) {
+        return undefined
+      }
+
       const result = await agentController.execute(prompt, {
         context,
         signal: abortController.signal,
@@ -98,6 +109,7 @@ export function useAgentChat(options?: {
           ? agentConfig.value.allowedTools
           : undefined,
         onToolCall: (record: ToolCallRecord) => {
+          if (isDisposed) return
           // Update the assistant message in-place with tool call records
           if (options?.onMessageUpdate) {
             const msgs = options.messages()
@@ -112,13 +124,14 @@ export function useAgentChat(options?: {
           }
         },
         onFilesModified: (files: string[]) => {
+          if (isDisposed) return
           // Refresh editor if current file was modified
           refreshEditorForModifiedFiles(files)
           options?.onFilesModified?.(files)
         },
       })
 
-      if (abortController.signal.aborted) {
+      if (isDisposed || abortController.signal.aborted) {
         return undefined
       }
 
@@ -128,6 +141,7 @@ export function useAgentChat(options?: {
         filesModified: result.filesModified,
       }
     } catch (e) {
+      if (isDisposed) return undefined
       return {
         message: `Agent 执行出错: ${e instanceof Error ? e.message : String(e)}`,
         toolCalls: [],
@@ -140,6 +154,7 @@ export function useAgentChat(options?: {
   }
 
   function refreshEditorForModifiedFiles(files: string[]): void {
+    if (isDisposed) return
     const currentPath = editorStore.currentFile
     if (!currentPath) return
 
@@ -148,14 +163,14 @@ export function useAgentChat(options?: {
       // Trigger a re-read by re-opening the file
       const tab = editorStore.getActiveTab()
       if (tab) {
-        // Use vaultService to re-read and update the tab content
-        import('@/services/vault').then(({ vaultService }) => {
-          vaultService.readFile(currentPath).then(content => {
+        void vaultService.readFile(currentPath)
+          .then(content => {
+            if (isDisposed) return
             editorStore.setContentSilent(content)
-          }).catch(() => {
+          })
+          .catch(() => {
             // File may have been deleted
           })
-        })
       }
     }
   }
@@ -168,5 +183,6 @@ export function useAgentChat(options?: {
     updateAgentConfig,
     executeAgent,
     stopAgent,
+    disposeAgent,
   }
 }

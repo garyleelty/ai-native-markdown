@@ -152,9 +152,9 @@
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  gap: 4px;
-  width: 72px;
-  padding: 8px 4px;
+  gap: 2px;
+  width: 52px;
+  padding: 6px 2px;
   background: var(--obsidian-bg-secondary);
   border-right: 1px solid var(--obsidian-border);
   border-bottom: 0;
@@ -165,9 +165,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  width: 62px;
-  height: 52px;
+  gap: 2px;
+  width: 46px;
+  height: 46px;
   padding: 0 !important;
   margin: 0 !important;
   line-height: 1;
@@ -186,14 +186,14 @@
 }
 
 .sidebar-nav .el-menu-item .el-icon {
-  font-size: 18px;
+  font-size: 16px;
   margin: 0 !important;
   transition: transform 0.2s var(--ease-spring);
 }
 
 .sidebar-nav .nav-label {
   display: block;
-  max-width: 58px;
+  max-width: 44px;
   overflow: hidden;
   color: currentColor;
   font-size: 10px;
@@ -264,7 +264,7 @@
 .editor-container-main {
   flex: 1;
   flex-basis: 0;
-  min-width: 0;
+  min-width: 400px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -274,7 +274,8 @@
 }
 
 .graph-pane-shell,
-.right-dock-shell {
+.right-dock-shell,
+.ai-panel-shell {
   position: relative;
   flex: 0 0 auto;
   min-width: 0;
@@ -290,6 +291,12 @@
 
 .right-dock-shell {
   max-width: 460px;
+}
+
+.ai-panel-shell {
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
 }
 
 .workbench-resize-handle {
@@ -352,6 +359,13 @@
 
 .tabs-bar .el-tabs__nav-wrap {
   padding: 0 8px;
+  mask-image: linear-gradient(to right, transparent 0, black 12px, black calc(100% - 12px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 12px, black calc(100% - 12px), transparent 100%);
+}
+
+.tabs-bar .el-tabs__nav-wrap:not(:hover) {
+  mask-image: linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%);
 }
 
 .editor-container-main .tabs-bar .el-tabs__item {
@@ -409,180 +423,22 @@
   vertical-align: middle;
 }
 
+.tab-modified-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--obsidian-accent);
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 .editor-workspace {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.vault-conflict-banner {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  padding: 8px 12px;
-  background: rgba(196, 132, 48, 0.14);
-  border-bottom: 1px solid rgba(196, 132, 48, 0.36);
-  color: var(--obsidian-text-normal);
-}
-
-.vault-conflict-overview {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 7px 12px;
-  background: rgba(196, 132, 48, 0.11);
-  border-bottom: 1px solid rgba(196, 132, 48, 0.3);
-  color: var(--obsidian-text-normal);
-}
-
-.vault-conflict-overview-message,
-.vault-conflict-related {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.vault-conflict-overview-message .el-icon {
-  flex-shrink: 0;
-  color: #d6a04b;
-}
-
-.vault-conflict-related {
-  color: var(--obsidian-text-muted);
-}
-
-.vault-conflict-file-list {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.vault-conflict-chip {
-  max-width: 180px;
-  min-height: 24px;
-  padding: 2px 8px;
-  border: 1px solid rgba(196, 132, 48, 0.32);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--obsidian-text-normal);
-  font: inherit;
-  font-size: 12px;
-  line-height: 1.35;
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.vault-conflict-chip:hover,
-.vault-conflict-chip:focus-visible {
-  border-color: var(--obsidian-accent);
-  color: var(--obsidian-accent);
-  outline: none;
-}
-
-.vault-conflict-banner.is-missing,
-.vault-conflict-banner.is-unreadable {
-  background: rgba(190, 70, 70, 0.12);
-  border-bottom-color: rgba(190, 70, 70, 0.34);
-}
-
-.vault-conflict-banner.is-missing .vault-conflict-message .el-icon,
-.vault-conflict-banner.is-unreadable .vault-conflict-message .el-icon {
-  color: #d66f6f;
-}
-
-.vault-conflict-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-}
-
-.vault-conflict-message {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.vault-conflict-message .el-icon {
-  flex-shrink: 0;
-  color: #d6a04b;
-}
-
-.vault-conflict-actions {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.vault-conflict-actions .el-button {
-  border-radius: var(--radius-sm) !important;
-}
-
-.vault-conflict-diff {
-  min-width: 0;
-  color: var(--obsidian-text-muted);
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.vault-conflict-summary {
-  margin-bottom: 4px;
-  color: var(--obsidian-text-muted);
-}
-
-.vault-conflict-lines {
-  display: grid;
-  gap: 2px;
-  max-height: 120px;
-  overflow: auto;
-  font-family: var(--font-mono);
-}
-
-.vault-conflict-line {
-  display: grid;
-  grid-template-columns: 34px 42px minmax(0, 1fr);
-  gap: 6px;
-  align-items: baseline;
-  min-width: 0;
-}
-
-.vault-conflict-line.local .vault-conflict-marker {
-  color: #e0b76c;
-}
-
-.vault-conflict-line.disk .vault-conflict-marker {
-  color: var(--obsidian-accent);
-}
-
-.vault-conflict-marker,
-.vault-conflict-line-number {
-  white-space: nowrap;
-  color: var(--obsidian-text-faint);
-}
-
-.vault-conflict-line-content {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* ── 编辑器/预览视图 ── */
@@ -603,6 +459,53 @@
   min-width: 0;
   overflow: auto;
   background: var(--obsidian-bg-primary);
+}
+
+/* ── 分屏模式 ── */
+.split-view {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: var(--obsidian-border);
+}
+
+.split-pane {
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+.split-pane.split-editor {
+  background: var(--obsidian-bg-primary);
+}
+
+.split-pane.split-preview {
+  background: var(--obsidian-bg-primary);
+  overflow: auto;
+}
+
+.split-divider-handle {
+  flex: 0 0 1px;
+  width: 7px;
+  min-width: 7px;
+  margin: 0 -3px;
+  cursor: col-resize;
+  position: relative;
+  z-index: 10;
+  background: transparent;
+  transition: background var(--duration-fast), opacity var(--duration-fast);
+}
+
+.split-divider-handle:hover,
+.split-divider-handle:active {
+  background: var(--obsidian-accent);
+  opacity: 0.45;
+}
+
+.split-view .editor-pane,
+.split-view .preview-pane {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ── AI 面板 ── */
@@ -749,6 +652,12 @@
   color: var(--obsidian-accent);
 }
 
+.drag-hint {
+  font-size: 12px;
+  color: var(--obsidian-text-faint);
+  margin: 0;
+}
+
 .mobile-sidebar-backdrop {
   position: absolute;
   inset: 0;
@@ -803,6 +712,7 @@
 .focus-mode-active .status-bar,
 .focus-mode-active .tabs-bar,
 .focus-mode-active .ai-panel-section,
+.focus-mode-active .ai-panel-shell,
 .focus-mode-active .graph-pane-shell,
 .focus-mode-active .right-dock-shell {
   display: none;
@@ -861,6 +771,46 @@
 /* 按钮涟漪效果优化 */
 .el-button .el-icon {
   transition: transform 0.15s var(--ease-spring);
+}
+
+/* AI 状态指示点 */
+.ai-btn-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.ai-status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--obsidian-bg-primary);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ai-status-dot.connected {
+  background: var(--el-color-success, #67c23a);
+}
+
+.ai-status-dot.connecting {
+  background: var(--el-color-warning, #e6a23c);
+  animation: ai-dot-pulse 1.2s ease-in-out infinite;
+}
+
+.ai-status-dot.error {
+  background: var(--el-color-danger, #f56c6c);
+}
+
+.ai-status-dot.idle {
+  background: var(--obsidian-text-faint);
+}
+
+@keyframes ai-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 .el-button:not(.is-disabled):not(.is-loading):hover .el-icon {
@@ -984,33 +934,6 @@
     display: none;
   }
 
-  .vault-conflict-banner {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .vault-conflict-overview {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .vault-conflict-topline {
-    align-items: flex-start;
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .vault-conflict-actions {
-    width: 100%;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-  }
-
-  .vault-conflict-file-list {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
   .status-bar {
     height: 22px !important;
     padding: 0 8px;
@@ -1019,7 +942,6 @@
   }
 
   .status-bar .status-format,
-  .status-bar .status-line,
   .status-bar .status-stats,
   .status-bar .status-duration,
   .status-bar .ai-indicator,

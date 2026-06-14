@@ -46,6 +46,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { Tickets } from '@element-plus/icons-vue'
+import type { ElInput } from 'element-plus'
 import PropertyEditor from '@/components/properties/PropertyEditor.vue'
 import { useProperties } from '@/composables/useProperties'
 
@@ -77,14 +78,15 @@ const {
 
 const newPropertyKey = ref('')
 const newPropertyValue = ref('')
-const keyInputRef = ref<any>(null)
-const valueInputRef = ref<any>(null)
+const keyInputRef = ref<InstanceType<typeof ElInput> | null>(null)
+const valueInputRef = ref<InstanceType<typeof ElInput> | null>(null)
 
-function getInputElement(inputRef: any): HTMLInputElement | HTMLTextAreaElement | null {
-  return inputRef?.input || inputRef?.textarea || inputRef?.$el?.querySelector?.('input, textarea') || null
+function getInputElement(inputRef: InstanceType<typeof ElInput> | null): HTMLInputElement | HTMLTextAreaElement | null {
+  if (!inputRef) return null
+  return inputRef.input || inputRef.textarea || inputRef.$el?.querySelector?.('input, textarea') || null
 }
 
-function focusInput(inputRef: any) {
+function focusInput(inputRef: InstanceType<typeof ElInput> | null) {
   inputRef?.focus?.()
   getInputElement(inputRef)?.focus()
 }

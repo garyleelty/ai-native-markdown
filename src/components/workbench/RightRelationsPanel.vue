@@ -84,7 +84,6 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { fileSystem } from '@/services/fileSystem'
 import { knowledgeIndex, type KnowledgeIndexRecord, type KnowledgeReference } from '@/services/knowledgeIndex'
 
 const props = defineProps<{
@@ -112,12 +111,7 @@ let unsubscribeIndex: (() => void) | null = null
 let reloadTimer: ReturnType<typeof setTimeout> | null = null
 
 const rebuildIndex = async () => {
-  const files = await fileSystem.getAllMarkdownFiles()
-  const allFiles = await Promise.all(files.map(async file => ({
-    path: file.path,
-    content: await fileSystem.readFile(file.path),
-  })))
-  await knowledgeIndex.rebuild(allFiles)
+  await knowledgeIndex.rebuildFromFiles()
 }
 
 const ensureIndexReady = async () => {

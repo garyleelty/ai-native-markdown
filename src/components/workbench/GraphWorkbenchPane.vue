@@ -3,7 +3,7 @@
     <header class="graph-pane-header">
       <div class="pane-title">
         <el-icon><Share /></el-icon>
-        <span>Graph view</span>
+        <span>图谱视图</span>
       </div>
       <div class="pane-actions">
         <el-button
@@ -48,12 +48,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
 import { Close, Loading, Refresh, Share, Warning } from '@element-plus/icons-vue'
-import KnowledgeGraph from '@/components/knowledge/KnowledgeGraph.vue'
-import { fileSystem } from '@/services/fileSystem'
 import { knowledgeIndex } from '@/services/knowledgeIndex'
 import type { KnowledgeGraphData } from '@/types'
+
+const KnowledgeGraph = defineAsyncComponent(() => import('@/components/knowledge/KnowledgeGraph.vue'))
 
 defineProps<{
   currentFile?: string
@@ -74,12 +74,7 @@ let unsubscribeIndex: (() => void) | null = null
 let reloadTimer: ReturnType<typeof setTimeout> | null = null
 
 const rebuildIndex = async () => {
-  const files = await fileSystem.getAllMarkdownFiles()
-  const allFiles = await Promise.all(files.map(async file => ({
-    path: file.path,
-    content: await fileSystem.readFile(file.path),
-  })))
-  await knowledgeIndex.rebuild(allFiles)
+  await knowledgeIndex.rebuildFromFiles()
 }
 
 const loadGraphData = async () => {

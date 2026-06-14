@@ -40,13 +40,17 @@ export default defineConfig({
         warn(warning)
       },
       output: {
-        manualChunks: {
-          'element-plus': ['element-plus', '@element-plus/icons-vue'],
-          'codemirror': ['codemirror', '@codemirror/state', '@codemirror/view', '@codemirror/lang-markdown', '@codemirror/theme-one-dark', '@codemirror/search'],
-          'markdown': ['markdown-it', 'markdown-it-anchor', 'markdown-it-task-lists', 'highlight.js', 'katex'],
-          'mermaid': ['mermaid'],
-          'graph': ['d3'],
-          'pdf-ocr': ['pdfjs-dist', 'tesseract.js'],
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('/element-plus/')) return 'element-plus'
+          if (id.includes('/@element-plus/icons-vue/')) return 'element-icons'
+          if (id.includes('/@codemirror/') || id.includes('/codemirror/')) return 'codemirror'
+          if (id.includes('/markdown-it') || id.includes('/highlight.js/') || id.includes('/katex/')) return 'markdown'
+          if (id.includes('/cytoscape/') || id.includes('/cytoscape-cose-bilkent/') || id.includes('/d3') || id.includes('/d3-')) return 'graph'
+          if (id.includes('/pdfjs-dist/') || id.includes('/tesseract.js/')) return 'pdf-ocr'
+          if (id.includes('/dexie/') || id.includes('/pinia/') || id.includes('/@vueuse/')) return 'app-vendor'
+          if (id.includes('/vue/') || id.includes('/@vue/')) return 'vue-vendor'
+          return undefined
         }
       }
     },

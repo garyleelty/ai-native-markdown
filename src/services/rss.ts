@@ -88,6 +88,7 @@ class RSSService {
         content: articleData.content || '',
         categories: articleData.categories || [],
         imageUrl: articleData.imageUrl,
+        isRead: false,
         isImported: false,
         createdAt: now
       }
@@ -118,6 +119,10 @@ class RSSService {
       importedPath: filePath,
       importedAt: Date.now()
     })
+  }
+
+  async updateArticleRead(articleId: string, isRead: boolean): Promise<void> {
+    await db.articles.update(articleId, { isRead })
   }
 
   // RSS 内容获取和解析

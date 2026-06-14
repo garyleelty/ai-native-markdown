@@ -66,7 +66,7 @@
         <div class="result-file-name">{{ result.fileName }}</div>
         <div v-for="(match, idx) in result.matches.slice(0, 3)" :key="idx" class="result-match-line">
           <el-tag size="small" type="info" effect="plain">{{ match.lineNumber || '路径' }}</el-tag>
-          <span class="match-content">{{ match.lineContent }}</span>
+          <span class="match-content" v-html="highlightMatchContent(match.lineContent)" />
         </div>
       </el-card>
     </div>
@@ -75,7 +75,7 @@
       没有找到匹配的{{ searchMode === 'name' ? '文件' : '内容' }}
     </div>
 
-    <div class="file-list" v-else-if="rootPath">
+    <div class="file-list" v-else-if="rootPath && treeData.length > 0">
       <el-tree
         :data="treeData"
         :props="treeProps"
@@ -108,6 +108,12 @@
       </el-tree>
     </div>
 
+    <div class="empty-folder" v-else-if="rootPath && treeData.length === 0">
+      <el-icon :size="28" color="var(--obsidian-text-faint)"><FolderAdd /></el-icon>
+      <span>此文件夹为空</span>
+      <el-button size="small" native-type="button" @click="handleCreateFile">创建新文件</el-button>
+    </div>
+
     <div class="empty-prompt" v-else>
       <el-empty description="选择工作区" :image-size="48">
         <el-button type="primary" native-type="button" @click="openFolder">
@@ -126,8 +132,10 @@ import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Folder, Document, DocumentAdd, FolderAdd, Search, Picture, Upload } from '@element-plus/icons-vue'
 import { vaultService } from '../../services/vault'
-import { sanitizeFilePath, isValidFileName, safeStorage } from '../../utils/security'
+import { knowledgeIndex } from '../../services/knowledgeIndex'
+import { sanitizeFilePath, isValidFileName, safeStorage, sanitizeMarkdown } from '../../utils/security'
 import { fileImporter } from '../../services/fileImporter'
+import { useFileSearch } from '../../composables/useFileSearch'
 import type { TreeNode } from '../../types'
 
 // 支持导入的文件类型
@@ -154,10 +162,28 @@ const expandedKeys = ref<string[]>([])
 const currentFilePath = ref('')
 let isDisposed = false
 let treeLoadRequestId = 0
-let nameSearchRequestId = 0
-let contentSearchRequestId = 0
 
 const recentFiles = ref<Array<{ name: string; path: string }>>([])
+
+const {
+  searchQuery,
+  searchMode,
+  contentSearchMode,
+  trimmedSearchQuery,
+  activeSearchResults,
+  toggleSearchMode,
+  clearSearch,
+  searchFileNames,
+  searchContent,
+  handleSearchInput,
+  handleSearchEnter,
+  cancelPendingSearches,
+} = useFileSearch({
+  rootPath: () => rootPath.value,
+  isDisposed: () => isDisposed,
+})
+
+const searchInputRef = ref<{ focus: () => void } | null>(null)
 
 const addRecentFile = (path: string) => {
   const name = path.split('/').pop() || ''
@@ -255,7 +281,10 @@ const handleNodeClick = async (data: TreeNode, node?: any) => {
 const handleTreeAction = async (command: string, data: TreeNode) => {
   if (command === 'delete') {
     try {
-      await ElMessageBox.confirm(`确定删除 "${data.name}" 吗？`, '删除确认', {
+      const message = data.isDirectory
+        ? `确定要删除文件夹 ${data.name} 及其所有内容吗？此操作不可撤销。`
+        : `确定要删除文件 ${data.name} 吗？此操作不可撤销。`
+      await ElMessageBox.confirm(message, '删除确认', {
         type: 'warning',
         confirmButtonText: '确定',
         cancelButtonText: '取消'
@@ -304,7 +333,7 @@ const handleTreeAction = async (command: string, data: TreeNode) => {
 // 导入外部文件到知识库
 const handleImportExternalFile = async (filePath: string) => {
   try {
-    const result = await fileImporter.importExternalFile(filePath)
+    const result = await fileImporter.importExternalFile(filePath, rootPath.value)
     if (result.success) {
       await loadTreeFromFS()
       ElMessage.success(result.message || '已导入到知识库')
@@ -420,179 +449,29 @@ const handleCreateFolder = async () => {
   }
 }
 
-const searchQuery = ref('')
-const searchInputRef = ref<{ focus: () => void } | null>(null)
-const searchMode = ref<'name' | 'content'>('name')
-const contentSearchMode = ref<'text' | 'regex'>('text')
-type SearchResult = { filePath: string; fileName: string; matches: Array<{ lineNumber?: number; lineContent: string }> }
-const contentSearchResults = ref<SearchResult[]>([])
-const nameSearchResults = ref<SearchResult[]>([])
-const trimmedSearchQuery = computed(() => searchQuery.value.trim())
-const activeSearchResults = computed(() => searchMode.value === 'name' ? nameSearchResults.value : contentSearchResults.value)
-
-const toggleSearchMode = () => {
-  searchMode.value = searchMode.value === 'name' ? 'content' : 'name'
-  contentSearchResults.value = []
-  nameSearchResults.value = []
-  if (searchMode.value === 'content' && trimmedSearchQuery.value) searchContent()
-  if (searchMode.value === 'name' && trimmedSearchQuery.value) searchFileNames()
-}
-
-const clearSearch = () => {
-  nameSearchRequestId += 1
-  contentSearchRequestId += 1
-  searchQuery.value = ''
-  contentSearchResults.value = []
-  nameSearchResults.value = []
-}
-
-const getRelativeWorkspacePath = (path: string) => {
-  const prefix = rootPath.value.endsWith('/') ? rootPath.value : `${rootPath.value}/`
-  return path.startsWith(prefix) ? path.slice(prefix.length) : path
-}
-
-const searchFileNames = async () => {
-  const requestId = ++nameSearchRequestId
-  const query = trimmedSearchQuery.value.toLowerCase()
-  const activeRootPath = rootPath.value
-  if (!query || !activeRootPath) {
-    nameSearchResults.value = []
-    return
-  }
-
-  try {
-    const files = await vaultService.getAllMarkdownFiles()
-    if (
-      isDisposed ||
-      requestId !== nameSearchRequestId ||
-      searchMode.value !== 'name' ||
-      trimmedSearchQuery.value.toLowerCase() !== query ||
-      rootPath.value !== activeRootPath
-    ) return
-    nameSearchResults.value = files
-      .filter(file => file.path.startsWith(`${activeRootPath}/`))
-      .filter(file => file.name.toLowerCase().includes(query) || getRelativeWorkspacePath(file.path).toLowerCase().includes(query))
-      .sort((a, b) => {
-        const aName = a.name.toLowerCase()
-        const bName = b.name.toLowerCase()
-        const aStarts = aName.startsWith(query) ? 0 : 1
-        const bStarts = bName.startsWith(query) ? 0 : 1
-        if (aStarts !== bStarts) return aStarts - bStarts
-        return a.name.localeCompare(b.name)
-      })
-      .slice(0, 30)
-      .map(file => ({
-        filePath: file.path,
-        fileName: file.name,
-        matches: [{ lineContent: getRelativeWorkspacePath(file.path) }],
-      }))
-  } catch {
-    if (isDisposed || requestId !== nameSearchRequestId) return
-    nameSearchResults.value = []
-    ElMessage.error('搜索失败')
-  }
-}
-
-const handleSearchInput = () => {
-  if (searchMode.value === 'name') {
-    void searchFileNames()
-  } else {
-    contentSearchResults.value = []
-  }
-}
-
-const handleSearchEnter = () => {
-  if (searchMode.value === 'content') void searchContent()
-  else void searchFileNames()
-}
-
 const focusSearch = async (mode: 'name' | 'content', query = '') => {
   searchMode.value = mode
   searchQuery.value = query
-  contentSearchResults.value = []
-  nameSearchResults.value = []
+  clearSearch()
+  searchQuery.value = query
   await nextTick()
   searchInputRef.value?.focus()
   if (mode === 'content' && query.trim()) await searchContent()
   if (mode === 'name' && query.trim()) await searchFileNames()
 }
 
-const searchContent = async () => {
-  const requestId = ++contentSearchRequestId
-  const query = trimmedSearchQuery.value
-  const activeRootPath = rootPath.value
-  if (!query || !activeRootPath) {
-    contentSearchResults.value = []
-    return
-  }
-
-  // Detect regex pattern (e.g., /TODO|FIXME/)
-  const isRegex = query.startsWith('/') && query.endsWith('/') && query.length > 2
-  contentSearchMode.value = isRegex ? 'regex' : 'text'
-
-  try {
-    let results: SearchResult[]
-
-    if (isRegex) {
-      // Regex search
-      const pattern = query.slice(1, -1)
-      try {
-        const regex = new RegExp(pattern, 'gi')
-        const allFiles = await vaultService.getAllMarkdownFiles()
-        const matchedFiles = allFiles.filter(f => f.path.startsWith(`${activeRootPath}/`))
-        const searchResults: SearchResult[] = []
-
-        for (const file of matchedFiles) {
-          if (searchResults.length >= 30) break
-          try {
-            const content = await vaultService.readFileOrEmpty(file.path)
-            const lines = content.split('\n')
-            const matches: Array<{ lineNumber: number; lineContent: string }> = []
-
-            for (let i = 0; i < lines.length; i++) {
-              if (matches.length >= 5) break
-              // 每次都创建新的正则实例，避免 lastIndex 状态问题
-              const lineRegex = new RegExp(pattern, 'gi')
-              if (lineRegex.test(lines[i])) {
-                matches.push({ lineNumber: i + 1, lineContent: lines[i].trim().slice(0, 200) })
-              }
-            }
-
-            if (matches.length > 0) {
-              searchResults.push({ filePath: file.path, fileName: file.name, matches })
-            }
-          } catch {
-            // Skip files that can't be read
-          }
-        }
-        results = searchResults
-      } catch {
-        results = []
-      }
-    } else {
-      // Text search
-      results = await vaultService.searchFiles(query)
-      results = results.filter(r => r.filePath.startsWith(`${activeRootPath}/`))
-    }
-
-    if (
-      isDisposed ||
-      requestId !== contentSearchRequestId ||
-      searchMode.value !== 'content' ||
-      trimmedSearchQuery.value !== query ||
-      rootPath.value !== activeRootPath
-    ) return
-    contentSearchResults.value = results
-  } catch (e: any) {
-    if (isDisposed || requestId !== contentSearchRequestId) return
-    ElMessage.error('搜索失败')
-  }
-}
-
-const handleSearchResultClick = (result: SearchResult) => {
+const handleSearchResultClick = (result: { filePath: string; fileName: string; matches: Array<{ lineNumber?: number; lineContent: string }> }) => {
   const lineNumber = result.matches.find(match => match.lineNumber)?.lineNumber
   emit('search-result-select', { path: result.filePath, lineNumber })
   clearSearch()
+}
+
+const highlightMatchContent = (content: string): string => {
+  const query = trimmedSearchQuery.value.trim()
+  if (!query) return sanitizeMarkdown(content)
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const highlighted = content.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>')
+  return sanitizeMarkdown(highlighted)
 }
 
 const readFile = async (filePath: string): Promise<string> => {
@@ -616,53 +495,11 @@ onMounted(async () => {
 onUnmounted(() => {
   isDisposed = true
   treeLoadRequestId += 1
-  nameSearchRequestId += 1
-  contentSearchRequestId += 1
+  cancelPendingSearches()
 })
 </script>
 
 <style scoped>
-.panel {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--obsidian-bg-secondary, #252525);
-}
-
-.panel-header {
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--obsidian-border, rgba(255, 255, 255, 0.06));
-  flex-shrink: 0;
-}
-
-.panel-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--obsidian-text-muted, #999);
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.panel-actions {
-  display: flex;
-  gap: 2px;
-}
-
-.panel-actions :deep(.el-button) {
-  background: transparent !important;
-  border: none !important;
-  color: var(--obsidian-text-faint, #666) !important;
-}
-
-.panel-actions :deep(.el-button:hover) {
-  color: var(--obsidian-text-normal, #dcddde) !important;
-  background: var(--obsidian-bg-hover, #303030) !important;
-}
-
 .search-bar {
   padding: 6px 8px;
   border-bottom: 1px solid var(--obsidian-border, rgba(255, 255, 255, 0.06));
@@ -765,6 +602,13 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.match-content :deep(mark) {
+  background: var(--obsidian-accent-soft);
+  color: var(--obsidian-accent);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
 .file-list {
   flex: 1;
   overflow-y: auto;
@@ -817,6 +661,17 @@ onUnmounted(() => {
   color: var(--obsidian-text-normal, #dcddde);
 }
 
+.empty-folder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  color: var(--obsidian-text-muted, #999);
+  font-size: 12px;
+}
+
 .empty-prompt {
   display: flex;
   flex-direction: column;
@@ -835,11 +690,6 @@ onUnmounted(() => {
 }
 
 .section-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--obsidian-text-faint, #666);
-  text-transform: uppercase;
-  letter-spacing: 0;
   padding: 6px 12px 3px;
 }
 

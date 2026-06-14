@@ -5,6 +5,7 @@ import taskLists from 'markdown-it-task-lists'
 import katex from '@traptitech/markdown-it-katex'
 import { escapeHtml, sanitizeMarkdown } from './security'
 import { embedPlugin } from './markdown/embedPlugin'
+import { resolveEmbedPlaceholders } from '@/services/embedRenderer'
 
 interface HeadingEntry {
   level: number
@@ -108,7 +109,6 @@ export async function renderMarkdownBodyWithEmbeds(markdown: string, currentFile
   const headings: HeadingEntry[] = []
   const wrapper = document.createElement('div')
   wrapper.innerHTML = sanitizeMarkdown(createMarkdownRenderer({ headings }).render(markdown))
-  const { resolveEmbedPlaceholders } = await import('@/services/embedRenderer')
   await resolveEmbedPlaceholders(wrapper, { sourcePath: currentFile, currentContent: markdown })
   return wrapper.innerHTML
 }
@@ -129,7 +129,6 @@ export async function createExportHtmlWithEmbeds(markdown: string, options: Expo
   const md = createMarkdownRenderer({ headings })
   const wrapper = document.createElement('div')
   wrapper.innerHTML = sanitizeMarkdown(md.render(markdown))
-  const { resolveEmbedPlaceholders } = await import('@/services/embedRenderer')
   await resolveEmbedPlaceholders(wrapper, { sourcePath: options.currentFile, currentContent: markdown })
   const toc = options.includeTOC ? renderTOC(headings) : ''
   const styles = options.includeStyles === false ? '' : EXPORT_STYLES

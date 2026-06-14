@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia'
-import { onScopeDispose, ref, watch } from 'vue'
+import { onScopeDispose, ref, watch, computed } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
-import type { AIConfig, ThemeMode, SidebarTab, GhostTextConfig } from '@/types'
+import type { AIConfig, ThemeMode, SidebarTab, GhostTextConfig, QuickActionItem } from '@/types'
+import { SIDEBAR_TABS } from '@/types'
 import { encryptValue, safeStorage, decryptValue } from '@/utils/security'
 
-const sidebarTabs: SidebarTab[] = ['files', 'outline', 'knowledge', 'tools', 'settings']
+
 
 const defaultAIConfig: AIConfig = {
   provider: 'ollama',
@@ -54,6 +55,23 @@ function loadEncryptedConfig(key: string, defaultValue: AIConfig): AIConfig {
   }
 }
 
+/**
+ * Asynchronously decrypt v2-encrypted API keys after store initialization.
+ * Called once in App.vue onMounted before configuring the AI provider.
+ */
+async function decryptAIConfigIfNeeded(config: AIConfig): Promise<AIConfig> {
+  if (!config.apiKey || !config.apiKey.startsWith('enc:v2:')) return config
+  try {
+    const decrypted = await decryptValue(config.apiKey)
+    if (decrypted) {
+      config.apiKey = decrypted
+    }
+  } catch {
+    // Decryption failed; leave as-is
+  }
+  return config
+}
+
 // Synchronous v1 XOR deobfuscation for backward compatibility
 // Mirrors the logic in security.ts legacyDeobfuscateV1
 const V1_PREFIX = 'enc:v1:'
@@ -92,7 +110,7 @@ function saveToStorage(key: string, value: unknown): void {
 
 function loadSidebarTab(): SidebarTab {
   const tab = loadFromStorage<SidebarTab>('active_sidebar_tab', 'files')
-  return sidebarTabs.includes(tab) ? tab : 'files'
+  return SIDEBAR_TABS.includes(tab) ? tab : 'files'
 }
 
 const defaultGhostTextConfig: GhostTextConfig = {
@@ -141,6 +159,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const rightDockWidth = ref(loadFromStorage('right_dock_width', 300))
   const graphPaneWidth = ref(loadFromStorage('graph_pane_width', 480))
   const aiPanelHeight = ref(loadFromStorage('ai_panel_height', 260))
+  const aiPanelWidth = ref(loadFromStorage('ai_panel_width', 380))
   const showSidebar = ref(loadFromStorage('show_sidebar', true))
   const showRightDock = ref(loadFromStorage('show_right_dock', true))
   const showGraphPane = ref(loadFromStorage('show_graph_pane', true))
@@ -152,6 +171,18 @@ export const useSettingsStore = defineStore('settings', () => {
   const enableSmartPaste = ref(loadFromStorage('enable_smart_paste', true))
   const ghostTextConfig = ref<GhostTextConfig>(loadGhostTextConfig())
   const enableInlineEdit = ref(loadFromStorage('enable_inline_edit', true))
+  const wordWrap = ref(loadFromStorage('word_wrap', true))
+  const findCaseSensitive = ref(loadFromStorage('find_case_sensitive', false))
+  const findUseRegex = ref(loadFromStorage('find_use_regex', false))
+  const quickActions = ref<QuickActionItem[]>(loadFromStorage('quick_actions', []))
+  const editorFontSize = ref(loadFromStorage('editor_font_size', 14))
+  const editorLineHeight = ref(loadFromStorage('editor_line_height', 1.8))
+  const editorFontFamily = ref(loadFromStorage('editor_font_family', 'var(--font-mono)'))
+  const splitRatio = ref(loadFromStorage('split_ratio', 0.5))
+  const autoSaveDelay = ref(loadFromStorage('auto_save_delay', 2000))
+  const rightDockSections = ref<{ outline: boolean; properties: boolean; relations: boolean }>(
+    loadFromStorage('right_dock_sections', { outline: true, properties: true, relations: true })
+  )
 
   const systemThemeQuery = typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-color-scheme: dark)')
@@ -177,14 +208,14 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   })
 
-  const isDark = () => {
+  const isDark = computed(() => {
     if (theme.value === 'dark') return true
     if (theme.value === 'light') return false
     return systemIsDark.value
-  }
+  })
 
   const applyTheme = () => {
-    const dark = isDark()
+    const dark = isDark.value
     document.documentElement.classList.toggle('dark', dark)
     document.documentElement.classList.toggle('light', !dark)
   }
@@ -243,7 +274,7 @@ export const useSettingsStore = defineStore('settings', () => {
     enableInlineEdit.value = enabled
   }
   const setActiveTab = (tab: SidebarTab) => {
-    if (!sidebarTabs.includes(tab)) return
+    if (!SIDEBAR_TABS.includes(tab)) return
     activeSidebarTab.value = tab
   }
   const setSidebarWidth = (width: number) => {
@@ -258,12 +289,32 @@ export const useSettingsStore = defineStore('settings', () => {
   const setAIPanelHeight = (height: number) => {
     aiPanelHeight.value = height
   }
+  const setAIPanelWidth = (width: number) => {
+    aiPanelWidth.value = width
+  }
+  const setEditorFontSize = (size: number) => {
+    editorFontSize.value = size
+  }
+  const setEditorLineHeight = (height: number) => {
+    editorLineHeight.value = height
+  }
+  const setEditorFontFamily = (family: string) => {
+    editorFontFamily.value = family
+  }
+  const setSplitRatio = (ratio: number) => {
+    splitRatio.value = ratio
+  }
+  const setAutoSaveDelay = (delay: number) => {
+    autoSaveDelay.value = delay
+  }
 
   // Unified persistence via watchers with debounced writes for rapid-fire settings
   const debouncedSaveWidth = useDebounceFn((val: number) => { saveToStorage('sidebar_width', val) }, 200)
   const debouncedSaveRightDockWidth = useDebounceFn((val: number) => { saveToStorage('right_dock_width', val) }, 200)
   const debouncedSaveGraphPaneWidth = useDebounceFn((val: number) => { saveToStorage('graph_pane_width', val) }, 200)
   const debouncedSaveHeight = useDebounceFn((val: number) => { saveToStorage('ai_panel_height', val) }, 200)
+  const debouncedSaveAIPanelWidth = useDebounceFn((val: number) => { saveToStorage('ai_panel_width', val) }, 200)
+  const debouncedSaveSplitRatio = useDebounceFn((val: number) => { saveToStorage('split_ratio', val) }, 200)
   const debouncedSaveGhost = useDebounceFn((val: GhostTextConfig) => { saveToStorage('ghost_text_config', val) }, 300)
   const debouncedSaveAI = useDebounceFn((val: AIConfig) => { saveEncryptedConfig('ai_config', val) }, 300)
 
@@ -278,23 +329,78 @@ export const useSettingsStore = defineStore('settings', () => {
   watch(enableSmartPaste, (val) => { saveToStorage('enable_smart_paste', val) })
   watch(ghostTextConfig, (val) => { debouncedSaveGhost(val) }, { deep: true })
   watch(enableInlineEdit, (val) => { saveToStorage('enable_inline_edit', val) })
+  watch(wordWrap, (val) => { saveToStorage('word_wrap', val) })
+  watch(findCaseSensitive, (val) => { saveToStorage('find_case_sensitive', val) })
+  watch(findUseRegex, (val) => { saveToStorage('find_use_regex', val) })
+  watch(quickActions, (val) => { saveToStorage('quick_actions', val) }, { deep: true })
   watch(activeSidebarTab, (val) => { saveToStorage('active_sidebar_tab', val) })
   watch(sidebarWidth, (val) => { debouncedSaveWidth(val) })
   watch(rightDockWidth, (val) => { debouncedSaveRightDockWidth(val) })
   watch(graphPaneWidth, (val) => { debouncedSaveGraphPaneWidth(val) })
   watch(aiPanelHeight, (val) => { debouncedSaveHeight(val) })
+  watch(aiPanelWidth, (val) => { debouncedSaveAIPanelWidth(val) })
   watch(livePreview, (val) => { saveToStorage('live_preview', val) })
+  watch(editorFontSize, (val) => { saveToStorage('editor_font_size', val) })
+  watch(editorLineHeight, (val) => { saveToStorage('editor_line_height', val) })
+  watch(editorFontFamily, (val) => { saveToStorage('editor_font_family', val) })
+  watch(splitRatio, (val) => { debouncedSaveSplitRatio(val) })
+  watch(autoSaveDelay, (val) => { saveToStorage('auto_save_delay', val) })
+  watch(rightDockSections, (val) => { saveToStorage('right_dock_sections', val) }, { deep: true })
+
+  const resetToDefaults = () => {
+    theme.value = 'system'
+    sidebarWidth.value = 280
+    rightDockWidth.value = 300
+    graphPaneWidth.value = 480
+    aiPanelHeight.value = 260
+    aiPanelWidth.value = 380
+    showSidebar.value = true
+    showRightDock.value = true
+    showGraphPane.value = true
+    showAIPanel.value = false
+    activeSidebarTab.value = 'files'
+    livePreview.value = true
+    enableRAG.value = false
+    enableAIActions.value = true
+    enableSmartPaste.value = true
+    ghostTextConfig.value = { ...defaultGhostTextConfig }
+    enableInlineEdit.value = true
+    wordWrap.value = true
+    findCaseSensitive.value = false
+    findUseRegex.value = false
+    quickActions.value = []
+    editorFontSize.value = 14
+    editorLineHeight.value = 1.8
+    editorFontFamily.value = 'var(--font-mono)'
+    splitRatio.value = 0.5
+    autoSaveDelay.value = 2000
+    rightDockSections.value = { outline: true, properties: true, relations: true }
+    applyTheme()
+  }
+
+  const decryptAndApplyAIConfig = async () => {
+    const decrypted = await decryptAIConfigIfNeeded(aiConfig.value)
+    if (decrypted.apiKey !== aiConfig.value.apiKey) {
+      aiConfig.value = decrypted
+    }
+  }
 
   applyTheme()
 
   return {
-    theme, aiConfig, aiConfigured, sidebarWidth, rightDockWidth, graphPaneWidth, aiPanelHeight,
+    theme, aiConfig, aiConfigured, sidebarWidth, rightDockWidth, graphPaneWidth, aiPanelHeight, aiPanelWidth,
     showSidebar, showRightDock, showGraphPane, showAIPanel, activeSidebarTab, livePreview, enableRAG,
-    enableAIActions, enableSmartPaste, ghostTextConfig, enableInlineEdit,
+    enableAIActions, enableSmartPaste, ghostTextConfig, enableInlineEdit, wordWrap, findCaseSensitive, findUseRegex, quickActions,
+    editorFontSize, editorLineHeight, editorFontFamily, splitRatio, autoSaveDelay, rightDockSections,
     isDark, applyTheme, setTheme, toggleTheme, updateAIConfig, persistAIConfigNow, markAIConfigured,
     toggleSidebar, toggleRightDock, toggleGraphPane, toggleAIPanel, toggleLivePreview,
     setSidebarVisible, setRightDockVisible, setGraphPaneVisible, setAIPanelVisible, setActiveTab,
     setEnableRAG, setEnableAIActions, setEnableSmartPaste, setEnableInlineEdit,
-    setSidebarWidth, setRightDockWidth, setGraphPaneWidth, setAIPanelHeight,
+    setSidebarWidth, setRightDockWidth, setGraphPaneWidth, setAIPanelHeight, setAIPanelWidth,
+    setEditorFontSize, setEditorLineHeight, setEditorFontFamily, setSplitRatio, setAutoSaveDelay,
+    setWordWrap: (val: boolean) => { wordWrap.value = val },
+    setGhostTextConfig: (val: GhostTextConfig) => { ghostTextConfig.value = val },
+    resetToDefaults,
+    decryptAndApplyAIConfig,
   }
 })

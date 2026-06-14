@@ -44,8 +44,19 @@
         </el-form-item>
       </template>
 
-      <el-form-item :label="`Temperature: ${temperature}`">
-        <el-slider v-model="temperature" :min="0" :max="2" :step="0.1" show-stops />
+      <el-form-item :label="`温度: ${temperature}`">
+        <el-slider v-model="temperature" :min="0" :max="2" :step="0.1" />
+        <div class="config-hint">控制输出的随机性，值越高越有创造性</div>
+      </el-form-item>
+
+      <el-form-item :label="`最大令牌数: ${maxTokens}`">
+        <el-slider v-model="maxTokens" :min="256" :max="32768" :step="256" />
+        <div class="config-hint">模型单次响应的最大 token 数</div>
+      </el-form-item>
+
+      <el-form-item label="System Prompt">
+        <el-input v-model="systemPrompt" type="textarea" :rows="3" placeholder="你是一个专业的 Markdown 写作助手。" />
+        <div class="config-hint">定义 AI 的角色和行为，会作为系统提示发送</div>
       </el-form-item>
 
       <el-form-item>
@@ -76,6 +87,8 @@ const selectedProvider = ref<AIConfig['provider']>('ollama')
 const apiKey = ref('')
 const model = ref('qwen2.5:7b')
 const temperature = ref(0.7)
+const maxTokens = ref(4096)
+const systemPrompt = ref('你是一个专业的 Markdown 写作助手。')
 const ollamaBaseURL = ref('http://localhost:11434')
 const openaiBaseURL = ref('https://api.openai.com/v1')
 const configSaved = ref(false)
@@ -151,8 +164,8 @@ const buildAIConfig = (): AIConfig => {
     apiKey: selectedProvider.value === 'ollama' ? '' : apiKey.value,
     model: model.value,
     temperature: temperature.value,
-    maxTokens: settingsStore.aiConfig.maxTokens ?? 4096,
-    systemPrompt: settingsStore.aiConfig.systemPrompt || '你是一个专业的 Markdown 写作助手。',
+    maxTokens: maxTokens.value,
+    systemPrompt: systemPrompt.value || '你是一个专业的 Markdown 写作助手。',
   }
   return config
 }
@@ -217,6 +230,8 @@ onMounted(() => {
     apiKey.value = savedConfig.apiKey || ''
     model.value = savedConfig.model || 'qwen2.5:7b'
     temperature.value = savedConfig.temperature ?? 0.7
+    maxTokens.value = savedConfig.maxTokens ?? 4096
+    systemPrompt.value = savedConfig.systemPrompt || '你是一个专业的 Markdown 写作助手。'
     if (savedConfig.provider === 'ollama') {
       ollamaBaseURL.value = savedConfig.baseURL || 'http://localhost:11434'
     } else {
@@ -248,7 +263,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--obsidian-bg-secondary, #252525);
+  background: var(--obsidian-bg-secondary);
 }
 
 .panel-header {
@@ -256,14 +271,14 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--obsidian-border, rgba(255, 255, 255, 0.06));
+  border-bottom: 1px solid var(--obsidian-border);
   flex-shrink: 0;
 }
 
 .panel-title {
   font-size: 11px;
   font-weight: 600;
-  color: var(--obsidian-text-muted, #999);
+  color: var(--obsidian-text-muted);
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -275,69 +290,69 @@ onUnmounted(() => {
 }
 
 .config-form :deep(.el-form-item__label) {
-  color: var(--obsidian-text-muted, #999) !important;
+  color: var(--obsidian-text-muted) !important;
   font-size: 11px;
   font-weight: 600;
 }
 
 .config-form :deep(.el-input__wrapper) {
-  background: var(--obsidian-bg-primary, #1e1e1e) !important;
+  background: var(--obsidian-bg-primary) !important;
   box-shadow: none !important;
-  border: 1px solid var(--obsidian-border, rgba(255, 255, 255, 0.06)) !important;
+  border: 1px solid var(--obsidian-border) !important;
   border-radius: 4px;
 }
 
 .config-form :deep(.el-input__wrapper:hover) {
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: var(--obsidian-text-faint) !important;
 }
 
 .config-form :deep(.el-input__wrapper.is-focus) {
-  border-color: var(--obsidian-accent, #7f6df2) !important;
+  border-color: var(--obsidian-accent) !important;
 }
 
 .config-form :deep(.el-input__inner) {
-  color: var(--obsidian-text-normal, #dcddde) !important;
+  color: var(--obsidian-text-normal) !important;
 }
 
 .config-form :deep(.el-input__inner::placeholder) {
-  color: var(--obsidian-text-faint, #666) !important;
+  color: var(--obsidian-text-faint) !important;
 }
 
 .config-form :deep(.el-select .el-input__wrapper) {
-  background: var(--obsidian-bg-primary, #1e1e1e) !important;
+  background: var(--obsidian-bg-primary) !important;
 }
 
 .config-form :deep(.el-slider__runway) {
-  background: var(--obsidian-bg-primary, #1e1e1e) !important;
+  background: var(--obsidian-bg-primary) !important;
 }
 
 .config-form :deep(.el-slider__bar) {
-  background: var(--obsidian-accent, #7f6df2) !important;
+  background: var(--obsidian-accent) !important;
 }
 
 .config-form :deep(.el-slider__button) {
-  border-color: var(--obsidian-accent, #7f6df2) !important;
+  border-color: var(--obsidian-accent) !important;
 }
 
 .config-form :deep(.el-button--primary) {
-  background: var(--obsidian-accent, #7f6df2) !important;
-  border-color: var(--obsidian-accent, #7f6df2) !important;
+  background: var(--obsidian-accent) !important;
+  border-color: var(--obsidian-accent) !important;
 }
 
 .config-form :deep(.el-button--default) {
-  background: var(--obsidian-bg-hover, #303030) !important;
-  border-color: var(--obsidian-border, rgba(255, 255, 255, 0.06)) !important;
-  color: var(--obsidian-text-normal, #dcddde) !important;
+  background: var(--obsidian-bg-hover) !important;
+  border-color: var(--obsidian-border) !important;
+  color: var(--obsidian-text-normal) !important;
 }
 
 .config-form :deep(.el-button--default:hover) {
-  background: var(--obsidian-bg-active, #363636) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: var(--obsidian-bg-active) !important;
+  border-color: var(--obsidian-text-faint) !important;
 }
 
 .config-hint {
   font-size: 10px;
-  color: var(--obsidian-text-faint, #666);
+  color: var(--obsidian-text-faint);
   margin-top: 3px;
 }
 </style>

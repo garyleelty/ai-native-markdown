@@ -66,7 +66,7 @@ export function useFileOperations(editorRef: Ref<any>) {
       if (editorStore.currentFile === filePath) {
         await saveCurrentFile()
       }
-    }, 2000)
+    }, settingsStore.autoSaveDelay)
   })
 
   const handleFileSelect = async (filePath: string) => {

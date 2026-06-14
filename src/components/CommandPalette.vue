@@ -184,12 +184,23 @@ const searchableCommands = computed(() => [...commands, ...noteCommands.value])
 const commandMatches = (cmd: Command, query: string) => {
   if (query === '') return true
 
-  return [
-    cmd.label,
-    cmd.id,
-    cmd.description || '',
-    cmd.shortcut || '',
-  ].some(value => value.toLowerCase().includes(query))
+  const q = query.toLowerCase()
+
+  // 精确包含匹配
+  if (
+    [cmd.label, cmd.id, cmd.description || '', cmd.shortcut || '']
+      .some(value => value.toLowerCase().includes(q))
+  ) return true
+
+  // 模糊匹配：查询字符按顺序出现在标签中
+  const label = cmd.label.toLowerCase()
+  let qi = 0
+  for (let li = 0; li < label.length && qi < q.length; li++) {
+    if (label[li] === q[qi]) qi++
+  }
+  if (qi === q.length) return true
+
+  return false
 }
 
 const filteredCategories = computed(() => {

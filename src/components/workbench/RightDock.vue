@@ -3,7 +3,7 @@
     <header class="right-dock-header">
       <div class="dock-title">
         <el-icon><Tickets /></el-icon>
-        <span>Inspector</span>
+        <span>文档面板</span>
       </div>
       <el-button
         :icon="Close"
@@ -88,11 +88,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
 import { ArrowDown, Close, List, Share, Tickets } from '@element-plus/icons-vue'
 import OutlinePanel from '@/components/editor/OutlinePanel.vue'
 import PropertiesPanel from '@/components/sidebar/PropertiesPanel.vue'
 import RightRelationsPanel from '@/components/workbench/RightRelationsPanel.vue'
+import { useSettingsStore } from '@/stores/settings'
 import type { KnowledgeReference } from '@/services/knowledgeIndex'
 
 defineProps<{
@@ -111,11 +111,8 @@ defineEmits<{
   (e: 'content-change', content: string): void
 }>()
 
-const openSections = reactive({
-  outline: true,
-  properties: true,
-  relations: true,
-})
+const settingsStore = useSettingsStore()
+const openSections = settingsStore.rightDockSections
 </script>
 
 <style scoped>

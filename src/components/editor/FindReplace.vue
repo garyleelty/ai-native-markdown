@@ -32,6 +32,7 @@
     </div>
     <div class="options-row">
       <el-checkbox v-model="caseSensitive" size="small">区分大小写</el-checkbox>
+      <el-checkbox v-model="wholeWord" size="small">全词匹配</el-checkbox>
       <el-checkbox v-model="useRegex" size="small">正则表达式</el-checkbox>
       <el-button size="small" text native-type="button" @click="showReplace = !showReplace">
         {{ showReplace ? '隐藏替换' : '替换' }}
@@ -42,22 +43,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, toRef, watch, nextTick } from 'vue'
 import { Search, Top, Bottom, Close } from '@element-plus/icons-vue'
+import { useSettingsStore } from '@/stores/settings'
+
+const settingsStore = useSettingsStore()
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits<{
   (e: 'update:visible', val: boolean): void
-  (e: 'find', text: string, options: { caseSensitive: boolean; useRegex: boolean; direction: 'next' | 'prev' }): void
-  (e: 'replace', findText: string, replaceText: string, options: { caseSensitive: boolean; useRegex: boolean }): void
-  (e: 'replace-all', findText: string, replaceText: string, options: { caseSensitive: boolean; useRegex: boolean }): void
+  (e: 'find', text: string, options: { caseSensitive: boolean; useRegex: boolean; wholeWord: boolean; direction: 'next' | 'prev' }): void
+  (e: 'replace', findText: string, replaceText: string, options: { caseSensitive: boolean; useRegex: boolean; wholeWord: boolean }): void
+  (e: 'replace-all', findText: string, replaceText: string, options: { caseSensitive: boolean; useRegex: boolean; wholeWord: boolean }): void
   (e: 'close'): void
 }>()
 
 const findText = ref('')
 const replaceText = ref('')
-const caseSensitive = ref(false)
-const useRegex = ref(false)
+const caseSensitive = toRef(settingsStore, 'findCaseSensitive')
+const useRegex = toRef(settingsStore, 'findUseRegex')
+const wholeWord = ref(false)
 const showReplace = ref(false)
 const matchCount = ref(-1)
 const currentMatch = ref(0)
@@ -70,26 +75,26 @@ watch(() => props.visible, (val) => {
   }
 })
 
-watch([findText, replaceText, useRegex, caseSensitive], () => {
+watch([findText, replaceText, useRegex, caseSensitive, wholeWord], () => {
   searchError.value = ''
 })
 
 const findNext = () => {
   if (!findText.value) return
-  emit('find', findText.value, { caseSensitive: caseSensitive.value, useRegex: useRegex.value, direction: 'next' })
+  emit('find', findText.value, { caseSensitive: caseSensitive.value, useRegex: useRegex.value, wholeWord: wholeWord.value, direction: 'next' })
 }
 
 const findPrev = () => {
   if (!findText.value) return
-  emit('find', findText.value, { caseSensitive: caseSensitive.value, useRegex: useRegex.value, direction: 'prev' })
+  emit('find', findText.value, { caseSensitive: caseSensitive.value, useRegex: useRegex.value, wholeWord: wholeWord.value, direction: 'prev' })
 }
 
 const replaceNext = () => {
-  emit('replace', findText.value, replaceText.value, { caseSensitive: caseSensitive.value, useRegex: useRegex.value })
+  emit('replace', findText.value, replaceText.value, { caseSensitive: caseSensitive.value, useRegex: useRegex.value, wholeWord: wholeWord.value })
 }
 
 const replaceAll = () => {
-  emit('replace-all', findText.value, replaceText.value, { caseSensitive: caseSensitive.value, useRegex: useRegex.value })
+  emit('replace-all', findText.value, replaceText.value, { caseSensitive: caseSensitive.value, useRegex: useRegex.value, wholeWord: wholeWord.value })
 }
 
 const close = () => {

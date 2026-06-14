@@ -3,6 +3,7 @@ import { EditorView } from '@codemirror/view'
 interface SearchOptions {
   caseSensitive: boolean
   useRegex: boolean
+  wholeWord: boolean
 }
 
 const getSearchSource = (text: string, options: SearchOptions): string =>
@@ -10,7 +11,10 @@ const getSearchSource = (text: string, options: SearchOptions): string =>
 
 const buildSearchRegExp = (text: string, options: SearchOptions): RegExp | null => {
   try {
-    const source = getSearchSource(text, options)
+    let source = getSearchSource(text, options)
+    if (options.wholeWord) {
+      source = `\\b${source}\\b`
+    }
     return new RegExp(source, options.caseSensitive ? 'g' : 'gi')
   } catch {
     return null
@@ -19,7 +23,10 @@ const buildSearchRegExp = (text: string, options: SearchOptions): RegExp | null 
 
 const buildExactSearchRegExp = (text: string, options: SearchOptions): RegExp | null => {
   try {
-    const source = getSearchSource(text, options)
+    let source = getSearchSource(text, options)
+    if (options.wholeWord) {
+      source = `\\b${source}\\b`
+    }
     return new RegExp(`^(?:${source})$`, options.caseSensitive ? '' : 'i')
   } catch {
     return null
@@ -45,7 +52,7 @@ export function useFindReplace(options: {
     options.findReplaceRef()?.setSearchError?.('正则表达式无效')
   }
 
-  const handleFind = (text: string, findOptions: { caseSensitive: boolean; useRegex: boolean; direction: 'next' | 'prev' }) => {
+  const handleFind = (text: string, findOptions: { caseSensitive: boolean; useRegex: boolean; wholeWord: boolean; direction: 'next' | 'prev' }) => {
     const view = options.editorView()
     if (!view || !text) return
     const re = buildSearchRegExp(text, findOptions)
@@ -77,7 +84,7 @@ export function useFindReplace(options: {
     options.findReplaceRef()?.setMatchInfo(targetIdx + 1, matches.length)
   }
 
-  const handleReplace = (findText: string, replaceText: string, replaceOptions: { caseSensitive: boolean; useRegex: boolean }) => {
+  const handleReplace = (findText: string, replaceText: string, replaceOptions: { caseSensitive: boolean; useRegex: boolean; wholeWord: boolean }) => {
     const view = options.editorView()
     if (!view || !findText) return
     const { from, to } = view.state.selection.main
@@ -100,7 +107,7 @@ export function useFindReplace(options: {
     handleFind(findText, { ...replaceOptions, direction: 'next' })
   }
 
-  const handleReplaceAll = (findText: string, replaceText: string, replaceAllOptions: { caseSensitive: boolean; useRegex: boolean }) => {
+  const handleReplaceAll = (findText: string, replaceText: string, replaceAllOptions: { caseSensitive: boolean; useRegex: boolean; wholeWord: boolean }) => {
     const view = options.editorView()
     if (!view || !findText) return
     const re = buildSearchRegExp(findText, replaceAllOptions)

@@ -93,7 +93,7 @@
             <el-button size="small" @click="fetchAllFeeds">刷新全部</el-button>
           </div>
           <div class="articles-list">
-            <div v-for="article in filteredArticles" :key="article.id" class="article-item" :class="{ imported: article.isImported }">
+            <div v-for="article in filteredArticles" :key="article.id" class="article-item" :class="{ imported: article.isImported, unread: !article.isRead }" @click="markArticleRead(article.id)">
               <div class="article-header">
                 <div class="article-title">
                   <a :href="article.link" target="_blank" rel="noopener noreferrer">{{ article.title || '无标题' }}</a>
@@ -105,7 +105,7 @@
                   <span v-for="category in article.categories" :key="category" class="article-category">{{ category }}</span>
                 </div>
               </div>
-              <div class="article-description" v-html="article.description" />
+              <div class="article-description" v-html="sanitizeArticleDescription(article.description)" />
               <div class="article-actions">
                 <el-button size="small" type="primary" @click="importArticle(article.id)">
                   导入为 Markdown
@@ -153,6 +153,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Edit, Delete } from '@element-plus/icons-vue'
 import { rssService } from '@/services/rss'
 import { RSS_PRESET_FEEDS, RSS_PRESET_CATEGORIES, type RSSPresetFeed } from '@/services/rssPresets'
+import { sanitizeMarkdown } from '@/utils/security'
 import type { RSSFeed, RSSArticle } from '@/types'
 
 const activeTab = ref<'discover' | 'feeds' | 'articles'>('discover')
@@ -264,8 +265,10 @@ const fetchFeed = async (feedId: string) => {
 }
 
 const fetchAllFeeds = async () => {
-  for (const feed of feeds.value) {
-    await fetchFeed(feed.id)
+  const results = await Promise.allSettled(feeds.value.map(feed => fetchFeed(feed.id)))
+  const failed = results.filter(r => r.status === 'rejected').length
+  if (failed > 0) {
+    ElMessage.warning(`${failed} 个源刷新失败`)
   }
 }
 
@@ -309,6 +312,17 @@ const importArticle = async (articleId: string) => {
   }
 }
 
+const markArticleRead = async (articleId: string) => {
+  const article = articles.value.find(a => a.id === articleId)
+  if (!article || article.isRead) return
+  article.isRead = true
+  try {
+    await rssService.updateArticleRead(articleId, true)
+  } catch {
+    // Silently fail - visual state already updated
+  }
+}
+
 const getFeedTitle = (feedId: string) => {
   const feed = feeds.value.find(f => f.id === feedId)
   return feed?.title || feed?.url || '未知来源'
@@ -318,48 +332,17 @@ const formatDate = (timestamp: number) => {
   return new Date(timestamp).toLocaleString('zh-CN')
 }
 
+const sanitizeArticleDescription = (html: string | undefined): string => {
+  if (!html) return ''
+  return sanitizeMarkdown(html)
+}
+
 onMounted(async () => {
   await refreshAllFeeds()
 })
 </script>
 
 <style scoped>
-.panel {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--obsidian-bg-secondary, #252525);
-}
-
-.panel-header {
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--obsidian-border, rgba(255, 255, 255, 0.06));
-  flex-shrink: 0;
-}
-
-.panel-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--obsidian-text-muted, #999);
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.panel-header :deep(.el-button) {
-  background: transparent !important;
-  border: none !important;
-  color: var(--obsidian-text-faint, #666) !important;
-}
-
-.panel-header :deep(.el-button:hover) {
-  color: var(--obsidian-text-normal, #dcddde) !important;
-  background: var(--obsidian-bg-hover, #303030) !important;
-}
-
 .rss-tabs {
   flex: 1;
   min-height: 0;
@@ -554,6 +537,14 @@ onMounted(async () => {
 
 .article-item.imported {
   border-color: var(--el-color-success-light-7);
+}
+
+.article-item.unread {
+  border-left: 3px solid var(--obsidian-accent);
+}
+
+.article-item.unread .article-title a {
+  font-weight: 700;
 }
 
 .article-header {

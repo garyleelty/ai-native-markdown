@@ -5,11 +5,13 @@ import type { AgentContext } from '../types'
 const mockGetBacklinks = vi.fn()
 const mockGetUnlinkedMentions = vi.fn()
 const mockGetAllMarkdownFiles = vi.fn()
+const mockBuildGraphData = vi.fn()
 
 vi.mock('@/services/knowledgeIndex', () => ({
   knowledgeIndex: {
     getBacklinks: mockGetBacklinks,
-    getUnlinkedMentions: mockGetUnlinkedMentions
+    getUnlinkedMentions: mockGetUnlinkedMentions,
+    buildGraphData: mockBuildGraphData
   }
 }))
 
@@ -190,4 +192,149 @@ describe('ContextBuilder', () => {
     expect(ctx.currentFile!.frontmatter).toBeDefined()
     expect(ctx.currentFile!.frontmatter!.title).toBe('My Note')
   })
+  describe('withGraphInsights', () => {
+    const mockBuildGraphData = vi.fn()
+
+    beforeEach(async () => {
+      vi.resetModules()
+
+      vi.doMock('@/services/knowledgeIndex', () => ({
+        knowledgeIndex: {
+          getBacklinks: mockGetBacklinks,
+          getUnlinkedMentions: mockGetUnlinkedMentions,
+          buildGraphData: mockBuildGraphData,
+        }
+      }))
+
+      mockGetBacklinks.mockResolvedValue([])
+      mockGetUnlinkedMentions.mockResolvedValue([])
+      mockGetAllMarkdownFiles.mockResolvedValue([])
+      mockBuildGraphData.mockResolvedValue({
+        nodes: [],
+        edges: [],
+        stats: { totalNodes: 0, totalEdges: 0, orphanCount: 0 },
+      })
+    })
+
+    it('should include graphInsights when withGraphInsights is true', async () => {
+      const module = await import('../contextBuilder')
+      const builder = module.contextBuilder
+
+      const ctx = await builder.build({ withGraphInsights: true })
+      expect(ctx).toHaveProperty('graphInsights')
+      expect(ctx.graphInsights).toBeDefined()
+      expect(ctx.graphInsights!.totalNotes).toBe(0)
+      expect(ctx.graphInsights!.totalLinks).toBe(0)
+      expect(ctx.graphInsights!.orphanCount).toBe(0)
+    })
+
+    it('should not include graphInsights when withGraphInsights is not set', async () => {
+      const module = await import('../contextBuilder')
+      const builder = module.contextBuilder
+
+      const ctx = await builder.build()
+      expect(ctx.graphInsights).toBeUndefined()
+    })
+
+    it('should include currentNotePosition when currentFile matches a graph node', async () => {
+      mockBuildGraphData.mockResolvedValue({
+        nodes: [
+          { id: '/test.md', label: 'Test', path: '/test.md', tags: ['a'], linkCount: 3, isOrphan: false },
+        ],
+        edges: [],
+        stats: { totalNodes: 1, totalEdges: 0, orphanCount: 0 },
+      })
+      mockGetBacklinks.mockResolvedValue([
+        { filePath: '/backlink.md', title: 'Back', excerpt: 'ref' }
+      ])
+
+      const module = await import('../contextBuilder')
+      const builder = module.contextBuilder
+
+      const ctx = await builder.build({
+        currentFile: { path: '/test.md', content: '---\ntags: [a]\n---\nContent' },
+        withGraphInsights: true,
+      })
+      expect(ctx.graphInsights!.currentNotePosition).toBeDefined()
+      expect(ctx.graphInsights!.currentNotePosition!.linkCount).toBe(3)
+      expect(ctx.graphInsights!.currentNotePosition!.isOrphan).toBe(false)
+    })
+
+    it('should include suggestions for orphan notes', async () => {
+      mockBuildGraphData.mockResolvedValue({
+        nodes: [
+          { id: '/current.md', label: 'Current', path: '/current.md', tags: [], linkCount: 0, isOrphan: true },
+          { id: '/other.md', label: 'Other', path: '/other.md', tags: [], linkCount: 0, isOrphan: true },
+        ],
+        edges: [],
+        stats: { totalNodes: 2, totalEdges: 0, orphanCount: 2 },
+      })
+
+      const module = await import('../contextBuilder')
+      const builder = module.contextBuilder
+
+      const ctx = await builder.build({
+        currentFile: { path: '/current.md', content: 'Content' },
+        withGraphInsights: true,
+      })
+      expect(ctx.graphInsights!.suggestions).toBeDefined()
+      const orphanSuggestions = ctx.graphInsights!.suggestions!.filter(s => s.type === 'connect-orphan')
+      expect(orphanSuggestions.length).toBeGreaterThan(0)
+    })
+
+    it('should include similar-topic suggestions based on shared tags', async () => {
+      mockBuildGraphData.mockResolvedValue({
+        nodes: [
+          { id: '/current.md', label: 'Current', path: '/current.md', tags: ['vue'], linkCount: 1, isOrphan: false },
+          { id: '/similar.md', label: 'Similar', path: '/similar.md', tags: ['vue'], linkCount: 1, isOrphan: false },
+        ],
+        edges: [],
+        stats: { totalNodes: 2, totalEdges: 0, orphanCount: 0 },
+      })
+
+      const module = await import('../contextBuilder')
+      const builder = module.contextBuilder
+
+      const ctx = await builder.build({
+        currentFile: { path: '/current.md', content: '---\ntags: [vue]\n---\nContent' },
+        withGraphInsights: true,
+      })
+      const similarSuggestions = ctx.graphInsights!.suggestions?.filter(s => s.type === 'similar-topic') ?? []
+      expect(similarSuggestions.length).toBeGreaterThan(0)
+      expect(similarSuggestions[0].reason).toContain('vue')
+    })
+
+    it('should limit suggestions to 10', async () => {
+      const manyNodes = [
+        { id: '/current.md', label: 'Current', path: '/current.md', tags: ['tag1'], linkCount: 0, isOrphan: true },
+        ...Array.from({ length: 15 }, (_, i) => ({
+          id: `/orphan${i}.md`, label: `Orphan ${i}`, path: `/orphan${i}.md`, tags: [], linkCount: 0, isOrphan: true,
+        })),
+      ]
+      mockBuildGraphData.mockResolvedValue({
+        nodes: manyNodes,
+        edges: [],
+        stats: { totalNodes: manyNodes.length, totalEdges: 0, orphanCount: manyNodes.length },
+      })
+
+      const module = await import('../contextBuilder')
+      const builder = module.contextBuilder
+
+      const ctx = await builder.build({
+        currentFile: { path: '/current.md', content: 'Content' },
+        withGraphInsights: true,
+      })
+      expect(ctx.graphInsights!.suggestions!.length).toBeLessThanOrEqual(10)
+    })
+
+    it('should propagate buildGraphData errors', async () => {
+      mockBuildGraphData.mockRejectedValue(new Error('Graph DB error'))
+
+      const module = await import('../contextBuilder')
+      const builder = module.contextBuilder
+
+      await expect(builder.build({ withGraphInsights: true })).rejects.toThrow('Graph DB error')
+    })
+  })
+
 })

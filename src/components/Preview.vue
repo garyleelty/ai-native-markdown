@@ -110,7 +110,9 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
     return `<div class="mermaid" id="${id}"${lineAttrs}>${md.utils.escapeHtml(diagram)}</div>`
   }
   if (defaultFenceRenderer) {
-    return withSourceLineAttrs(defaultFenceRenderer(tokens, idx, options, env, self), lineAttrs)
+    const rendered = withSourceLineAttrs(defaultFenceRenderer(tokens, idx, options, env, self), lineAttrs)
+    const copyBtn = `<button class="code-copy-btn" type="button" title="复制代码" aria-label="复制代码"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>`
+    return rendered.replace('<pre', `${copyBtn}<pre`)
   }
   return self.renderToken(tokens, idx, options)
 }
@@ -167,7 +169,8 @@ async function getMermaid() {
   if (!mermaidInstance) {
     const mod = await import('mermaid')
     mermaidInstance = mod.default
-    mermaidInstance.initialize({ startOnLoad: false, theme: 'dark' })
+    const isDarkMode = document.documentElement.classList.contains('dark')
+    mermaidInstance.initialize({ startOnLoad: false, theme: isDarkMode ? 'dark' : 'default' })
   }
   return mermaidInstance
 }
@@ -194,9 +197,10 @@ async function renderMermaid(): Promise<boolean> {
       const { svg } = await mermaid.render(svgId, graphDefinition)
       if (renderVersion !== mermaidRenderVersion || previewRef.value !== root || !root.contains(el)) return false
       el.innerHTML = sanitizeSvg(svg)
-    } catch {
+    } catch (renderError: any) {
       if (renderVersion !== mermaidRenderVersion || previewRef.value !== root || !root.contains(el)) return false
-      el.textContent = 'Mermaid diagram error'
+      const errorDetail = renderError?.message || renderError?.string || String(renderError)
+      el.innerHTML = `<div style="color:var(--accent-red);font-size:12px;padding:4px 0;">Mermaid 语法错误: ${md.utils.escapeHtml(errorDetail)}</div>`
     }
   }
   return renderVersion === mermaidRenderVersion
@@ -284,6 +288,19 @@ function handleClick(event: MouseEvent) {
     event.preventDefault()
     const filename = embedSource.dataset.filename
     if (filename) emit('navigate', filename)
+    return
+  }
+  const copyBtn = target.closest('.code-copy-btn') as HTMLElement | null
+  if (copyBtn) {
+    const pre = copyBtn.nextElementSibling
+    if (pre?.tagName === 'PRE') {
+      const code = pre.querySelector('code')
+      const text = code?.textContent || pre.textContent || ''
+      navigator.clipboard.writeText(text).then(() => {
+        copyBtn.classList.add('copied')
+        setTimeout(() => copyBtn.classList.remove('copied'), 1500)
+      })
+    }
     return
   }
 }
@@ -444,6 +461,38 @@ defineExpose({
   margin: 1.4em 0;
   border: none;
   position: relative;
+}
+.markdown-body .code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--obsidian-border);
+  border-radius: 4px;
+  background: var(--obsidian-bg-primary);
+  color: var(--obsidian-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.markdown-body pre:hover .code-copy-btn,
+.markdown-body .code-copy-btn:focus {
+  opacity: 1;
+}
+.markdown-body .code-copy-btn:hover {
+  color: var(--obsidian-accent);
+  border-color: var(--obsidian-accent);
+}
+.markdown-body .code-copy-btn.copied {
+  opacity: 1;
+  color: var(--accent-green);
+  border-color: var(--accent-green);
 }
 .markdown-body pre code {
   background: none;

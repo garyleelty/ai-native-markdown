@@ -251,6 +251,8 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
+  const reorderOpenTabs = moveTab
+
   watch([openTabs, activeTabId, viewMode], () => {
     saveTabState(openTabs.value, activeTabId.value, viewMode.value)
   }, { deep: true })
@@ -259,7 +261,7 @@ export const useEditorStore = defineStore('editor', () => {
     content, currentFile, viewMode, cursorLine, cursorColumn, isModified,
     openTabs, activeTabId,
     setContent, setContentSilent, setViewMode, setCursor, markSaved, markPathSaved,
-    addTab, closeTab, switchTab, markTabSaved, renameOpenPath, removeOpenPath,
+    addTab, closeTab, switchTab, markTabSaved, renameOpenPath, removeOpenPath, reorderOpenTabs,
     getActiveTab, moveTab, hydrateRestoredSession
   }
 })

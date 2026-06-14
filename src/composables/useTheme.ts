@@ -6,7 +6,7 @@ export function useTheme() {
   
   return {
     theme: settingsStore.theme,
-    isDark: computed(() => settingsStore.isDark()),
+    isDark: computed(() => settingsStore.isDark),
     setTheme: settingsStore.setTheme,
     toggleTheme: settingsStore.toggleTheme,
     applyTheme: settingsStore.applyTheme

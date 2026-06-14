@@ -95,7 +95,8 @@ export function useKnowledgeGraph(
     glowSel: d3.Selection<SVGCircleElement, SimulationNode, any, any>,
     _nodes: SimulationNode[]
   ) {
-    if (pulseFrame !== null) cancelAnimationFrame(pulseFrame)
+    stopPulseAnimation()
+    pulseTimeAccum = 0
     pulseLastTime = performance.now()
     livePulseSel = pulseSel
     liveGlowSel = glowSel
@@ -508,6 +509,7 @@ export function useKnowledgeGraph(
       if (renderFrame !== null) return
       renderFrame = requestAnimationFrame(() => {
         renderFrame = null
+        if (!simulation.value) return
         renderPositions()
       })
     }

@@ -117,6 +117,7 @@ export class FetchAIProvider implements AIProvider {
     const requestSignal = createRequestSignal(8000, signal)
     try {
       this.status = 'connecting'
+      aiService.notifyStatusChange(this.id, 'connecting')
       if (this.providerType === 'ollama') {
         const resp = await fetch(`${this.baseURL}/api/tags`, { signal: requestSignal.signal })
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
@@ -124,8 +125,9 @@ export class FetchAIProvider implements AIProvider {
         const models = data.models?.map((m: any) => m.name) || []
         if (!models.includes(this.model)) {
           this.status = 'connected'
-          this.lastError = undefined
-          return { ok: true, error: `模型 '${this.model}' 未安装，可用: ${models.join(', ')}` }
+      this.lastError = undefined
+      aiService.notifyStatusChange(this.id, 'connected')
+      return { ok: true, error: `模型 '${this.model}' 未安装，可用: ${models.join(', ')}` }
         }
       } else {
         const headers: Record<string, string> = {}
@@ -135,11 +137,13 @@ export class FetchAIProvider implements AIProvider {
       }
       this.status = 'connected'
       this.lastError = undefined
+      aiService.notifyStatusChange(this.id, 'connected')
       return { ok: true }
     } catch (e: any) {
       const error = e?.message || String(e)
       this.status = 'error'
       this.lastError = error
+      aiService.notifyStatusChange(this.id, 'error', error)
       return { ok: false, error }
     } finally {
       requestSignal.cleanup()
@@ -150,6 +154,7 @@ export class FetchAIProvider implements AIProvider {
     const requestSignal = createRequestSignal(60000, options?.signal)
     try {
       this.status = 'connecting'
+      aiService.notifyStatusChange(this.id, 'connecting')
       let result: string
       if (this.providerType === 'ollama') {
         const resp = await fetch(`${this.baseURL}/api/chat`, {
@@ -187,14 +192,17 @@ export class FetchAIProvider implements AIProvider {
       }
       this.status = 'connected'
       this.lastError = undefined
+      aiService.notifyStatusChange(this.id, 'connected')
       return result
     } catch (e: any) {
       if (e.name === 'AbortError') {
         this.status = 'idle'
+        aiService.notifyStatusChange(this.id, 'idle')
         return ''
       }
       this.status = 'error'
       this.lastError = e?.message || String(e)
+      aiService.notifyStatusChange(this.id, 'error', this.lastError)
       throw new Error(this.lastError)
     } finally {
       requestSignal.cleanup()
@@ -204,6 +212,7 @@ export class FetchAIProvider implements AIProvider {
   async *streamChat(messages: ChatMessage[], options?: AIOptions): AsyncGenerator<string> {
     const requestSignal = createRequestSignal(60000, options?.signal)
     this.status = 'connecting'
+    aiService.notifyStatusChange(this.id, 'connecting')
     try {
       if (this.providerType === 'ollama') {
         const resp = await fetch(`${this.baseURL}/api/chat`, {
@@ -292,13 +301,16 @@ export class FetchAIProvider implements AIProvider {
       }
       this.status = 'connected'
       this.lastError = undefined
+      aiService.notifyStatusChange(this.id, 'connected')
     } catch (e: any) {
       if (e.name === 'AbortError') {
         this.status = 'idle'
+        aiService.notifyStatusChange(this.id, 'idle')
         return
       }
       this.status = 'error'
       this.lastError = e?.message || String(e)
+      aiService.notifyStatusChange(this.id, 'error', this.lastError)
       throw new Error(this.lastError)
     } finally {
       requestSignal.cleanup()
@@ -316,6 +328,7 @@ export class FetchAIProvider implements AIProvider {
     const requestSignal = createRequestSignal(60000, options?.signal)
     try {
       this.status = 'connecting'
+      aiService.notifyStatusChange(this.id, 'connecting')
       let result: { content?: string; toolCalls?: any[] } = {}
       if (this.providerType === 'ollama') {
         const resp = await fetch(`${this.baseURL}/api/chat`, {
@@ -358,14 +371,17 @@ export class FetchAIProvider implements AIProvider {
       }
       this.status = 'connected'
       this.lastError = undefined
+      aiService.notifyStatusChange(this.id, 'connected')
       return result
     } catch (e: any) {
       if (e.name === 'AbortError') {
         this.status = 'idle'
+        aiService.notifyStatusChange(this.id, 'idle')
         return { content: '' }
       }
       this.status = 'error'
       this.lastError = e?.message || String(e)
+      aiService.notifyStatusChange(this.id, 'error', this.lastError)
       throw new Error(this.lastError)
     } finally {
       requestSignal.cleanup()
@@ -377,6 +393,12 @@ export class AIService {
   private providers: Map<string, FetchAIProvider> = new Map()
   private activeProviderId: string = 'ollama'
   private listeners: ProviderStatusListener[] = []
+
+  notifyStatusChange(id: string, status: AIProvider['status'], error?: string): void {
+    for (const listener of this.listeners) {
+      try { listener(id, status, error) } catch { /* ignore listener errors */ }
+    }
+  }
 
   registerProvider(provider: FetchAIProvider) {
     this.providers.set(provider.id, provider)

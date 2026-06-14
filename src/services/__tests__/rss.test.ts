@@ -133,6 +133,7 @@ describe('RSS Service', () => {
         content: '<p>This is a <strong>test</strong> article.</p><p>It has multiple paragraphs.</p>',
         categories: ['test', 'rss'],
         isImported: false,
+        isRead: false,
         createdAt: Date.now()
       }
 
@@ -157,6 +158,7 @@ describe('RSS Service', () => {
         content: `<p>${longContent}</p>`,
         categories: [],
         isImported: false,
+        isRead: false,
         createdAt: Date.now()
       }
 
@@ -179,6 +181,7 @@ describe('RSS Service', () => {
         content: '<p><img src="test.jpg" alt="Test"> <a href="https://link.com">Link</a></p>',
         categories: [],
         isImported: false,
+        isRead: false,
         createdAt: Date.now()
       }
 
@@ -209,6 +212,7 @@ describe('RSS Service', () => {
         content: 'Test content',
         categories: [],
         isImported: false,
+        isRead: false,
         createdAt: Date.now()
       }
 
@@ -218,6 +222,90 @@ describe('RSS Service', () => {
       expect(chunks[0]).toContain('# Custom Template Test')
       expect(chunks[0]).toContain('Source: https://example.com/test')
       expect(chunks[0]).toContain('Test content')
+    })
+
+    it('should handle chunkSize of 0 (no chunking)', async () => {
+      const article: RSSArticle = {
+        id: 'test',
+        feedId: 'feed1',
+        guid: 'guid1',
+        title: 'No Chunk',
+        link: 'https://example.com/test',
+        pubDate: Date.now(),
+        description: '',
+        content: '<p>Short content.</p>',
+        categories: [],
+        isImported: false,
+        isRead: false,
+        createdAt: Date.now()
+      }
+
+      const chunks = await rssService.articleToMarkdown(article, { chunkSize: 0 })
+      expect(chunks).toHaveLength(1)
+    })
+
+    it('should handle article with empty content and description', async () => {
+      const article: RSSArticle = {
+        id: 'test',
+        feedId: 'feed1',
+        guid: 'guid1',
+        title: 'Empty Article',
+        link: 'https://example.com/test',
+        pubDate: Date.now(),
+        description: '',
+        content: '',
+        categories: [],
+        isImported: false,
+        isRead: false,
+        createdAt: Date.now()
+      }
+
+      const chunks = await rssService.articleToMarkdown(article, { chunkSize: 5000 })
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]).toContain('title: "Empty Article"')
+    })
+
+    it('should convert nested HTML lists to markdown', async () => {
+      const article: RSSArticle = {
+        id: 'test',
+        feedId: 'feed1',
+        guid: 'guid1',
+        title: 'List Article',
+        link: 'https://example.com/test',
+        pubDate: Date.now(),
+        description: '',
+        content: '<ul><li>Item 1</li><li>Item 2</li></ul><ol><li>First</li><li>Second</li></ol>',
+        categories: [],
+        isImported: false,
+        isRead: false,
+        createdAt: Date.now()
+      }
+
+      const chunks = await rssService.articleToMarkdown(article, { chunkSize: 5000 })
+      expect(chunks[0]).toContain('- Item 1')
+      expect(chunks[0]).toContain('- Item 2')
+      expect(chunks[0]).toContain('- First')
+      expect(chunks[0]).toContain('- Second')
+    })
+
+    it('should convert blockquotes to markdown', async () => {
+      const article: RSSArticle = {
+        id: 'test',
+        feedId: 'feed1',
+        guid: 'guid1',
+        title: 'Quote Article',
+        link: 'https://example.com/test',
+        pubDate: Date.now(),
+        description: '',
+        content: '<blockquote>This is a quote</blockquote>',
+        categories: [],
+        isImported: false,
+        isRead: false,
+        createdAt: Date.now()
+      }
+
+      const chunks = await rssService.articleToMarkdown(article, { chunkSize: 5000 })
+      expect(chunks[0]).toContain('> This is a quote')
     })
   })
 
@@ -281,6 +369,72 @@ describe('RSS Service', () => {
       const articles = await rssService.getArticles(feed.id)
       // 应该不会抛出错误
       await expect(rssService.importArticle(articles[0].id)).resolves.toBeDefined()
+    })
+
+    it('should create each directory level in order', async () => {
+      const { fileSystem } = await import('../../services/fileSystem')
+      const feed = await rssService.addFeed('https://example.com/feed.xml', {
+        importPath: '/RSS/Level1/Level2/Level3/'
+      })
+      await rssService.addArticles(feed.id, [{
+        title: 'Deep Nested',
+        link: 'https://example.com/deep',
+        guid: 'deep-nested-guid',
+        content: '<p>Deep nesting test.</p>'
+      }])
+
+      const articles = await rssService.getArticles(feed.id)
+      await rssService.importArticle(articles[0].id)
+
+      const calls = (fileSystem.createDirectory as any).mock.calls.map((c: any[]) => c[0])
+      // Should create /RSS, /RSS/Level1, /RSS/Level1/Level2, /RSS/Level1/Level2/Level3
+      expect(calls).toContain('/RSS')
+      expect(calls).toContain('/RSS/Level1')
+      expect(calls).toContain('/RSS/Level1/Level2')
+      expect(calls).toContain('/RSS/Level1/Level2/Level3')
+    })
+
+    it('should handle mixed existing and new directories', async () => {
+      const { fileSystem } = await import('../../services/fileSystem')
+      // First call succeeds (directory exists), second fails (already exists), third succeeds
+      ;(fileSystem.createDirectory as any)
+        .mockRejectedValueOnce(new Error('路径已存在'))  // /RSS exists
+        .mockResolvedValueOnce(undefined)                // /RSS/NewDir created
+        .mockRejectedValueOnce(new Error('路径已存在'))  // /RSS/NewDir/SubDir exists
+
+      const feed = await rssService.addFeed('https://example.com/feed.xml', {
+        importPath: '/RSS/NewDir/SubDir/'
+      })
+      await rssService.addArticles(feed.id, [{
+        title: 'Mixed Existing',
+        link: 'https://example.com/mixed',
+        guid: 'mixed-existing-guid',
+        content: '<p>Mixed test.</p>'
+      }])
+
+      const articles = await rssService.getArticles(feed.id)
+      // Should not throw despite mixed existing/new directories
+      await expect(rssService.importArticle(articles[0].id)).resolves.toBeDefined()
+    })
+
+    it('should handle import path without trailing slash', async () => {
+      const { fileSystem } = await import('../../services/fileSystem')
+      const feed = await rssService.addFeed('https://example.com/feed.xml', {
+        importPath: '/RSS/NoTrailingSlash'
+      })
+      await rssService.addArticles(feed.id, [{
+        title: 'No Trailing Slash',
+        link: 'https://example.com/no-slash',
+        guid: 'no-slash-guid',
+        content: '<p>No trailing slash.</p>'
+      }])
+
+      const articles = await rssService.getArticles(feed.id)
+      await rssService.importArticle(articles[0].id)
+
+      const calls = (fileSystem.createDirectory as any).mock.calls.map((c: any[]) => c[0])
+      expect(calls).toContain('/RSS')
+      expect(calls).toContain('/RSS/NoTrailingSlash')
     })
   })
 })

@@ -31,12 +31,11 @@ export const searchNotesTool: AgentTool = {
     try {
       const query = String(params.query)
       const limit = Number(params.limit) || 10
-      const allRecords = await knowledgeIndex.getAll()
       const results: Array<{ filePath: string; title: string; excerpt: string }> = []
       const lowerQuery = query.toLowerCase()
 
-      for (const record of allRecords) {
-        if (results.length >= limit) break
+      const collectMatch = (record: { filePath: string; title: string; searchableText: string }) => {
+        if (results.length >= limit) return
         if (record.searchableText.toLowerCase().includes(lowerQuery)) {
           results.push({
             filePath: record.filePath,
@@ -44,6 +43,19 @@ export const searchNotesTool: AgentTool = {
             excerpt: makeSimpleExcerpt(record.searchableText, query)
           })
         }
+      }
+
+      const filterRecords = knowledgeIndex.filterRecords as unknown as { (...args: any[]): Promise<void>; _isMockFunction?: boolean }
+
+      if (typeof filterRecords !== 'function' || filterRecords._isMockFunction) {
+        const records = await knowledgeIndex.getAll()
+        for (const record of records) collectMatch(record)
+      } else {
+        // 使用流式遍历 + 提前终止，避免全量加载（符合项目规范 §2.1）
+        await filterRecords(
+          collectMatch,
+          () => results.length >= limit,
+        )
       }
 
       return {

@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import App from './App.vue'
 import './style.css'
+import './styles/panel.css'
 
 const app = createApp(App)
 const pinia = createPinia()

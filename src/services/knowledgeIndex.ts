@@ -3,6 +3,7 @@ import type { KnowledgeGraphData, GraphEdge, GraphNode } from '@/types'
 import { normalizeNoteName, parseMarkdownMetadata, type FrontmatterValue } from '@/utils/metadata'
 import { parseWikiLinkTarget } from '@/utils/wikiLinks'
 import { safeStorage } from '@/utils/security'
+import { vaultService } from '@/services/vault'
 import { fileSystem } from './fileSystem'
 
 export interface KnowledgeIndexRecord {
@@ -133,7 +134,6 @@ function findMentionLine(content: string, names: string[]): number | undefined {
 
 async function readCurrentFileOrEmpty(filePath: string): Promise<string> {
   try {
-    const { vaultService } = await import('@/services/vault')
     return vaultService.readFileOrEmpty(filePath)
   } catch {
     return fileSystem.readFileOrEmpty(filePath)
@@ -247,6 +247,17 @@ export const knowledgeIndex = {
     notifyChange()
   },
 
+  async rebuildFromFiles(): Promise<void> {
+    await db.records.clear()
+    const files = await fileSystem.getAllMarkdownFiles()
+    for (const file of files) {
+      const content = await fileSystem.readFileOrEmpty(file.path)
+      await knowledgeIndex.indexFile(file.path, content, { silent: true })
+    }
+    this.clearStale()
+    notifyChange()
+  },
+
   subscribe(listener: () => void): () => void {
     events.addEventListener('change', listener)
     return () => events.removeEventListener('change', listener)
@@ -256,6 +267,61 @@ export const knowledgeIndex = {
     const records: KnowledgeIndexRecord[] = []
     await db.records.each(record => { records.push(record) })
     return records
+  },
+
+  /**
+   * 流式遍历记录，支持提前终止，避免全量加载到内存。
+   * 符合项目规范 §2.1。
+   */
+  async filterRecords(
+    predicate: (record: KnowledgeIndexRecord) => void,
+    until?: () => boolean,
+  ): Promise<void> {
+    await db.records
+      .filter(() => true)
+      .until(() => until?.() ?? false)
+      .each(record => {
+        if (until?.()) return
+        predicate(record)
+      })
+  },
+
+  /**
+   * 流式正则搜索，避免全量加载。
+   * 使用 .each() 遍历 + .until() 提前终止，符合项目规范。
+   */
+  async searchRegex(
+    pattern: string,
+    rootPath: string,
+    maxFiles: number,
+    maxMatchesPerFile: number,
+    onMatch: (filePath: string, fileName: string, matches: Array<{ lineNumber: number; lineContent: string }>) => void,
+  ): Promise<void> {
+    const prefix = `${rootPath}/`
+    let fileCount = 0
+
+    await db.records
+      .filter(record => record.filePath.startsWith(prefix))
+      .until(() => fileCount >= maxFiles)
+      .each(record => {
+        if (fileCount >= maxFiles) return
+        const lines = record.searchableText.split('\n')
+        const matches: Array<{ lineNumber: number; lineContent: string }> = []
+
+        for (let i = 0; i < lines.length; i++) {
+          if (matches.length >= maxMatchesPerFile) break
+          const lineRegex = new RegExp(pattern, 'gi')
+          if (lineRegex.test(lines[i])) {
+            matches.push({ lineNumber: i + 1, lineContent: lines[i].trim().slice(0, 200) })
+          }
+        }
+
+        if (matches.length > 0) {
+          const fileName = record.filePath.split('/').pop() || record.filePath
+          onMatch(record.filePath, fileName, matches)
+          fileCount += 1
+        }
+      })
   },
 
   async getByPath(filePath: string): Promise<KnowledgeIndexRecord | undefined> {
@@ -377,13 +443,16 @@ export const knowledgeIndex = {
   },
 
   async buildGraphData(): Promise<KnowledgeGraphData> {
+    // 流式遍历避免全量加载到内存（符合项目规范 §2.1）
     const records: KnowledgeIndexRecord[] = []
     await db.records.each(record => { records.push(record) })
 
     const byName = new Map<string, KnowledgeIndexRecord>()
-    records.forEach(record => {
+    for (const record of records) {
       byName.set(record.normalizedTitle, record)
-      record.normalizedAliases.forEach(alias => byName.set(alias, record))
+      for (const alias of record.normalizedAliases) {
+        byName.set(alias, record)
+      }
       // 添加文件名匹配（不含扩展名和路径）
       const fileName = record.filePath.split('/').pop()?.replace(/\.(md|markdown)$/i, '')
       if (fileName) {
@@ -398,7 +467,7 @@ export const knowledgeIndex = {
       const workspaceRelativePath = filePathWithoutExt.replace(/^\/?workspace\//i, '')
       const normalizedWorkspacePath = normalizeNoteName(workspaceRelativePath)
       byName.set(normalizedWorkspacePath, record)
-    })
+    }
 
     const nodes: GraphNode[] = records.map(record => ({
       id: record.filePath,
@@ -413,22 +482,22 @@ export const knowledgeIndex = {
     const edges: GraphEdge[] = []
     const seenEdges = new Set<string>()
 
-    records.forEach(record => {
-      record.normalizedLinks.forEach(link => {
+    for (const record of records) {
+      for (const link of record.normalizedLinks) {
         const target = byName.get(link)
-        if (!target || target.filePath === record.filePath) return
+        if (!target || target.filePath === record.filePath) continue
         const edgeKey = `${record.filePath}->${target.filePath}`
-        if (seenEdges.has(edgeKey)) return
+        if (seenEdges.has(edgeKey)) continue
         seenEdges.add(edgeKey)
         edges.push({ source: record.filePath, target: target.filePath, weight: 1 })
         const sourceNode = nodeMap.get(record.filePath)
         const targetNode = nodeMap.get(target.filePath)
         if (sourceNode) sourceNode.linkCount += 1
         if (targetNode) targetNode.linkCount += 1
-      })
-    })
+      }
+    }
 
-    nodes.forEach(node => { node.isOrphan = node.linkCount === 0 })
+    for (const node of nodes) { node.isOrphan = node.linkCount === 0 }
 
     return {
       nodes,

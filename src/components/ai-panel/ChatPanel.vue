@@ -12,16 +12,6 @@
       </div>
       <div class="chat-header-right">
         <el-button
-          :icon="Connection"
-          native-type="button"
-          circle
-          size="small"
-          :type="showGraphInsights ? 'primary' : 'default'"
-          aria-label="图谱洞察"
-          @click="toggleGraphInsights"
-          title="图谱洞察"
-        />
-        <el-button
           :icon="SetUp"
           native-type="button"
           circle
@@ -43,64 +33,6 @@
       </div>
     </div>
 
-    <!-- 图谱洞察面板 -->
-    <div v-if="showGraphInsights" class="graph-insights-panel">
-      <div class="graph-insights-header">
-        <span class="graph-insights-title">图谱洞察</span>
-        <el-button
-          :icon="Refresh"
-          native-type="button"
-          circle
-          size="small"
-          aria-label="刷新"
-          @click="refreshGraphInsights"
-          :loading="insightsLoading"
-          title="刷新"
-        />
-      </div>
-      <div class="graph-stats">
-        <div class="stat-item">
-          <span class="stat-value">{{ graphStats.totalNotes }}</span>
-          <span class="stat-label">笔记</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ graphStats.totalLinks }}</span>
-          <span class="stat-label">连接</span>
-        </div>
-        <div class="stat-item" :class="{ warning: graphStats.orphanCount > 0 }">
-          <span class="stat-value">{{ graphStats.orphanCount }}</span>
-          <span class="stat-label">孤立</span>
-        </div>
-        <div v-if="currentNotePosition" class="stat-item" :class="{ success: currentNotePosition.linkCount > 0, muted: currentNotePosition.isOrphan }">
-          <span class="stat-value">{{ currentNotePosition.linkCount }}</span>
-          <span class="stat-label">当前连接</span>
-        </div>
-      </div>
-
-      <div v-if="connectionSuggestions.length > 0" class="suggestions-section">
-        <div class="suggestions-header">推荐连接</div>
-        <div class="suggestion-list">
-          <div
-            v-for="sug in connectionSuggestions"
-            :key="`${sug.type}-${sug.path}`"
-            class="suggestion-item"
-            :class="sug.type"
-            @click="handleSuggestionClick(sug)"
-          >
-            <span class="suggestion-icon">{{ getSuggestionIcon(sug.type) }}</span>
-            <div class="suggestion-content">
-              <span class="suggestion-note">{{ sug.note }}</span>
-              <span class="suggestion-reason">{{ sug.reason }}</span>
-            </div>
-            <span class="suggestion-action">+ 链接</span>
-          </div>
-        </div>
-      </div>
-      <div v-else class="no-suggestions">
-        <span>暂无连接建议</span>
-      </div>
-    </div>
-
     <div class="chat-messages" ref="messagesRef">
       <div
         v-for="msg in messages"
@@ -119,6 +51,7 @@
             class="message-text"
             v-html="renderMarkdown(msg.content, msg.ragSources)"
             @click="handleMessageCitationClick($event, msg)"
+            @click.capture="handleMessageCopyClick"
             @mouseover="handleMessageCitationPreview($event, msg)"
             @focusin="handleMessageCitationPreview($event, msg)"
             @mouseout="handleMessageCitationPreviewEnd($event, msg)"
@@ -241,16 +174,21 @@
           <div v-if="isAgentRunning" class="agent-status">Agent 正在执行...</div>
         </div>
       </div>
+
+      <QuickActions
+        v-if="aiPanelState === 'connected' || aiPanelState === 'idle'"
+        class="chat-quick-actions"
+        @action="handleQuickAction"
+      />
     </div>
 
     <div class="chat-input-area">
       <template v-if="aiPanelState === 'connected' || aiPanelState === 'idle'">
-        <QuickActions v-if="messages.length === 0" @action="handleQuickAction" />
         <el-input
           v-model="inputText"
           type="textarea"
-          :rows="2"
-          placeholder="输入问题..."
+          :autosize="{ minRows: 1, maxRows: 4 }"
+          :placeholder="inputPlaceholder"
           resize="none"
           @keydown.enter.exact.prevent="sendMessage"
           @keydown.shift.enter.exact.stop
@@ -306,21 +244,12 @@
       </template>
 
       <template v-else>
-        <div class="chat-status-panel">
-          <div class="chat-status-icon">🤖</div>
-          <div class="chat-status-title">AI 助手未启用</div>
-          <div class="chat-status-desc">
-            请完成 AI 配置后使用以下功能：对话问答、内容续写、润色改写、摘要生成、知识图谱洞察。
-          </div>
-          <div class="chat-status-actions">
-            <el-button type="primary" size="small" @click="goToAIConfig">
-              <el-icon style="margin-right: 4px"><Setting /></el-icon>
-              去配置 AI
-            </el-button>
-          </div>
-          <div class="chat-status-hint">
-            💡 支持本地 Ollama 或 OpenAI 兼容的云端服务
-          </div>
+        <div class="chat-status-panel chat-status-compact">
+          <el-button type="primary" size="small" @click="goToAIConfig">
+            <el-icon style="margin-right: 4px"><Setting /></el-icon>
+            配置 AI 助手
+          </el-button>
+          <span class="chat-status-hint-inline">支持 Ollama 或 OpenAI 兼容服务</span>
         </div>
       </template>
     </div>
@@ -330,13 +259,17 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue'
 import { aiService } from '@/services/ai'
-import type { AIMessage, AIRAGSource, GraphNode, KnowledgeGraphData } from '@/types'
+import type { AIMessage, AIRAGSource } from '@/types'
 import { throttle } from '@/composables/useDebounce'
 import { useAgentChat } from '@/composables/useAgentChat'
 import { useChatStream } from '@/composables/useChatStream'
+import { useAIStatus } from '@/composables/useAIStatus'
+import { useChatMessages } from '@/composables/useChatMessages'
+import { useRAGPreview } from '@/composables/useRAGPreview'
 import { useSettingsStore } from '@/stores/settings'
 import { ElMessage } from 'element-plus'
-import { escapeHtml, sanitizeMarkdown, safeCopyToClipboard, safeStorage } from '@/utils/security'
+import { escapeHtml, sanitizeMarkdown, safeCopyToClipboard } from '@/utils/security'
+import { createMarkdownRenderer } from '@/utils/exportHtml'
 import {
   User,
   ChatDotRound,
@@ -347,15 +280,11 @@ import {
   Promotion,
   VideoPause,
   SetUp,
-  Connection,
   Loading,
   Setting
 } from '@element-plus/icons-vue'
 import QuickActions from './QuickActions.vue'
 import VoiceInputButton from '@/components/ui/VoiceInputButton.vue'
-
-import { knowledgeIndex } from '@/services/knowledgeIndex'
-import type { GraphInsights } from '@/services/agent/types'
 
 const props = defineProps<{
   context?: string
@@ -370,31 +299,34 @@ const emit = defineEmits<{
 
 const settingsStore = useSettingsStore()
 
-const providerStatus = ref<string>('idle')
-const providerError = ref<string>('')
+const {
+  providerStatus,
+  providerError,
+  aiPanelState,
+  refreshProviderStatus,
+  setProviderStatus,
+  goToAIConfig,
+} = useAIStatus()
 
-const refreshProviderStatus = () => {
-  const p = aiService.getActiveProvider()
-  providerStatus.value = p?.status ?? 'idle'
-  providerError.value = p?.lastError ?? ''
-}
+const { messages, clearMessages } = useChatMessages()
 
-const aiPanelState = computed(() => {
-  if (!settingsStore.aiConfigured) return 'unconfigured'
-  return providerStatus.value // 'idle' | 'connecting' | 'connected' | 'error'
-})
+const {
+  activeSourcePreview,
+  showSourcePreview,
+  hideSourcePreview,
+  isSourcePreviewActive,
+} = useRAGPreview()
 
-const goToAIConfig = () => {
-  settingsStore.setSidebarVisible(true)
-  settingsStore.setActiveTab('tools')
-}
+let connectionTestVersion = 0
 
 const testProviderConnection = async () => {
   const p = aiService.getActiveProvider()
   if (!p) return
-  providerStatus.value = 'connecting'
+  const testVersion = ++connectionTestVersion
+  setProviderStatus('connecting')
   try {
     const result = await p.testConnection()
+    if (testVersion !== connectionTestVersion) return
     refreshProviderStatus()
     if (!result.ok) {
       ElMessage.error(`连接失败: ${result.error ?? '未知错误'}`)
@@ -402,196 +334,20 @@ const testProviderConnection = async () => {
       ElMessage.success('连接成功')
     }
   } catch (e: any) {
+    if (testVersion !== connectionTestVersion) return
     refreshProviderStatus()
     ElMessage.error(`连接错误: ${e?.message ?? String(e)}`)
   }
 }
 
-// 图谱洞察状态
-const showGraphInsights = ref(false)
-const insightsLoading = ref(false)
-const graphInsightsData = ref<GraphInsights | null>(null)
+const inputText = ref('')
+const messagesRef = ref<HTMLDivElement>()
 
-const graphStats = computed(() => ({
-  totalNotes: graphInsightsData.value?.totalNotes || 0,
-  totalLinks: graphInsightsData.value?.totalLinks || 0,
-  orphanCount: graphInsightsData.value?.orphanCount || 0,
-}))
-
-const currentNotePosition = computed(() => graphInsightsData.value?.currentNotePosition)
-
-const connectionSuggestions = computed(() => graphInsightsData.value?.suggestions || [])
-
-const getSuggestionIcon = (type: string): string => {
-  switch (type) {
-    case 'connect-orphan': return '🔗'
-    case 'similar-topic': return '🏷️'
-    case 'missing-link': return '⭐'
-    default: return '📌'
-  }
-}
-
-type ConnectionSuggestion = NonNullable<GraphInsights['suggestions']>[number]
-
-const getEndpointPath = (endpoint: string | GraphNode): string => (
-  typeof endpoint === 'string' ? endpoint : endpoint.path
-)
-
-const getNeighborPaths = (graphData: KnowledgeGraphData, currentPath: string): Set<string> => {
-  const neighborPaths = new Set<string>()
-  graphData.edges.forEach(edge => {
-    const source = getEndpointPath(edge.source)
-    const target = getEndpointPath(edge.target)
-    if (source === currentPath) neighborPaths.add(target)
-    if (target === currentPath) neighborPaths.add(source)
-  })
-  return neighborPaths
-}
-
-const buildConnectionSuggestions = (
-  graphData: KnowledgeGraphData,
-  currentNode: GraphNode,
-  neighborPaths: Set<string>
-): ConnectionSuggestion[] => {
-  const currentTags = new Set(currentNode.tags)
-  const excludedPaths = new Set<string>([currentNode.path, ...neighborPaths])
-  const suggestions = new Map<string, ConnectionSuggestion & { priority: number }>()
-
-  if (currentNode.isOrphan && graphData.stats.orphanCount > 1) {
-    graphData.nodes
-      .filter(node => node.isOrphan && !excludedPaths.has(node.path))
-      .slice(0, 3)
-      .forEach(node => {
-        suggestions.set(node.path, {
-          type: 'connect-orphan',
-          note: node.label,
-          path: node.path,
-          reason: '同为孤立笔记，可考虑建立入口连接',
-          priority: 3,
-        })
-      })
-  }
-
-  if (currentTags.size > 0) {
-    graphData.nodes
-      .map(node => ({
-        node,
-        sharedTags: node.tags.filter(tag => currentTags.has(tag)),
-      }))
-      .filter(item => item.sharedTags.length > 0 && !excludedPaths.has(item.node.path))
-      .sort((a, b) => b.sharedTags.length - a.sharedTags.length || b.node.linkCount - a.node.linkCount)
-      .slice(0, 5)
-      .forEach(({ node, sharedTags }) => {
-        suggestions.set(node.path, {
-          type: 'similar-topic',
-          note: node.label,
-          path: node.path,
-          reason: `共享标签: ${sharedTags.join(', ')}`,
-          priority: 2,
-        })
-      })
-  }
-
-  graphData.nodes
-    .filter(node => node.linkCount >= 3 && !excludedPaths.has(node.path))
-    .sort((a, b) => b.linkCount - a.linkCount)
-    .slice(0, 5)
-    .forEach(node => {
-      if (suggestions.has(node.path)) return
-      suggestions.set(node.path, {
-        type: 'missing-link',
-        note: node.label,
-        path: node.path,
-        reason: `这篇笔记已有 ${node.linkCount} 个连接，可能值得引用`,
-        priority: 1,
-      })
-    })
-
-  return [...suggestions.values()]
-    .sort((a, b) => b.priority - a.priority)
-    .slice(0, 10)
-    .map(({ priority: _priority, ...suggestion }) => suggestion)
-}
-
-const toggleGraphInsights = async () => {
-  showGraphInsights.value = !showGraphInsights.value
-  if (showGraphInsights.value && !graphInsightsData.value) {
-    await refreshGraphInsights()
-  }
-}
-
-const refreshGraphInsights = async () => {
-  insightsLoading.value = true
-  try {
-    const graphData = await knowledgeIndex.buildGraphData()
-    const insights: GraphInsights = {
-      totalNotes: graphData.stats.totalNodes,
-      totalLinks: graphData.stats.totalEdges,
-      orphanCount: graphData.stats.orphanCount,
-      suggestions: [],
-    }
-
-    if (props.currentFile) {
-      const currentNode = graphData.nodes.find(node => node.path === props.currentFile)
-      if (currentNode) {
-        const neighborPaths = getNeighborPaths(graphData, props.currentFile)
-        insights.currentNotePosition = {
-          linkCount: currentNode.linkCount,
-          isOrphan: currentNode.isOrphan,
-          neighbors: graphData.nodes
-            .filter(node => neighborPaths.has(node.path))
-            .map(node => ({ title: node.label, path: node.path })),
-        }
-        insights.suggestions = buildConnectionSuggestions(graphData, currentNode, neighborPaths)
-      }
-    }
-
-    graphInsightsData.value = insights
-  } catch (e) {
-    console.error('Failed to load graph insights:', e)
-  } finally {
-    insightsLoading.value = false
-  }
-}
-
-const handleSuggestionClick = (sug: ConnectionSuggestion) => {
-  // 从路径提取笔记名称（去掉路径和扩展名）
-  const noteName = sug.path.split('/').pop()?.replace(/\.(md|markdown)$/i, '') || sug.note
-  // 创建 Wiki Link 格式的文本
-  const wikiLink = `[[${noteName}]]`
-  // 插入到编辑器
-  emit('insert', wikiLink)
-  // 同时打开目标笔记供用户参考
-  emit('navigate', sug.path)
-}
-
-watch(() => props.currentFile, () => {
-  if (showGraphInsights.value) {
-    void refreshGraphInsights()
-  } else {
-    graphInsightsData.value = null
-  }
+const inputPlaceholder = computed(() => {
+  const fileName = props.currentFile?.split('/').pop()?.replace(/\.md$/i, '')
+  if (fileName) return `关于「${fileName}」的问题...`
+  return '输入问题...'
 })
-
-const CHAT_HISTORY_KEY = 'ai_chat_history'
-const MAX_HISTORY_MESSAGES = 50
-const MAX_HISTORY_BYTES = 200_000
-
-function loadChatHistory(): AIMessage[] {
-  const parsed = safeStorage.get<AIMessage[]>(CHAT_HISTORY_KEY, [])
-  if (!Array.isArray(parsed)) return []
-  return parsed.slice(-MAX_HISTORY_MESSAGES)
-}
-
-function saveChatHistory(msgs: AIMessage[]) {
-  let toSave = msgs.slice(-MAX_HISTORY_MESSAGES)
-  let serialized = JSON.stringify(toSave)
-  while (serialized.length > MAX_HISTORY_BYTES && toSave.length > 0) {
-    toSave = toSave.slice(1)
-    serialized = JSON.stringify(toSave)
-  }
-  safeStorage.set(CHAT_HISTORY_KEY, toSave)
-}
 
 function formatSourceLabel(source: AIRAGSource): string {
   const fileName = source.filePath.split('/').pop() || source.filePath
@@ -618,11 +374,6 @@ function sourceLineNumber(source: AIRAGSource): number | undefined {
   return source.lineStart && source.lineStart > 0 ? source.lineStart : undefined
 }
 
-const messages = ref<AIMessage[]>(loadChatHistory())
-const inputText = ref('')
-const messagesRef = ref<HTMLDivElement>()
-const activeSourcePreview = ref<{ messageId: string; source: AIRAGSource } | null>(null)
-
 const { streaming, streamChat, stopStreaming, dispose: disposeStream } = useChatStream({
   messages: () => messages.value,
   documentContext: props.context,
@@ -642,6 +393,7 @@ const {
   setAgentMode,
   executeAgent,
   stopAgent,
+  disposeAgent,
 } = useAgentChat({
   messages: () => messages.value,
   onMessageUpdate: (msg: AIMessage) => {
@@ -669,22 +421,6 @@ function openRAGSource(source: AIRAGSource) {
   emit('open-source', { path: source.filePath, lineNumber: sourceLineNumber(source) })
 }
 
-function showSourcePreview(messageId: string, source: AIRAGSource) {
-  activeSourcePreview.value = { messageId, source }
-}
-
-function hideSourcePreview(messageId?: string, sourceId?: string) {
-  const active = activeSourcePreview.value
-  if (!active) return
-  if (messageId && active.messageId !== messageId) return
-  if (sourceId && active.source.id !== sourceId) return
-  activeSourcePreview.value = null
-}
-
-function isSourcePreviewActive(messageId: string, sourceId: string): boolean {
-  return activeSourcePreview.value?.messageId === messageId && activeSourcePreview.value.source.id === sourceId
-}
-
 function renderSourceCitations(html: string, sources?: AIRAGSource[]): string {
   if (!sources?.length) return html
   const sourceMap = new Map(
@@ -705,26 +441,15 @@ function renderSourceCitations(html: string, sources?: AIRAGSource[]): string {
   })
 }
 
+const chatMd = createMarkdownRenderer()
+
 const renderMarkdown = (text: string, sources?: AIRAGSource[]) => {
-  const codeBlocks: string[] = []
-  const inlineCodes: string[] = []
-  const preserved = text
-    .replace(/```([\s\S]*?)```/g, (_, code) => {
-      codeBlocks.push(`<pre><code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`)
-      return `\x00CB${codeBlocks.length - 1}\x00`
-    })
-    .replace(/`([^`]+)`/g, (_, code) => {
-      inlineCodes.push(`<code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code>`)
-      return `\x00IC${inlineCodes.length - 1}\x00`
-    })
-  const rendered = preserved
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    .replace(/\n/g, '<br>')
-  return sanitizeMarkdown(renderSourceCitations(rendered, sources)
-    .replace(/\x00CB(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i)])
-    .replace(/\x00IC(\d+)\x00/g, (_, i) => inlineCodes[parseInt(i)]))
+  const html = chatMd.render(text)
+  return sanitizeMarkdown(renderCopyButtons(renderSourceCitations(html, sources)))
+}
+
+function renderCopyButtons(html: string): string {
+  return html.replace(/<pre><code/g, '<pre><button class="copy-btn" type="button" aria-label="复制代码块">复制</button><code')
 }
 
 function findSourceFromCitationEvent(event: Event, msg: AIMessage): { source: AIRAGSource; button: HTMLButtonElement } | null {
@@ -755,26 +480,14 @@ function handleMessageCitationPreviewEnd(event: MouseEvent | FocusEvent, msg: AI
   hideSourcePreview(msg.id, found.source.id)
 }
 
-const addCopyButtons = () => {
-  nextTick(() => {
-    messagesRef.value?.querySelectorAll('pre code').forEach((block) => {
-      const pre = block.parentElement
-      if (pre && !pre.querySelector('.copy-btn')) {
-        const btn = document.createElement('button')
-        btn.className = 'copy-btn'
-        btn.type = 'button'
-        btn.setAttribute('aria-label', '复制代码块')
-        btn.textContent = '复制'
-        btn.onclick = async () => {
-          const copied = await safeCopyToClipboard(block.textContent || '')
-          btn.textContent = copied ? '已复制' : '复制失败'
-          setTimeout(() => { btn.textContent = '复制' }, 2000)
-        }
-        pre.style.position = 'relative'
-        pre.appendChild(btn)
-      }
-    })
-  })
+async function handleMessageCopyClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null
+  const button = target?.closest('.copy-btn') as HTMLButtonElement | null
+  if (!button) return
+  const code = button.parentElement?.querySelector('code')?.textContent ?? ''
+  const copied = await safeCopyToClipboard(code)
+  button.textContent = copied ? '已复制' : '复制失败'
+  setTimeout(() => { button.textContent = '复制' }, 2000)
 }
 
 const sendMessage = async () => {
@@ -788,7 +501,7 @@ const sendMessage = async () => {
   await scrollToBottom()
 
   if (agentMode.value) {
-    await sendAgentMessage(text, uid)
+    await sendAgentMessage(text)
     return
   }
 
@@ -799,7 +512,8 @@ const sendMessage = async () => {
   }
 }
 
-const sendAgentMessage = async (prompt: string, uid: () => string) => {
+const sendAgentMessage = async (prompt: string) => {
+  const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
   const assistantMsg: AIMessage = {
     id: uid(), role: 'assistant', content: '', toolCalls: [], timestamp: Date.now()
   }
@@ -821,7 +535,7 @@ const sendAgentMessage = async (prompt: string, uid: () => string) => {
 
 const regenerate = async (msg: AIMessage) => {
   const index = messages.value.findIndex(m => m.id === msg.id)
-  if (index === -1) return
+  if (index <= 0) return
   messages.value = messages.value.slice(0, index)
   inputText.value = messages.value[index - 1]?.content || ''
   await sendMessage()
@@ -833,25 +547,19 @@ const copyMessage = async (content: string) => {
 }
 
 const stopAll = () => { stopStreaming(); stopAgent() }
-const clearMessages = () => { messages.value = [] }
-const handleQuickAction = (prompt: string, _label: string) => { inputText.value = prompt; sendMessage() }
+const handleQuickAction = (prompt: string, _label: string) => {
+  const context = props.context?.trim()
+  inputText.value = context ? `${prompt}${context}` : prompt
+  sendMessage()
+}
 const handleVoiceResult = (text: string) => { inputText.value += text }
 
-watch(messages, () => { scrollToBottom(); addCopyButtons(); saveChatHistory(messages.value) }, { deep: true })
-
-let unsubscribeStatus: (() => void) | null = null
-
-onMounted(() => {
-  refreshProviderStatus()
-  unsubscribeStatus = aiService.onStatusChange((_id, _status, _error) => {
-    refreshProviderStatus()
-  })
-})
+watch(() => messages.value.length, () => { scrollToBottom() })
+watch(() => messages.value[messages.value.length - 1]?.content, () => { scrollToBottom() })
 
 onUnmounted(() => {
   disposeStream()
-  stopAgent()
-  unsubscribeStatus?.()
+  disposeAgent()
 })
 
 defineExpose({ clearMessages })
@@ -904,6 +612,18 @@ defineExpose({ clearMessages })
   gap: 10px;
   scrollbar-width: thin;
   scrollbar-color: var(--obsidian-text-faint) transparent;
+}
+
+.chat-quick-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: 2px;
+  padding: 6px;
+  border: 1px solid var(--obsidian-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--obsidian-bg-secondary) 92%, transparent);
+  backdrop-filter: blur(8px);
 }
 
 .chat-messages::-webkit-scrollbar { width: 4px; }
@@ -1135,7 +855,8 @@ defineExpose({ clearMessages })
   border-radius: var(--radius-md);
   font-family: var(--font-sans);
   font-size: 13px;
-  padding: 6px 10px;
+  min-height: 32px !important;
+  padding: 7px 10px;
   box-shadow: none;
 }
 
@@ -1215,153 +936,6 @@ defineExpose({ clearMessages })
 .tool-call-error-msg { margin-top: 2px; color: var(--el-color-danger, #f56c6c); }
 .agent-status { font-size: 11px; color: var(--obsidian-text-muted); margin-top: 4px; }
 
-/* 图谱洞察面板样式 */
-.graph-insights-panel {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--obsidian-border);
-  background: var(--obsidian-bg-secondary);
-  max-height: 280px;
-  overflow-y: auto;
-}
-
-.graph-insights-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.graph-insights-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--obsidian-text-normal);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.graph-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 8px 6px;
-  background: var(--obsidian-bg-primary);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--obsidian-border);
-}
-
-.stat-value {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--obsidian-accent);
-  font-family: var(--font-mono);
-}
-
-.stat-label {
-  font-size: 10px;
-  color: var(--obsidian-text-muted);
-  text-transform: uppercase;
-  margin-top: 2px;
-}
-
-.stat-item.warning .stat-value { color: var(--el-color-warning, #e6a23c); }
-.stat-item.success .stat-value { color: var(--el-color-success, #67c23a); }
-.stat-item.muted .stat-value { color: var(--obsidian-text-faint); }
-
-.suggestions-section {
-  border-top: 1px solid var(--obsidian-border);
-  padding-top: 8px;
-}
-
-.suggestions-header {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--obsidian-text-muted);
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}
-
-.suggestion-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.suggestion-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 6px 8px;
-  background: var(--obsidian-bg-primary);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-default);
-  border: 1px solid transparent;
-}
-
-.suggestion-item:hover {
-  border-color: var(--obsidian-accent);
-  background: var(--obsidian-accent-soft);
-}
-
-.suggestion-icon {
-  font-size: 14px;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.suggestion-content {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-}
-
-.suggestion-note {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--obsidian-text-normal);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.suggestion-reason {
-  font-size: 11px;
-  color: var(--obsidian-text-muted);
-  line-height: 1.3;
-  margin-top: 1px;
-}
-
-.suggestion-action {
-  font-size: 10px;
-  color: var(--obsidian-accent);
-  background: var(--obsidian-accent-soft);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 600;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.suggestion-item:hover .suggestion-action {
-  background: var(--obsidian-accent);
-  color: white;
-}
-
-.no-suggestions {
-  text-align: center;
-  padding: 12px;
-  color: var(--obsidian-text-faint);
-  font-size: 12px;
-}
-
 .copy-btn {
   position: absolute;
   top: 6px;
@@ -1418,6 +992,19 @@ pre:hover .copy-btn { opacity: 1; }
 }
 
 .chat-status-hint {
+  font-size: 11px;
+  color: var(--obsidian-text-faint);
+}
+
+.chat-status-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.chat-status-hint-inline {
   font-size: 11px;
   color: var(--obsidian-text-faint);
 }
