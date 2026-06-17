@@ -5,7 +5,7 @@
       :markdown-paths="markdownPaths"
       @execute="handleCommandExecute"
     />
-    <TemplateGallery v-model="showTemplateGallery" @select="handleTemplateSelect" />
+    <TemplateGallery v-model="showTemplateGallery" :current-content="editorContent" @select="handleTemplateSelect" />
     <VersionHistoryPanel v-model="showVersionHistory" :file-path="editorStore.currentFile" @restore="handleVersionRestore" />
     <ExportDialog v-model="showExportDialog" :content="editorContent" :default-file-name="currentFileName" :current-file="editorStore.currentFile" />
     <MarkdownCheatsheet v-model="showCheatsheet" />

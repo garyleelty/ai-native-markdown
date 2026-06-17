@@ -1,6 +1,9 @@
 <template>
   <el-dialog v-model="visible" title="从模板创建" width="600px" class="responsive-dialog" @close="$emit('update:modelValue', false)">
-    <el-input v-model="searchQuery" placeholder="搜索模板..." aria-label="搜索模板" clearable :prefix-icon="Search" style="margin-bottom: 16px" />
+    <div class="template-toolbar">
+      <el-input v-model="searchQuery" placeholder="搜索模板..." aria-label="搜索模板" clearable :prefix-icon="Search" />
+      <el-button :icon="Plus" native-type="button" aria-label="保存当前文档为模板" @click="openSaveDialog">保存为模板</el-button>
+    </div>
     <div class="template-grid">
       <el-card
         v-for="t in filteredTemplates"
@@ -18,17 +21,45 @@
           <el-icon :size="24"><component :is="t.icon" /></el-icon>
         </div>
         <div class="template-name">{{ t.name }}</div>
-        <div class="template-desc">{{ t.desc }}</div>
+        <button
+          v-if="!t.builtIn"
+          type="button"
+          class="template-delete"
+          aria-label="删除模板"
+          @click.stop="deleteTemplate(t)"
+        >
+          <el-icon :size="12"><Delete /></el-icon>
+        </button>
       </el-card>
     </div>
+
+    <el-dialog v-model="showSaveDialog" title="保存为模板" width="400px" append-to-body>
+      <el-form label-position="top">
+        <el-form-item label="模板名称">
+          <el-input v-model="saveName" placeholder="我的模板" aria-label="模板名称" />
+        </el-form-item>
+        <el-form-item label="模板内容">
+          <el-input v-model="saveContent" type="textarea" :rows="8" aria-label="模板内容" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button native-type="button" @click="showSaveDialog = false">取消</el-button>
+        <el-button type="primary" native-type="button" @click="handleSaveTemplate">保存</el-button>
+      </template>
+    </el-dialog>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { Search, Document, Notebook, TrendCharts, ChatDotRound, Memo, Calendar, Reading, Trophy } from '@element-plus/icons-vue'
+import { ref, computed, type Component } from 'vue'
+import { Search, Document, Notebook, TrendCharts, ChatDotRound, Memo, Calendar, Reading, Trophy, Plus, Delete } from '@element-plus/icons-vue'
+import { templateService, type TemplateEntry } from '@/services/templateService'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
-const props = defineProps<{ modelValue: boolean }>()
+const props = defineProps<{
+  modelValue: boolean
+  currentContent?: string
+}>()
 const emit = defineEmits<{
   (e: 'update:modelValue', val: boolean): void
   (e: 'select', content: string, name: string): void
@@ -40,56 +71,79 @@ const visible = computed({
 })
 
 const searchQuery = ref('')
+const showSaveDialog = ref(false)
+const saveName = ref('')
+const saveContent = ref('')
+const refreshKey = ref(0)
 
-const templates = [
-  {
-    id: 'blank', name: '空白文档', desc: '从零开始', icon: Document,
-    content: ''
-  },
-  {
-    id: 'blog', name: '博客文章', desc: '技术博客模板', icon: Notebook,
-    content: `# 标题\n\n> 一句话描述\n\n## 背景\n\n## 正文\n\n### 要点一\n\n### 要点二\n\n## 总结\n\n---\n\n*感谢阅读！*`
-  },
-  {
-    id: 'readme', name: 'README', desc: '项目说明文档', icon: Memo,
-    content: `# 项目名称\n\n简短描述\n\n## 功能特性\n\n- 特性一\n- 特性二\n- 特性三\n\n## 快速开始\n\n\`\`\`bash\nnpm install\n\`\`\`\n\n## 使用方法\n\n## 配置\n\n## 贡献\n\n## 许可证\n\nMIT`
-  },
-  {
-    id: 'meeting', name: '会议纪要', desc: '会议记录模板', icon: Calendar,
-    content: `# 会议纪要\n\n**日期**: {{date}}\n**参与者**: \n**主题**: \n\n## 议题\n\n### 议题一\n\n- 讨论:\n- 决定:\n\n### 议题二\n\n- 讨论:\n- 决定:\n\n## 行动项\n\n| 任务 | 负责人 | 截止日期 |\n|------|--------|----------|\n|      |        |          |\n\n## 下次会议\n\n- 时间:\n- 议题:`
-  },
-  {
-    id: 'weekly', name: '周报', desc: '工作周报模板', icon: TrendCharts,
-    content: `# 周报 {{week}}\n\n## 本周完成\n\n1. \n2. \n3. \n\n## 进行中\n\n1. \n2. \n\n## 下周计划\n\n1. \n2. \n3. \n\n## 风险与问题\n\n- \n\n## 学习与反思\n\n`
-  },
-  {
-    id: 'api', name: 'API 文档', desc: '接口文档模板', icon: Reading,
-    content: `# API 文档\n\n## 接口名称\n\n**URL**: \`/api/endpoint\`\n**方法**: \`GET/POST\`\n\n### 请求参数\n\n| 参数 | 类型 | 必填 | 描述 |\n|------|------|------|------|\n|      |      |      |      |\n\n### 响应\n\n\`\`\`json\n{\n  "code": 200,\n  "data": {},\n  "message": "success"\n}\n\`\`\`\n\n### 错误码\n\n| 错误码 | 描述 |\n|--------|------|\n|        |      |`
-  },
-  {
-    id: 'tutorial', name: '教程', desc: '步骤教程模板', icon: Trophy,
-    content: `# 教程标题\n\n## 前置条件\n\n- \n\n## 步骤一：\n\n1. \n2. \n3. \n\n## 步骤二：\n\n1. \n2. \n\n## 步骤三：\n\n1. \n2. \n\n## 常见问题\n\n### Q1:\n\nA: \n\n## 总结\n\n恭喜完成！`
-  },
-  {
-    id: 'chat-export', name: '对话导出', desc: 'AI 对话记录模板', icon: ChatDotRound,
-    content: `# 对话记录\n\n**日期**: {{date}}\n**模型**: \n\n---\n\n## 用户\n\n\n\n## 助手\n\n\n\n---\n\n## 用户\n\n\n\n## 助手\n\n`
-  }
-]
+const iconMap: Record<string, Component> = {
+  blank: Document, blog: Notebook, readme: Memo, meeting: Calendar,
+  weekly: TrendCharts, api: Reading, tutorial: Trophy, 'chat-export': ChatDotRound,
+}
 
-const filteredTemplates = computed(() => {
-  if (!searchQuery.value) return templates
-  const q = searchQuery.value.toLowerCase()
-  return templates.filter(t => t.name.toLowerCase().includes(q) || t.desc.toLowerCase().includes(q))
+const templates = computed(() => {
+  void refreshKey.value
+  return templateService.getAllTemplates().map(t => ({
+    ...t,
+    icon: t.builtIn ? (iconMap[t.id] || Document) : Document,
+  }))
 })
 
-const selectTemplate = (t: typeof templates[0]) => {
-  const content = t.content.replace('{{date}}', new Date().toLocaleDateString('zh-CN')).replace('{{week}}', `W${Math.ceil((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 604800000)}`)
+const filteredTemplates = computed(() => {
+  if (!searchQuery.value) return templates.value
+  const q = searchQuery.value.toLowerCase()
+  return templates.value.filter(t => t.name.toLowerCase().includes(q))
+})
+
+const selectTemplate = (t: TemplateEntry & { icon: Component }) => {
+  const content = t.content
+    .replace('{{date}}', new Date().toLocaleDateString('zh-CN'))
+    .replace('{{week}}', `W${Math.ceil((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 604800000)}`)
   emit('select', content, `${t.name}.md`)
   visible.value = false
+}
+
+const openSaveDialog = () => {
+  saveName.value = ''
+  saveContent.value = props.currentContent || ''
+  showSaveDialog.value = true
+}
+
+const handleSaveTemplate = () => {
+  if (!saveName.value.trim()) {
+    ElMessage.warning('请输入模板名称')
+    return
+  }
+  try {
+    templateService.saveUserTemplate({ name: saveName.value.trim(), content: saveContent.value })
+    showSaveDialog.value = false
+    refreshKey.value++
+    ElMessage.success('模板已保存')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '保存失败')
+  }
+}
+
+const deleteTemplate = async (t: TemplateEntry) => {
+  if (t.builtIn) return
+  try {
+    await ElMessageBox.confirm(`确定删除模板「${t.name}」？`, '删除模板', { type: 'warning' })
+    templateService.deleteUserTemplate(t.id)
+    refreshKey.value++
+    ElMessage.success('已删除')
+  } catch {
+    // cancelled
+  }
 }
 </script>
 
 <style scoped>
+.template-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
 .template-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
@@ -97,6 +151,7 @@ const selectTemplate = (t: typeof templates[0]) => {
 }
 
 .template-card {
+  position: relative;
   cursor: pointer;
   text-align: center;
   transition: all 0.2s;
@@ -132,9 +187,26 @@ const selectTemplate = (t: typeof templates[0]) => {
   margin-bottom: 4px;
 }
 
-.template-desc {
-  font-size: 11px;
+.template-delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
   color: var(--obsidian-text-faint);
-  line-height: 1.4;
+  padding: 2px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.template-card:hover .template-delete {
+  opacity: 1;
+}
+
+.template-delete:hover {
+  color: var(--el-color-danger);
+  background: var(--obsidian-bg-hover);
 }
 </style>
