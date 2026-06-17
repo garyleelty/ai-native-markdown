@@ -79,3 +79,5 @@ doc
 skills-lock.json
 .playwright-cli/
 output/
+.superpowers/brainstorm/
+.slim/deepwork/

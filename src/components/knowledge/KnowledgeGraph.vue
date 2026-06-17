@@ -36,6 +36,30 @@
           当前
         </button>
       </div>
+      <div class="graph-filters" aria-label="图谱过滤器">
+        <select v-model="selectedTag" class="graph-filter-select" aria-label="按标签过滤图谱">
+          <option value="">全部标签</option>
+          <option v-for="tag in availableTags" :key="tag" :value="tag">#{{ tag }}</option>
+        </select>
+        <select v-model="selectedDirectory" class="graph-filter-select" aria-label="按目录过滤图谱">
+          <option value="">全部目录</option>
+          <option v-for="dir in availableDirectories" :key="dir" :value="dir">{{ dir }}</option>
+        </select>
+        <label class="depth-filter" title="连接深度">
+          <span>深度 {{ maxDepth }}</span>
+          <input v-model.number="maxDepth" type="range" min="0" max="5" aria-label="连接深度" />
+        </label>
+      </div>
+      <button
+        type="button"
+        class="toolbar-btn"
+        @click="clearFilters"
+        title="清除过滤"
+        aria-label="清除图谱过滤"
+        :disabled="!hasActiveFilters"
+      >
+        ×
+      </button>
       <button
         type="button"
         class="toolbar-btn"
@@ -105,6 +129,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useKnowledgeGraph } from '@/composables/useKnowledgeGraph'
 import type { KnowledgeGraphData, GraphEdge, GraphNode } from '@/types'
+import { filterGraphData, getAvailableGraphDirectories, getAvailableGraphTags } from '@/utils/graphFilters'
 
 const props = defineProps<{
   graphData: KnowledgeGraphData
@@ -118,14 +143,18 @@ const emit = defineEmits<{
 const graphContainer = ref<HTMLElement | null>(null)
 const searchQuery = ref('')
 const graphMode = ref<'global' | 'current'>('global')
+const selectedTag = ref('')
+const selectedDirectory = ref('')
+const maxDepth = ref(0)
 const mousePos = ref({ x: 0, y: 0 })
 let graphRenderVersion = 0
 let isDisposed = false
 
-const { initGraph, hoveredNode, focusNode, setCurrentNode, destroyGraph } = useKnowledgeGraph(
+const { initGraph, hoveredNode, focusNode, setCurrentNode, destroyGraph, updateGraph } = useKnowledgeGraph(
   graphContainer,
   (node) => emit('nodeClick', node)
 )
+let graphInitialized = false
 
 const tooltipStyle = computed(() => ({
   left: `${mousePos.value.x + 12}px`,
@@ -200,54 +229,18 @@ const localGraphData = computed<KnowledgeGraphData>(() => {
 })
 
 const visibleGraphData = computed(() => graphMode.value === 'current' ? localGraphData.value : props.graphData)
+const availableTags = computed(() => getAvailableGraphTags(visibleGraphData.value))
+const availableDirectories = computed(() => getAvailableGraphDirectories(visibleGraphData.value))
+const hasActiveFilters = computed(() => Boolean(searchQuery.value.trim() || selectedTag.value || selectedDirectory.value || maxDepth.value > 0))
 
 const filteredGraphData = computed<KnowledgeGraphData>(() => {
-  const base = visibleGraphData.value
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return base
-
-  const matchedIds = new Set<string>()
-  base.nodes.forEach(node => {
-    const haystack = [
-      node.label,
-      node.id,
-      node.path,
-      ...node.tags.map(tag => `#${tag}`),
-    ].join(' ').toLowerCase()
-    if (haystack.includes(q)) matchedIds.add(node.id)
+  return filterGraphData(visibleGraphData.value, {
+    searchText: searchQuery.value,
+    tags: selectedTag.value ? [selectedTag.value] : [],
+    pathPrefix: selectedDirectory.value || undefined,
+    maxDepth: maxDepth.value,
+    currentFile: props.currentFile,
   })
-
-  const neighborIds = new Set<string>()
-  base.edges.forEach(edge => {
-    const source = getEdgeSourceId(edge)
-    const target = getEdgeTargetId(edge)
-    if (matchedIds.has(source)) neighborIds.add(target)
-    if (matchedIds.has(target)) neighborIds.add(source)
-  })
-
-  const includedIds = new Set([...matchedIds, ...neighborIds])
-  const nodes = base.nodes.filter(node => includedIds.has(node.id)).map(node => ({ ...node }))
-  const edges = base.edges
-    .filter(edge => includedIds.has(getEdgeSourceId(edge)) && includedIds.has(getEdgeTargetId(edge)))
-    .map(edge => ({
-      source: getEdgeSourceId(edge),
-      target: getEdgeTargetId(edge),
-      weight: edge.weight,
-    }))
-
-  const localLinkCount = new Map(nodes.map(node => [node.id, 0]))
-  edges.forEach(edge => {
-    const source = getEdgeSourceId(edge)
-    const target = getEdgeTargetId(edge)
-    localLinkCount.set(source, (localLinkCount.get(source) || 0) + 1)
-    localLinkCount.set(target, (localLinkCount.get(target) || 0) + 1)
-  })
-  nodes.forEach(node => {
-    node.linkCount = localLinkCount.get(node.id) || 0
-    node.isOrphan = node.linkCount === 0
-  })
-
-  return { nodes, edges, stats: buildStats(nodes, edges) }
 })
 
 const graphRenderSignature = computed(() => {
@@ -308,7 +301,12 @@ const buildGraph = () => {
       destroyGraph()
       return
     }
-    initGraph(filteredGraphData.value)
+    if (graphInitialized) {
+      updateGraph(filteredGraphData.value)
+    } else {
+      initGraph(filteredGraphData.value)
+      graphInitialized = true
+    }
     if (props.currentFile) setCurrentNode(props.currentFile)
   })
 }
@@ -339,7 +337,15 @@ const clearSearch = () => {
   searchQuery.value = ''
 }
 
+const clearFilters = () => {
+  searchQuery.value = ''
+  selectedTag.value = ''
+  selectedDirectory.value = ''
+  maxDepth.value = 0
+}
+
 const handleRefresh = () => {
+  graphInitialized = false
   destroyGraph()
   buildGraph()
 }
@@ -365,6 +371,7 @@ onBeforeUnmount(() => {
   graphRenderVersion++
   graphContainer.value?.removeEventListener('mousemove', handleGraphMouseMove)
   destroyGraph()
+  graphInitialized = false
 })
 </script>
 
@@ -384,6 +391,7 @@ onBeforeUnmount(() => {
   padding: var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .toolbar-search {
@@ -441,6 +449,46 @@ onBeforeUnmount(() => {
 .toolbar-btn:hover {
   color: var(--accent-primary);
   border-color: var(--accent-primary);
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.graph-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.graph-filter-select {
+  max-width: 140px;
+  min-height: 28px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 0 6px;
+}
+
+.depth-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 7px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.depth-filter input {
+  width: 70px;
 }
 
 .graph-mode-toggle {

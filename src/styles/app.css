@@ -15,10 +15,11 @@
 
 /* ── Header: Obsidian 风格极简标题栏 ── */
 .app-header {
+  --app-header-height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 44px;
+  height: var(--app-header-height);
   padding: 0 12px;
   background: var(--obsidian-bg-primary);
   border-bottom: 1px solid var(--obsidian-border);
@@ -153,7 +154,7 @@
   justify-content: flex-start;
   align-items: center;
   gap: 2px;
-  width: 52px;
+  width: 48px;
   padding: 6px 2px;
   background: var(--obsidian-bg-secondary);
   border-right: 1px solid var(--obsidian-border);
@@ -165,9 +166,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  width: 46px;
-  height: 46px;
+  gap: 1px;
+  width: 42px;
+  height: 42px;
   padding: 0 !important;
   margin: 0 !important;
   line-height: 1;
@@ -193,12 +194,12 @@
 
 .sidebar-nav .nav-label {
   display: block;
-  max-width: 44px;
+  max-width: 40px;
   overflow: hidden;
   color: currentColor;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 500;
-  line-height: 12px;
+  line-height: 11px;
   letter-spacing: 0;
   text-align: center;
   text-overflow: ellipsis;
@@ -880,7 +881,7 @@
 /* ── 响应式 ── */
 @media (max-width: 768px) {
   .app-header {
-    height: 40px;
+    --app-header-height: 40px;
     padding: 0 8px;
   }
 

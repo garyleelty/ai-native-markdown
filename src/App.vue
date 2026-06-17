@@ -26,7 +26,7 @@
       @navigate="migrationAudit.handleMigrationAuditNavigate"
     />
     <FocusMode :active="focusMode" :file-name="currentFileName" :word-count="wordCount" @exit="focusMode = false" />
-    <el-header class="app-header" height="44px">
+    <el-header class="app-header">
       <div class="header-left">
         <el-tooltip content="切换侧边栏" placement="bottom">
           <el-button :icon="Operation" native-type="button" circle size="small" aria-label="切换侧边栏" @click="toggleSidebar" />
@@ -265,7 +265,7 @@
 
       <Transition name="workbench-pane">
         <div
-          v-if="settingsStore.showAIPanel && !isNarrowViewport"
+          v-if="showDesktopAIPanel"
           class="ai-panel-shell"
           :style="{ width: settingsStore.aiPanelWidth + 'px' }"
         >
@@ -391,6 +391,7 @@ import { useWikiNavigation } from './composables/useWikiNavigation'
 import { useDailyNote } from './composables/useDailyNote'
 import { useAppCommands } from './composables/useAppCommands'
 import { useViewMode } from './composables/useViewMode'
+import { useResponsivePanels } from './composables/useResponsivePanels'
 import { useVaultSync } from './composables/useVaultSync'
 import { useTabManagement } from './composables/useTabManagement'
 import { useAppKeyboard } from './composables/useAppKeyboard'
@@ -486,21 +487,35 @@ const {
 
 const sidebarVisible = computed(() => isNarrowViewport.value ? mobileSidebarOpen.value : settingsStore.showSidebar)
 const isPrimaryFileWorkspaceVisible = computed(() => !sidebarVisible.value || settingsStore.activeSidebarTab === 'files')
-const showDesktopGraphPane = computed(() => (
+
+const { protectedPanels } = useResponsivePanels({
+  viewportWidth: () => viewportWidth.value,
+  isNarrowViewport: () => isNarrowViewport.value,
+  sidebarVisible: () => sidebarVisible.value,
+  sidebarWidth: () => settingsStore.sidebarWidth,
+  aiVisible: () => settingsStore.showAIPanel,
+  aiPanelWidth: () => settingsStore.aiPanelWidth,
+  graphVisible: () => settingsStore.showGraphPane,
+  graphPaneWidth: () => settingsStore.graphPaneWidth,
+  rightDockVisible: () => settingsStore.showRightDock,
+  rightDockWidth: () => settingsStore.rightDockWidth,
+  minEditorWidth: 400,
+})
+
+const showDesktopAIPanel = computed(() => !isNarrowViewport.value && protectedPanels.value.ai)
+const showDesktopGraphPane = computed(() =>
   !isNarrowViewport.value &&
-  viewportWidth.value >= 1040 &&
-  settingsStore.showGraphPane &&
+  protectedPanels.value.graph &&
   editorStore.openTabs.length > 0 &&
   isPrimaryFileWorkspaceVisible.value
-))
-const showDesktopRightDock = computed(() => (
+)
+const showDesktopRightDock = computed(() =>
   !isNarrowViewport.value &&
-  viewportWidth.value >= 1040 &&
-  settingsStore.showRightDock &&
+  protectedPanels.value.rightDock &&
   editorStore.openTabs.length > 0 &&
   isPrimaryFileWorkspaceVisible.value &&
   (!showDesktopGraphPane.value || viewportWidth.value >= 1500)
-))
+)
 const sidebarAsideWidth = computed(() => {
   if (!sidebarVisible.value) return '0px'
   if (!isNarrowViewport.value) return `${settingsStore.sidebarWidth}px`

@@ -117,8 +117,7 @@ import {
   MagicStick,
   Microphone,
 } from '@element-plus/icons-vue'
-import { safeStorage } from '@/utils/security'
-import { vaultService } from '@/services/vault'
+import { recentFilesService, type RecentFileEntry } from '@/services/recentFiles'
 
 defineEmits<{
   (e: 'new-file'): void
@@ -127,26 +126,15 @@ defineEmits<{
   (e: 'open-file', path: string): void
 }>()
 
-const recentFiles = ref<Array<{ name: string; path: string }>>([])
+const recentFiles = ref<RecentFileEntry[]>([])
 const recentFilesLoading = ref(true)
 
 onMounted(async () => {
   recentFilesLoading.value = true
-  const stored = safeStorage.get<Array<{ name: string; path: string }>>('recent_files', [])
-  const validFiles: Array<{ name: string; path: string }> = []
-  for (const file of stored.filter(file => file.name && file.path).slice(0, 8)) {
-    try {
-      await vaultService.readFile(file.path)
-      validFiles.push(file)
-    } catch {
-      // 文件不存在或无法访问，跳过
-    }
-  }
-  recentFiles.value = validFiles.slice(0, 8)
-  recentFilesLoading.value = false
-  // 清理无效条目
-  if (validFiles.length < stored.length) {
-    safeStorage.set('recent_files', validFiles)
+  try {
+    recentFiles.value = (await recentFilesService.validateRecentFiles()).slice(0, 8)
+  } finally {
+    recentFilesLoading.value = false
   }
 })
 

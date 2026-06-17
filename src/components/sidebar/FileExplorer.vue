@@ -38,6 +38,20 @@
       <div class="search-mode-hint">{{ searchMode === 'name' ? '文件名搜索' : (contentSearchMode === 'regex' ? '正则搜索' : '内容搜索') }}</div>
     </div>
 
+    <div class="favorites-section" v-if="!searchQuery && favorites.length > 0 && rootPath">
+      <div class="section-label">收藏</div>
+      <div class="favorite-list">
+        <div v-for="f in favorites" :key="f.path" class="favorite-item">
+          <button type="button" class="favorite-open" :aria-label="`打开收藏文件 ${f.name}`" @click="handleFavoriteSelect(f.path)">
+            <el-icon :size="14"><Star /></el-icon>
+            <span class="favorite-name">{{ f.name }}</span>
+          </button>
+          <button type="button" class="favorite-remove" :aria-label="`取消收藏 ${f.name}`" @click="removeFavorite(f.path)">×</button>
+        </div>
+      </div>
+      <el-divider style="margin: 8px 0" />
+    </div>
+
     <div class="recent-section" v-if="!searchQuery && recentFiles.length > 0 && rootPath">
       <div class="section-label">最近打开</div>
       <div class="recent-list">
@@ -45,7 +59,7 @@
           v-for="f in recentFiles.slice(0, 5)"
           :key="f.path"
           class="recent-item"
-          @click="emit('select', f.path)"
+          @click="handleRecentFileSelect(f.path)"
         >
           <el-icon :size="14"><Document /></el-icon>
           <span class="recent-name">{{ f.name }}</span>
@@ -87,15 +101,34 @@
       >
         <template #default="{ node, data }">
           <el-dropdown trigger="contextmenu" class="tree-node-menu" @command="(cmd: string) => handleTreeAction(cmd, data)">
-            <span class="tree-node" :data-file-path="data.path">
+            <span class="tree-node" :class="{ 'is-selected': fileSelection.isSelected(data.path) }" :data-file-path="data.path" :aria-label="`${data.isDirectory ? '打开文件夹' : '打开文件'} ${node.label}`">
+              <button
+                type="button"
+                class="tree-node-select"
+                :class="{ active: fileSelection.isSelected(data.path) }"
+                :aria-label="`选择 ${node.label}`"
+                :aria-pressed="fileSelection.isSelected(data.path)"
+                @click.stop="fileSelection.handleNodeSelection(data.path, $event)"
+              >
+                <span v-if="fileSelection.isSelected(data.path)" class="select-check">✓</span>
+              </button>
               <el-icon v-if="data.isDirectory" :size="14"><Folder /></el-icon>
               <el-icon v-else-if="data.name.endsWith('.json')" :size="14" color="var(--warning)"><Document /></el-icon>
               <el-icon v-else-if="data.name.endsWith('.png') || data.name.endsWith('.jpg')" :size="14" color="var(--accent-green)"><Picture /></el-icon>
               <el-icon v-else :size="14" color="var(--obsidian-accent)"><Document /></el-icon>
               <span class="tree-node-label">{{ node.label }}</span>
+              <button
+                v-if="!data.isDirectory"
+                type="button"
+                class="tree-node-favorite"
+                :class="{ active: isFavorite(data.path) }"
+                :aria-label="isFavorite(data.path) ? `取消收藏 ${node.label}` : `收藏 ${node.label}`"
+                @click.stop="toggleFavorite(data.path)"
+              >★</button>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
+                <el-dropdown-item v-if="!data.isDirectory" command="favorite">{{ isFavorite(data.path) ? '取消收藏' : '收藏' }}</el-dropdown-item>
                 <el-dropdown-item command="rename">重命名</el-dropdown-item>
                 <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
                 <el-dropdown-item command="import" v-if="!data.isDirectory">
@@ -106,6 +139,13 @@
           </el-dropdown>
         </template>
       </el-tree>
+    </div>
+
+    <div v-if="fileSelection.selectedCount > 0" class="batch-toolbar" role="toolbar" aria-label="批量文件操作">
+      <span class="batch-count">已选 {{ fileSelection.selectedCount }} 项</span>
+      <el-button size="small" type="danger" plain native-type="button" aria-label="批量删除选中文件" @click="handleBatchDelete">删除</el-button>
+      <el-button size="small" plain native-type="button" aria-label="批量移动选中文件" @click="handleBatchMove">移动</el-button>
+      <el-button size="small" text native-type="button" aria-label="清空文件选择" @click="fileSelection.clearSelection()">清空</el-button>
     </div>
 
     <div class="empty-folder" v-else-if="rootPath && treeData.length === 0">
@@ -130,12 +170,16 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Folder, Document, DocumentAdd, FolderAdd, Search, Picture, Upload } from '@element-plus/icons-vue'
+import { Folder, Document, DocumentAdd, FolderAdd, Search, Picture, Upload, Star } from '@element-plus/icons-vue'
 import { vaultService } from '../../services/vault'
 import { knowledgeIndex } from '../../services/knowledgeIndex'
 import { sanitizeFilePath, isValidFileName, safeStorage, sanitizeMarkdown } from '../../utils/security'
 import { fileImporter } from '../../services/fileImporter'
 import { useFileSearch } from '../../composables/useFileSearch'
+import { recentFilesService, type RecentFileEntry } from '../../services/recentFiles'
+import { useFavorites } from '../../composables/useFavorites'
+import { useFileSelectionStore } from '../../stores/fileSelection'
+import { deletePathsSequential, movePathsSequential, type BatchFileResult } from '../../services/fileBatch'
 import type { TreeNode } from '../../types'
 
 // 支持导入的文件类型
@@ -163,7 +207,9 @@ const currentFilePath = ref('')
 let isDisposed = false
 let treeLoadRequestId = 0
 
-const recentFiles = ref<Array<{ name: string; path: string }>>([])
+const recentFiles = ref<RecentFileEntry[]>([])
+const fileSelection = useFileSelectionStore()
+const { favorites, removeFavorite, toggleFavorite, isFavorite } = useFavorites()
 
 const {
   searchQuery,
@@ -186,17 +232,32 @@ const {
 const searchInputRef = ref<{ focus: () => void } | null>(null)
 
 const addRecentFile = (path: string) => {
-  const name = path.split('/').pop() || ''
-  recentFiles.value = [
-    { name, path },
-    ...recentFiles.value.filter(f => f.path !== path)
-  ].slice(0, 10)
-  safeStorage.set('recent_files', recentFiles.value)
+  recentFiles.value = recentFilesService.addRecentFile(path)
 }
 
-const loadRecentFiles = () => {
-  const stored = safeStorage.get<Array<{ name: string; path: string }>>('recent_files', [])
-  recentFiles.value = stored.filter(file => file.name && file.path).slice(0, 10)
+const loadRecentFiles = async () => {
+  recentFiles.value = await recentFilesService.validateRecentFiles()
+}
+
+const handleRecentFileSelect = async (path: string) => {
+  try {
+    await vaultService.readFile(path)
+    emit('select', path)
+  } catch {
+    recentFiles.value = recentFilesService.removeRecentFile(path)
+    ElMessage.warning('最近文件不存在，已从列表移除')
+  }
+}
+
+const handleFavoriteSelect = async (path: string) => {
+  try {
+    await vaultService.readFile(path)
+    emit('select', path)
+    addRecentFile(path)
+  } catch {
+    removeFavorite(path)
+    ElMessage.warning('收藏文件不存在，已从列表移除')
+  }
 }
 
 const treeProps = {
@@ -214,10 +275,27 @@ const loadTreeFromFS = async () => {
     if (isDisposed || requestId !== treeLoadRequestId || rootPath.value !== activeRootPath) return
     treeData.value = buildTree(children)
     expandedKeys.value = [activeRootPath]
+    syncVisibleSelectionPaths()
   } catch (e: any) {
     if (isDisposed || requestId !== treeLoadRequestId) return
     ElMessage.error('加载目录失败: ' + e.message)
   }
+}
+
+const flattenLoadedTreePaths = (nodes: TreeNode[]): string[] => {
+  const paths: string[] = []
+  const visit = (items: TreeNode[]) => {
+    for (const item of items) {
+      paths.push(item.path)
+      if (item.isExpanded && item.children?.length) visit(item.children)
+    }
+  }
+  visit(nodes)
+  return paths
+}
+
+const syncVisibleSelectionPaths = () => {
+  fileSelection.setVisiblePaths(flattenLoadedTreePaths(treeData.value))
 }
 
 const setRootPath = (path: string) => {
@@ -250,10 +328,12 @@ const expandTreeNode = async (data: TreeNode, node?: any) => {
     expandedKeys.value = [...expandedKeys.value, data.path]
   }
   await nextTick()
+  data.isExpanded = true
   if (node) {
     if (typeof node.expand === 'function') node.expand()
     else node.expanded = true
   }
+  syncVisibleSelectionPaths()
 }
 
 const handleNodeClick = async (data: TreeNode, node?: any) => {
@@ -279,7 +359,9 @@ const handleNodeClick = async (data: TreeNode, node?: any) => {
 }
 
 const handleTreeAction = async (command: string, data: TreeNode) => {
-  if (command === 'delete') {
+  if (command === 'favorite') {
+    toggleFavorite(data.path)
+  } else if (command === 'delete') {
     try {
       const message = data.isDirectory
         ? `确定要删除文件夹 ${data.name} 及其所有内容吗？此操作不可撤销。`
@@ -327,6 +409,63 @@ const handleTreeAction = async (command: string, data: TreeNode) => {
   } else if (command === 'import') {
     // 导入文件到知识库
     await handleImportExternalFile(data.path)
+  }
+}
+
+const summarizeBatchResult = (action: string, result: BatchFileResult) => {
+  if (result.failed.length === 0) {
+    ElMessage.success(`${action} ${result.succeeded.length} 项`)
+    return
+  }
+  if (result.succeeded.length > 0) {
+    ElMessage.warning(`${action}完成 ${result.succeeded.length} 项，失败 ${result.failed.length} 项：${result.failed[0].error}`)
+    return
+  }
+  ElMessage.error(`${action}失败：${result.failed[0]?.error || '未知错误'}`)
+}
+
+const handleBatchDelete = async () => {
+  const paths = [...fileSelection.selectedPathList]
+  if (paths.length === 0) return
+  try {
+    await ElMessageBox.confirm(`确定要删除选中的 ${paths.length} 项吗？此操作不可撤销。`, '批量删除确认', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    })
+    const result = await deletePathsSequential(paths)
+    if (isDisposed) return
+    await loadTreeFromFS()
+    fileSelection.removeSelected(result.succeeded)
+    result.succeeded.forEach(path => removeFavorite(path))
+    summarizeBatchResult('已删除', result)
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '批量删除失败')
+  }
+}
+
+const handleBatchMove = async () => {
+  const paths = [...fileSelection.selectedPathList]
+  if (paths.length === 0) return
+  try {
+    const { value } = await ElMessageBox.prompt('输入目标文件夹路径', '批量移动', {
+      inputValue: rootPath.value,
+      confirmButtonText: '移动',
+      cancelButtonText: '取消'
+    })
+    const targetDirectory = sanitizeFilePath(value || '')
+    if (!targetDirectory) {
+      ElMessage.warning('目标文件夹路径不能为空')
+      return
+    }
+    const result = await movePathsSequential(paths, targetDirectory)
+    if (isDisposed) return
+    await loadTreeFromFS()
+    fileSelection.removeSelected(result.succeeded)
+    result.succeeded.forEach(path => removeFavorite(path))
+    summarizeBatchResult('已移动', result)
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '批量移动失败')
   }
 }
 
@@ -485,7 +624,7 @@ const saveFile = async (filePath: string, content: string): Promise<boolean> => 
 defineExpose({ readFile, saveFile, handleCreateFile, handleCreateFolder, openFolder, initDemoWorkspace, refreshTree: loadTreeFromFS, focusSearch, rootPath })
 
 onMounted(async () => {
-  loadRecentFiles()
+  await loadRecentFiles()
   if (rootPath.value) {
     emit('root-path-change', rootPath.value)
     await loadTreeFromFS()
@@ -653,6 +792,54 @@ onUnmounted(() => {
   color: var(--obsidian-text-normal, #dcddde);
 }
 
+.tree-node.is-selected {
+  color: var(--obsidian-accent, #7f6df2);
+}
+
+.tree-node-select,
+.tree-node-favorite,
+.favorite-remove {
+  border: 0;
+  background: transparent;
+  color: var(--obsidian-text-faint, #666);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.tree-node-select {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border: 1px solid var(--obsidian-border, rgba(255, 255, 255, 0.06));
+  border-radius: 3px;
+  padding: 0;
+}
+
+.tree-node-select.active {
+  background: var(--obsidian-accent, #7f6df2);
+  border-color: var(--obsidian-accent, #7f6df2);
+}
+
+.tree-node-select:focus-visible {
+  outline: 2px solid var(--obsidian-accent, #7f6df2);
+  outline-offset: 2px;
+}
+
+.tree-node-favorite {
+  margin-left: auto;
+  opacity: 0;
+  padding: 0 4px;
+}
+
+.tree-node:hover .tree-node-favorite,
+.tree-node-favorite.active {
+  opacity: 1;
+}
+
+.tree-node-favorite.active {
+  color: var(--obsidian-accent, #7f6df2);
+}
+
 .tree-node-label {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -718,5 +905,64 @@ onUnmounted(() => {
 
 .recent-item :deep(.el-icon) {
   color: var(--obsidian-text-faint, #666);
+}
+
+.favorite-item {
+  display: flex;
+  align-items: center;
+  padding: 2px 8px 2px 12px;
+  gap: 4px;
+}
+
+.favorite-open {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--obsidian-text-muted, #999);
+  cursor: pointer;
+  padding: 2px 0;
+  text-align: left;
+}
+
+.favorite-open:hover {
+  color: var(--obsidian-text-normal, #dcddde);
+}
+
+.favorite-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.favorite-remove {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.favorite-remove:hover {
+  background: var(--obsidian-bg-hover, #303030);
+  color: var(--obsidian-text-normal, #dcddde);
+}
+
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--obsidian-border, rgba(255, 255, 255, 0.06));
+  background: var(--obsidian-bg-secondary, #252525);
+  flex-shrink: 0;
+}
+
+.batch-count {
+  margin-right: auto;
+  color: var(--obsidian-text-muted, #999);
+  font-size: 12px;
 }
 </style>

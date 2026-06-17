@@ -60,6 +60,7 @@ const MARKDOWN_ALLOWED_TAGS = [
   'msqrt', 'mroot', 'munder', 'mover', 'munderover', 'mtable',
   'mtr', 'mtd', 'mtext', 'mspace', 'mpadded', 'mphantom',
   'mfenced', 'menclose', 'mstyle', 'merror', 'annotation', 'semantics',
+  'mark',
 ]
 
 const MARKDOWN_ALLOWED_ATTR = [

@@ -2,7 +2,19 @@
   <div class="panel">
     <div class="panel-header">
       <span class="panel-title">知识</span>
-      <el-button :icon="Refresh" native-type="button" size="small" circle aria-label="刷新知识索引" @click="refreshIndex" />
+      <div class="panel-header-actions">
+        <el-tooltip :content="viewMode === 'simple' ? '切换到高级模式' : '切换到简洁模式'" placement="bottom">
+          <el-button
+            :icon="viewMode === 'simple' ? MoreFilled : Sunny"
+            native-type="button"
+            size="small"
+            circle
+            :aria-label="viewMode === 'simple' ? '切换到高级模式' : '切换到简洁模式'"
+            @click="toggleViewMode"
+          />
+        </el-tooltip>
+        <el-button :icon="Refresh" native-type="button" size="small" circle aria-label="刷新知识索引" @click="refreshIndex" />
+      </div>
     </div>
 
     <div class="index-summary" :class="{ 'is-loading': indexLoading }">
@@ -24,6 +36,10 @@
       </div>
     </div>
 
+    <div class="mode-hint">
+      {{ viewMode === 'simple' ? '简洁模式：优先显示大纲、反链和图谱。' : '高级模式：显示属性、提及和图谱洞察。' }}
+    </div>
+
     <el-tabs v-model="activeTab" class="knowledge-tabs" stretch>
       <el-tab-pane label="大纲" name="outline">
         <div class="tab-content">
@@ -35,7 +51,7 @@
           />
           <el-empty v-else description="打开 Markdown 文件后查看大纲" :image-size="44" />
 
-          <div v-if="currentRecord?.links.length" class="section outline-link-section">
+          <div v-if="isAdvancedMode && currentRecord?.links.length" class="section outline-link-section">
             <div class="section-label">外链</div>
             <button
               v-for="link in currentRecord.links"
@@ -48,7 +64,7 @@
             </button>
           </div>
 
-          <el-collapse v-if="currentRecord" class="inline-knowledge-collapse">
+          <el-collapse v-if="isAdvancedMode && currentRecord" class="inline-knowledge-collapse">
             <el-collapse-item name="properties">
               <template #title>
                 <span>属性</span>
@@ -86,7 +102,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane :label="`提及 ${unlinkedMentions.length}`" name="mentions">
+      <el-tab-pane v-if="isAdvancedMode" :label="`提及 ${unlinkedMentions.length}`" name="mentions">
         <div class="tab-content">
           <ReferenceList
             :items="unlinkedMentions"
@@ -111,7 +127,7 @@
             <span>加载中...</span>
           </div>
 
-          <el-collapse class="inline-knowledge-collapse graph-insights-collapse">
+          <el-collapse v-if="isAdvancedMode" class="inline-knowledge-collapse graph-insights-collapse">
             <el-collapse-item name="insights">
               <template #title>
                 <span>洞察</span>
@@ -183,8 +199,9 @@
 
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
+import { safeStorage } from '@/utils/security'
 import { ElMessage } from 'element-plus'
-import { Loading, Refresh } from '@element-plus/icons-vue'
+import { Loading, Refresh, MoreFilled, Sunny } from '@element-plus/icons-vue'
 import { knowledgeIndex, type KnowledgeIndexRecord, type KnowledgeReference } from '../../services/knowledgeIndex'
 import type { GraphNode, KnowledgeGraphData } from '../../types'
 import ReferenceList from './ReferenceList.vue'
@@ -221,6 +238,13 @@ const backlinks = ref<KnowledgeReference[]>([])
 const unlinkedMentions = ref<KnowledgeReference[]>([])
 const insightsLoading = ref(false)
 const graphInsightsData = ref<GraphInsights | null>(null)
+
+const VIEW_MODE_KEY = 'ai-markdown-knowledge-panel-view-mode'
+const viewMode = ref<'simple' | 'advanced'>(safeStorage.get(VIEW_MODE_KEY, 'advanced'))
+const isAdvancedMode = computed(() => viewMode.value === 'advanced')
+const toggleViewMode = () => {
+  viewMode.value = viewMode.value === 'simple' ? 'advanced' : 'simple'
+}
 
 type GraphInsights = {
   totalNotes: number
@@ -503,6 +527,10 @@ onMounted(async () => {
     // 图谱数据延迟加载：仅当图谱标签页为默认激活标签时才加载
     if (activeTab.value === 'graph') await loadGraphData()
     if (!isDisposed) unsubscribeIndex = knowledgeIndex.subscribe(scheduleReload)
+    // 初始化视图模式，简洁模式下不可见 mentions 标签时自动切换
+    if (viewMode.value === 'simple' && activeTab.value === 'mentions') {
+      activeTab.value = 'outline'
+    }
   } catch {
     if (!isDisposed) ElMessage.error('初始化知识索引失败')
   }
@@ -521,7 +549,7 @@ watch(activeTab, async (tab) => {
   if (tab === 'graph' && !graphData.value) {
     await loadGraphData()
   }
-  if (tab === 'graph' && !graphInsightsData.value) {
+  if (tab === 'graph' && isAdvancedMode.value && !graphInsightsData.value) {
     await refreshGraphInsights()
   }
 })
@@ -533,6 +561,13 @@ watch(() => props.currentFile, () => {
   graphInsightsData.value = null
 })
 
+watch(viewMode, (mode) => {
+  safeStorage.set(VIEW_MODE_KEY, mode)
+  if (mode === 'simple' && activeTab.value === 'mentions') {
+    activeTab.value = 'outline'
+  }
+})
+
 watch(() => props.rootPath, async (newPath, oldPath) => {
   if (newPath && newPath !== oldPath) await refreshIndex()
 })
@@ -541,6 +576,23 @@ defineExpose({ refreshIndex })
 </script>
 
 <style scoped>
+
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mode-hint {
+  margin: 0 10px 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--obsidian-accent-soft, #7f6df2) 10%, transparent);
+  color: var(--obsidian-text-faint, #666);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .index-summary {
   position: relative;
   display: grid;

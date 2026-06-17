@@ -532,6 +532,260 @@ export function useKnowledgeGraph(
     startPulseAnimation(pulseSel, glowSel, simNodes)
   }
 
+  function updateGraph(data: KnowledgeGraphData) {
+    if (!svg.value || !simulation.value) {
+      initGraph(data)
+      return
+    }
+
+    const simNodes: SimulationNode[] = data.nodes.map(n => ({ ...n }))
+    const simEdges: SimulationEdge[] = data.edges.map(e => ({
+      source: e.source as string,
+      target: e.target as string,
+      weight: e.weight
+    }))
+
+    const linkCounts = new Map<string, number>()
+    simEdges.forEach(e => {
+      const s = typeof e.source === 'string' ? e.source : (e.source as SimulationNode).id
+      const t = typeof e.target === 'string' ? e.target : (e.target as SimulationNode).id
+      linkCounts.set(s, (linkCounts.get(s) || 0) + 1)
+      linkCounts.set(t, (linkCounts.get(t) || 0) + 1)
+    })
+
+    const g = svg.value.select('g')
+    const edgeGroup = g.select('g.edges')
+    const nodeGroup = g.select('g.nodes')
+
+    const baseOpacity = new Map<string, number>()
+    simEdges.forEach(e => {
+      const s = typeof e.source === 'string' ? e.source : (e.source as SimulationNode).id
+      const t = typeof e.target === 'string' ? e.target : (e.target as SimulationNode).id
+      baseOpacity.set(`${s}__${t}`, getEdgeOpacity(linkCounts.get(s) ?? 0, linkCounts.get(t) ?? 0))
+    })
+
+    const edgeSelection = edgeGroup
+      .selectAll<SVGLineElement, SimulationEdge>('line')
+      .data(simEdges, (d: any) => {
+        const s = typeof d.source === 'string' ? d.source : (d.source as SimulationNode).id
+        const t = typeof d.target === 'string' ? d.target : (d.target as SimulationNode).id
+        return `${s}__${t}`
+      })
+
+    edgeSelection.exit().remove()
+
+    const edgeEnter = edgeSelection.enter()
+      .append('line')
+      .attr('stroke', 'var(--accent-primary)')
+      .attr('stroke-opacity', 0)
+      .attr('stroke-linecap', 'round')
+
+    const edgeSelectionMerged = edgeEnter.merge(edgeSelection as any)
+      .attr('stroke-width', d => 0.8 + Math.min(((d as any).weight ?? 1) * 0.3, 1.5))
+      .attr('stroke-opacity', d => {
+        const s = typeof d.source === 'string' ? d.source : (d.source as SimulationNode).id
+        const t = typeof d.target === 'string' ? d.target : (d.target as SimulationNode).id
+        return baseOpacity.get(`${s}__${t}`) ?? 0.22
+      })
+
+    const nodeSelection = nodeGroup
+      .selectAll<SVGGElement, SimulationNode>('g')
+      .data(simNodes, d => d.id)
+
+    nodeSelection.exit().remove()
+
+    const nodeEnter = nodeSelection.enter()
+      .append('g')
+      .attr('cursor', 'pointer')
+      .attr('opacity', 0)
+      .call(d3.drag<SVGGElement, SimulationNode>()
+        .on('start', (event, d) => {
+          if (!event.active) simulation.value?.alphaTarget(0.3).restart()
+          d.fx = d.x
+          d.fy = d.y
+        })
+        .on('drag', (event, d) => {
+          d.fx = event.x
+          d.fy = event.y
+        })
+        .on('end', (event, d) => {
+          if (!event.active) simulation.value?.alphaTarget(0)
+          d.fx = null
+          d.fy = null
+        })
+      )
+      .on('click', (event, d) => {
+        if (selectedNode.value?.id === d.id) selectedNode.value = null
+        else selectedNode.value = d
+        if (onNodeClick) onNodeClick(d)
+        event.stopPropagation()
+      })
+
+    nodeEnter.append('circle')
+      .attr('class', 'node-glow')
+      .attr('pointer-events', 'none')
+      .attr('filter', 'url(#node-glow)')
+
+    nodeEnter.append('circle')
+      .attr('class', 'node-pulse')
+      .attr('fill', 'none')
+      .attr('pointer-events', 'none')
+
+    nodeEnter.append('circle')
+      .attr('class', 'node-core')
+      .style('vector-effect', 'non-scaling-stroke')
+
+    nodeEnter.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('font-family', 'var(--font-sans)')
+      .attr('pointer-events', 'none')
+
+    const nodeSelectionMerged = nodeEnter.merge(nodeSelection as any)
+
+    nodeSelectionMerged
+      .transition().duration(300)
+      .attr('opacity', 1)
+
+    nodeSelectionMerged.select('.node-glow')
+      .attr('r', d => getNodeRadius(d.linkCount) * 1.5)
+      .attr('fill', d => getTagColor(d.tags))
+      .attr('fill-opacity', d => getGlowOpacity(d.linkCount, d.isOrphan))
+
+    nodeSelectionMerged.select('.node-pulse')
+      .attr('r', d => getNodeRadius(d.linkCount) * 1.6)
+      .attr('stroke', d => getTagColor(d.tags))
+      .attr('stroke-width', 1.5)
+      .attr('stroke-opacity', d => d.linkCount > 0 && !d.isOrphan ? 0.12 : 0)
+
+    nodeSelectionMerged.select('.node-core')
+      .attr('r', d => getNodeRadius(d.linkCount))
+      .attr('fill', d => {
+        const idx = d.tags.length === 0 ? TAG_COLORS.length : d.tags[0].charCodeAt(0) % TAG_COLORS.length
+        return `url(#node-grad-${idx})`
+      })
+      .attr('stroke', d => d.isOrphan ? 'var(--text-muted)' : 'rgba(255,255,255,0.3)')
+      .attr('stroke-width', 1.2)
+
+    nodeSelectionMerged.select('text')
+      .text(d => {
+        const name = d.path.split('/').pop()?.replace(/\.(md|markdown)$/i, '') || d.label
+        const max = getTextMaxLen(d.linkCount)
+        return name.length > max ? name.slice(0, max - 1) + '…' : name
+      })
+      .attr('dy', d => getTextOffset(d.linkCount))
+      .attr('fill', 'var(--text-secondary)')
+      .attr('font-size', d => getFontSize(d.linkCount))
+      .attr('font-weight', '500')
+
+    nodeSelectionMerged
+      .on('mouseenter', (event, d) => {
+        hoveredNode.value = d
+        const g = d3.select(event.currentTarget)
+        const r = getNodeRadius(d.linkCount)
+        g.select('.node-glow')
+          .transition().duration(180).ease(d3.easeCubicOut)
+          .attr('r', r * 2.4)
+          .attr('fill-opacity', 0.75)
+        g.select('.node-core')
+          .transition().duration(180).ease(d3.easeCubicOut)
+          .attr('stroke', 'var(--accent-primary)')
+          .attr('stroke-width', 2.5)
+        g.select('.node-pulse')
+          .transition().duration(180)
+          .attr('stroke-opacity', d.linkCount > 0 && !d.isOrphan ? 0.55 : 0)
+        g.select('text')
+          .transition().duration(180)
+          .attr('font-weight', '600')
+          .attr('fill', 'var(--text-primary)')
+
+        edgeSelectionMerged
+          .attr('stroke-opacity', (e: any) => {
+            const s = typeof e.source === 'string' ? e.source : (e.source as SimulationNode).id
+            const t = typeof e.target === 'string' ? e.target : (e.target as SimulationNode).id
+            return s === d.id || t === d.id ? 0.85 : 0.04
+          })
+          .attr('stroke', (e: any) => {
+            const s = typeof e.source === 'string' ? e.source : (e.source as SimulationNode).id
+            const t = typeof e.target === 'string' ? e.target : (e.target as SimulationNode).id
+            return s === d.id || t === d.id ? 'var(--accent-primary)' : 'var(--border-default)'
+          })
+          .attr('stroke-width', (e: any) => {
+            const s = typeof e.source === 'string' ? e.source : (e.source as SimulationNode).id
+            const t = typeof e.target === 'string' ? e.target : (e.target as SimulationNode).id
+            return s === d.id || t === d.id ? 2 : 0.8
+          })
+        nodeSelectionMerged
+          .filter(n => n.id !== d.id)
+          .transition().duration(180)
+          .attr('opacity', 0.45)
+      })
+      .on('mouseleave', (event, d) => {
+        hoveredNode.value = null
+        const g = d3.select(event.currentTarget)
+        const r = getNodeRadius(d.linkCount)
+        const isCurrent = currentNodeId.value !== null && d.id === currentNodeId.value
+        g.select('.node-glow')
+          .transition().duration(300).ease(d3.easeCubicOut)
+          .attr('r', r * (isCurrent ? 1.8 : 1.5))
+          .attr('fill-opacity', isCurrent ? Math.max(0.45, getGlowOpacity(d.linkCount, d.isOrphan)) : getGlowOpacity(d.linkCount, d.isOrphan))
+        g.select('.node-core')
+          .transition().duration(300).ease(d3.easeCubicOut)
+          .attr('stroke', isCurrent ? 'var(--accent-primary)' : (d.isOrphan ? 'var(--text-muted)' : 'rgba(255,255,255,0.3)'))
+          .attr('stroke-width', isCurrent ? 2.8 : 1.2)
+        g.select('.node-pulse')
+          .attr('stroke', isCurrent ? 'var(--accent-primary)' : getTagColor(d.tags))
+          .attr('stroke-width', isCurrent ? 1.8 : 1.5)
+          .transition().duration(300)
+          .attr('stroke-opacity', d.linkCount > 0 && !d.isOrphan ? (isCurrent ? 0.55 : 0.12) : 0)
+        g.select('text')
+          .transition().duration(300)
+          .attr('font-weight', isCurrent ? '600' : '500')
+          .attr('fill', isCurrent ? 'var(--text-primary)' : 'var(--text-secondary)')
+        edgeSelectionMerged
+          .attr('stroke-opacity', (e: any) => {
+            const s = typeof e.source === 'string' ? e.source : (e.source as SimulationNode).id
+            const t = typeof e.target === 'string' ? e.target : (e.target as SimulationNode).id
+            return baseOpacity.get(`${s}__${t}`) ?? 0.22
+          })
+          .attr('stroke', 'var(--accent-primary)')
+          .attr('stroke-width', (d: any) => 0.8 + Math.min(((d as any).weight ?? 1) * 0.3, 1.5))
+        nodeSelectionMerged
+          .transition().duration(250)
+          .attr('opacity', 1)
+      })
+
+    const renderPositions = () => {
+      edgeSelectionMerged
+        .attr('x1', (e: any) => (e.source as SimulationNode).x ?? 0)
+        .attr('y1', (e: any) => (e.source as SimulationNode).y ?? 0)
+        .attr('x2', (e: any) => (e.target as SimulationNode).x ?? 0)
+        .attr('y2', (e: any) => (e.target as SimulationNode).y ?? 0)
+      nodeSelectionMerged.attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
+    }
+
+    const scheduleRender = () => {
+      if (renderFrame !== null) return
+      renderFrame = requestAnimationFrame(() => {
+        renderFrame = null
+        if (!simulation.value) return
+        renderPositions()
+      })
+    }
+
+    simulation.value.nodes(simNodes)
+    const linkForce = simulation.value.force('link') as d3.ForceLink<SimulationNode, SimulationEdge>
+    if (linkForce) linkForce.links(simEdges)
+    simulation.value.alpha(1).restart()
+    simulation.value.on('tick', scheduleRender)
+
+    stopPulseAnimation()
+    const pulseSel = nodeSelectionMerged.select('.node-pulse')
+    const glowSel = nodeSelectionMerged.select('.node-glow')
+    startPulseAnimation(pulseSel as any, glowSel as any, simNodes)
+
+    if (currentNodeId.value !== null) setCurrentNode(currentNodeId.value)
+  }
+
   function highlightNode(nodeId: string) {
     if (!svg.value) return
     svg.value.selectAll<SVGGElement, SimulationNode>('g.nodes > g')
@@ -608,6 +862,7 @@ export function useKnowledgeGraph(
     hoveredNode,
     selectedNode,
     initGraph,
+    updateGraph,
     highlightNode,
     focusNode,
     setCurrentNode,
