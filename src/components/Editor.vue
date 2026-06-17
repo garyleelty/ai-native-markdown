@@ -87,19 +87,23 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu class="toolbar-more-menu">
-                <el-dropdown-item @click="insertLine('# ')">
-                  <span class="menu-action-icon">H1</span>
-                  一级标题
+                <el-dropdown-item>
+                  <el-dropdown placement="right-start" trigger="hover" @command="(cmd: string) => insertLine(cmd)">
+                    <span class="submenu-trigger">
+                      <span class="menu-action-icon">H</span>
+                      标题
+                      <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+                    </span>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="# ">H1 一级标题</el-dropdown-item>
+                        <el-dropdown-item command="## ">H2 二级标题</el-dropdown-item>
+                        <el-dropdown-item command="### ">H3 三级标题</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
                 </el-dropdown-item>
-                <el-dropdown-item @click="insertLine('## ')">
-                  <span class="menu-action-icon">H2</span>
-                  二级标题
-                </el-dropdown-item>
-                <el-dropdown-item @click="insertLine('### ')">
-                  <span class="menu-action-icon">H3</span>
-                  三级标题
-                </el-dropdown-item>
-                <el-dropdown-item divided @click="wrapSelection('~~', '~~')">
+                <el-dropdown-item @click="wrapSelection('~~', '~~')">
                   <span class="menu-action-icon strike-icon">S</span>
                   删除线
                 </el-dropdown-item>
@@ -115,17 +119,30 @@
                   <el-icon><Finished /></el-icon>
                   任务列表
                 </el-dropdown-item>
-                <el-dropdown-item divided @click="toggleWordWrap">
-                  <el-icon><ScaleToOriginal /></el-icon>
-                  {{ wordWrap ? '关闭自动换行' : '开启自动换行' }}
-                </el-dropdown-item>
-                <el-dropdown-item @click="toggleGhostText">
-                  <el-icon><MagicStick /></el-icon>
-                  {{ settingsStore.ghostTextConfig.enabled ? '关闭智能补全' : '开启智能补全' }}
-                </el-dropdown-item>
-                <el-dropdown-item class="voice-menu-item">
-                  <VoiceInputButton mode="toggle" @result="insertText" />
-                  <span>语音输入</span>
+                <el-dropdown-item divided>
+                  <el-dropdown placement="right-start" trigger="hover">
+                    <span class="submenu-trigger">
+                      <el-icon><Setting /></el-icon>
+                      更多设置
+                      <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+                    </span>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item @click="toggleWordWrap">
+                          <el-icon><ScaleToOriginal /></el-icon>
+                          {{ wordWrap ? '关闭自动换行' : '开启自动换行' }}
+                        </el-dropdown-item>
+                        <el-dropdown-item @click="toggleGhostText">
+                          <el-icon><MagicStick /></el-icon>
+                          {{ settingsStore.ghostTextConfig.enabled ? '关闭智能补全' : '开启智能补全' }}
+                        </el-dropdown-item>
+                        <el-dropdown-item class="voice-menu-item">
+                          <VoiceInputButton mode="toggle" @result="insertText" />
+                          <span>语音输入</span>
+                        </el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -232,7 +249,9 @@ import {
   RefreshRight,
   FolderChecked,
   Check,
-  ArrowDown
+  ArrowDown,
+  ArrowRight,
+  Setting
 } from '@element-plus/icons-vue'
 
 interface Props {
@@ -776,6 +795,13 @@ onBeforeUnmount(() => {
 
 .strike-icon {
   text-decoration: line-through;
+}
+
+.submenu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 
 .toolbar-inner :deep(.el-divider--vertical) {
