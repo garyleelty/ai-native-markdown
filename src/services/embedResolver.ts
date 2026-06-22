@@ -131,7 +131,8 @@ export async function resolveEmbed(
       try {
         const dataUrl = await vaultService.readAsset(assetPath)
         if (dataUrl) return { type: assetType, filePath: assetPath, content: dataUrl }
-      } catch {
+      } catch (err) {
+        console.error(`[embedResolver] Failed to read asset at ${assetPath}:`, err)
         // Try the next resolution candidate.
       }
     }

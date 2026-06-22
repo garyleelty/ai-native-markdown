@@ -136,8 +136,9 @@ async function assetExists(target: string, sourcePath: string): Promise<{ exists
     try {
       await vaultService.readAsset(candidate)
       return { exists: true, resolvedPath: candidate }
-    } catch {
+    } catch (error) {
       // Keep trying candidates in the same order used by embed rendering.
+      console.error(`[migrationAudit] asset candidate read failed: ${candidate}`, error)
     }
   }
   return { exists: false, resolvedPath: candidates[0] }
@@ -340,7 +341,8 @@ export async function createMissingNotesFromAuditReport(report: MigrationAuditRe
       await vaultService.readFile(path)
       skipped += 1
       continue
-    } catch {
+    } catch (error) {
+      console.error(`[migrationAudit] note not found, creating: ${path}`, error)
       await vaultService.writeFile(path, createMissingNoteContent(issue.target))
       paths.push(path)
     }
@@ -388,7 +390,8 @@ export async function createMissingHeadingsAndBlocksFromAuditReport(report: Migr
     let content: string
     try {
       content = await vaultService.readFile(path)
-    } catch {
+    } catch (error) {
+      console.error(`[migrationAudit] failed to read file for heading/block repair: ${path}`, error)
       skipped += issues.length
       continue
     }
@@ -518,7 +521,8 @@ async function buildMissingAssetLinkRepairResult(
     let content: string
     try {
       content = await vaultService.readFile(path)
-    } catch {
+    } catch (error) {
+      console.error(`[migrationAudit] failed to read file for asset link repair: ${path}`, error)
       skipped += issues.length
       continue
     }

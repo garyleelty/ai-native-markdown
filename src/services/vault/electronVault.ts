@@ -22,7 +22,8 @@ export const electronVault: VaultBackend = {
   async readFileOrEmpty(path: string): Promise<string> {
     try {
       return await bridge().readFile(path)
-    } catch {
+    } catch (e) {
+      console.error(`Failed to read file: ${path}`, e)
       return ''
     }
   },

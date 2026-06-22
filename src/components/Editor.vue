@@ -216,6 +216,7 @@ import { getObsidianSyntaxHighlighting } from '@/extensions/obsidianTheme'
 import { basicSetup } from 'codemirror'
 import { indentWithTab } from '@codemirror/commands'
 import { useSettingsStore } from '@/stores/settings'
+import { pluginManager } from '@/plugin-system'
 import { ghostTextPlugin, updateGhostTextConfig, ghostTextKeymap, clearGhostText } from '@/extensions/ghost-text/ghostTextPlugin'
 import { inlineEditPlugin, inlineEditKeymap } from '@/extensions/inline-edit/inlineEditPlugin'
 import { dropHandlerExtension } from '@/extensions/multimodal/dropHandler'
@@ -302,6 +303,19 @@ let ignoreNextUpdate = false
 
 const aiActionCompartment = new Compartment()
 const activeHeadingFrom = ref(-1)
+
+/** Resolve plugin-contributed CodeMirror extensions into flat extension arrays. */
+function resolvePluginExtensions(): import('@codemirror/state').Extension[] {
+  const exts: import('@codemirror/state').Extension[] = []
+  for (const raw of pluginManager.editorExtensions.value) {
+    try {
+      exts.push(typeof raw === 'function' ? (raw as () => import('@codemirror/state').Extension)() : raw)
+    } catch (e) {
+      console.warn('[Editor] Failed to resolve plugin extension:', e)
+    }
+  }
+  return exts
+}
 
 const createLivePreviewExtensions = () => [
   createLivePreviewPlugin({
@@ -410,6 +424,8 @@ const createEditor = () => {
       ghostTextCompartment.of(settingsStore.ghostTextConfig.enabled ? [ghostTextPlugin, ghostTextKeymap] : []),
       inlineEditCompartment.of(settingsStore.enableInlineEdit ? [inlineEditPlugin, inlineEditKeymap] : []),
       dropHandlerExtension,
+      // Plugin-contributed extensions
+      ...resolvePluginExtensions(),
       lineWrappingCompartment.of(settingsStore.wordWrap ? EditorView.lineWrapping : []),
       placeholder('开始写作...'),
       EditorView.updateListener.of((update) => {
@@ -685,9 +701,9 @@ onBeforeUnmount(() => {
 .editor-toolbar {
   display: flex;
   align-items: center;
-  height: 36px;
-  min-height: 36px;
-  padding: 0 8px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 10px;
   background: var(--obsidian-bg-secondary);
   border-bottom: 1px solid var(--obsidian-border);
   overflow: hidden;
@@ -732,7 +748,7 @@ onBeforeUnmount(() => {
   height: 28px;
   min-height: 28px;
   padding: 0 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--obsidian-text-muted);
   border: none;
@@ -844,11 +860,11 @@ onBeforeUnmount(() => {
 }
 
 .editor-container :deep(.cm-selectionBackground) {
-  background: rgba(127, 109, 242, 0.2) !important;
+  background: rgba(124, 109, 242, 0.18) !important;
 }
 
 .editor-container :deep(.cm-focused .cm-selectionBackground) {
-  background: rgba(127, 109, 242, 0.25) !important;
+  background: rgba(124, 109, 242, 0.22) !important;
 }
 
 .editor-container :deep(.cm-gutters) {
@@ -890,15 +906,15 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: var(--obsidian-bg-secondary);
   border: 1px solid var(--obsidian-border);
-  border-radius: 8px;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  border-radius: var(--radius-md);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.30);
 }
 
 .completion-header {
   padding: 6px 8px 7px;
   color: var(--obsidian-text-muted);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1;
 }
 
@@ -908,12 +924,13 @@ onBeforeUnmount(() => {
   min-height: 44px;
   padding: 7px 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--obsidian-text-normal);
   cursor: pointer;
   font: inherit;
   text-align: left;
+  transition: background 0.15s var(--ease-spring);
 }
 
 .completion-item:hover,

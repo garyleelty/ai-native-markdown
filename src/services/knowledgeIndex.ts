@@ -135,7 +135,8 @@ function findMentionLine(content: string, names: string[]): number | undefined {
 async function readCurrentFileOrEmpty(filePath: string): Promise<string> {
   try {
     return vaultService.readFileOrEmpty(filePath)
-  } catch {
+  } catch (e) {
+    console.error(`[knowledgeIndex] Failed to read file "${filePath}" via vaultService, falling back to fileSystem:`, e)
     return fileSystem.readFileOrEmpty(filePath)
   }
 }

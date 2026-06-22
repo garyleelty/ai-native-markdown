@@ -182,6 +182,7 @@ export function useConflictHandler(options: {
       const files = await vaultService.getAllMarkdownFiles()
       return files.some(file => file.path === filePath) ? 'unreadable' : 'missing'
     } catch {
+      console.warn('[useConflictHandler] Failed to resolve disk state, falling back:', filePath)
       return event?.reason?.toLowerCase() === 'rename' ? 'missing' : 'unreadable'
     }
   }
@@ -234,7 +235,8 @@ export function useConflictHandler(options: {
           const latestContent = await vaultService.readFile(tab.filePath)
           if (latestContent !== tab.content) markExternalConflict(tab.filePath, tab.content, latestContent)
           else clearExternalConflict(tab.filePath)
-        } catch {
+        } catch (error) {
+          console.warn('[useConflictHandler] Failed to read modified tab from vault, marking conflict:', tab.filePath, error)
           const diskState = await resolveUnavailableConflictDiskState(tab.filePath, event)
           markExternalConflict(tab.filePath, tab.content, '', diskState)
         }
@@ -245,7 +247,8 @@ export function useConflictHandler(options: {
         tab.content = latestContent
         tab.isModified = false
         clearExternalConflict(tab.filePath)
-      } catch {
+      } catch (error) {
+        console.warn('[useConflictHandler] Failed to read unmodified tab from vault, removing tab:', tab.filePath, error)
         editorStore.removeOpenPath(tab.filePath, false)
         clearExternalConflict(tab.filePath)
       }

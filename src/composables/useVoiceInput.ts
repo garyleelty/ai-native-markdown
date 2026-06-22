@@ -168,7 +168,8 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       }
 
       return rec
-    } catch {
+    } catch (e) {
+      console.debug('[useVoiceInput] Failed to create SpeechRecognition instance:', e)
       return null
     }
   }
@@ -210,8 +211,8 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     if (recognition) {
       try {
         recognition.stop()
-      } catch {
-        // ignore
+      } catch (e) {
+        console.debug('[useVoiceInput] Error stopping recognition (may already be stopped):', e)
       }
       recognition = null
     }
@@ -233,8 +234,8 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       detachRecognitionHandlers(rec)
       try {
         rec.abort()
-      } catch {
-        // ignore
+      } catch (e) {
+        console.debug('[useVoiceInput] Error aborting recognition during cleanup:', e)
       }
     }
   })

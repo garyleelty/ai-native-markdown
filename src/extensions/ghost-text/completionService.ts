@@ -6,6 +6,13 @@ export interface CompletionResult {
   requestId: number
 }
 
+export interface CompletionContext {
+  fileName?: string
+  headings?: string[]
+  tags?: string[]
+  documentStructure?: string
+}
+
 let currentRequestId = 0
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let abortController: AbortController | null = null
@@ -14,7 +21,8 @@ export function requestCompletion(
   prefix: string,
   config: GhostTextConfig,
   onResult: (result: CompletionResult) => void,
-  onError: (error: string) => void
+  onError: (error: string) => void,
+  context?: CompletionContext
 ): void {
   cancelCompletion()
 
@@ -33,12 +41,42 @@ export function requestCompletion(
       }
 
       const truncatedPrefix = prefix.slice(-config.maxPrefixChars)
-      const prompt = `你是一个 Markdown 写作助手。请根据以下前文内容，续写接下来的一小段文字（不超过${config.maxCompletionChars}字）。只输出续写内容，不要加任何前缀、解释或标记：\n\n${truncatedPrefix}`
+
+      // Build context-aware prompt
+      let contextInfo = ''
+      if (context?.fileName) {
+        contextInfo += `当前文件：${context.fileName}\n`
+      }
+      if (context?.headings && context.headings.length > 0) {
+        contextInfo += `文档结构：${context.headings.join(' > ')}\n`
+      }
+      if (context?.tags && context.tags.length > 0) {
+        contextInfo += `标签：${context.tags.join(', ')}\n`
+      }
+      if (context?.documentStructure) {
+        contextInfo += `文档大纲：\n${context.documentStructure}\n`
+      }
+
+      const systemPrompt = `你是一个专业的 Markdown 写作助手。你的任务是根据上下文智能续写内容。
+
+规则：
+1. 只输出续写内容，不要加任何前缀、解释或标记
+2. 保持与前文一致的风格、语气和格式
+3. 如果前文是列表，继续列表格式
+4. 如果前文是段落，自然续写段落
+5. 如果前文是代码块，续写代码
+6. 如果前文是标题，续写标题下的内容
+7. 续写长度不超过${config.maxCompletionChars}字
+8. 优先完成当前句子或段落
+9. 如果前文有未完成的句子，先完成它
+10. 保持 Markdown 格式正确`
+
+      const userPrompt = `${contextInfo ? contextInfo + '\n' : ''}请根据以下前文内容，智能续写：\n\n${truncatedPrefix}`
 
       let result = ''
       for await (const chunk of provider.streamChat([
-        { role: 'system', content: '你是一个专业的 Markdown 写作助手，只输出续写内容。' },
-        { role: 'user', content: prompt }
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
       ], {
         temperature: 0.4,
         maxTokens: config.maxCompletionChars * 2,
@@ -53,7 +91,7 @@ export function requestCompletion(
         onResult({ text: result.trim(), requestId })
       }
     } catch (e: any) {
-      if (!controller.signal.aborted && requestId === currentRequestId) {
+      if (!controller.signal.aborted && requestId !== currentRequestId) {
         onError(e?.message || String(e))
       }
     } finally {

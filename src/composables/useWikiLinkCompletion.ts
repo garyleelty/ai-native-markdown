@@ -279,8 +279,9 @@ export function useWikiLinkCompletion(options: {
         loading: false,
         error: false,
       }
-    } catch {
+    } catch (e) {
       if (requestId !== crossDocumentHeadingRequestId) return
+      console.warn('[useWikiLinkCompletion] Failed to load cross-document headings:', e)
       crossDocumentHeadingState.value = {
         requestKey,
         path: context.targetPath,

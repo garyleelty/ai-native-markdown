@@ -285,7 +285,9 @@ export class FetchAIProvider implements AIProvider {
             const json = JSON.parse(data)
             const content = json.choices?.[0]?.delta?.content
             if (content) yield content
-          } catch {}
+          } catch (parseErr) {
+            console.warn('[AI] Failed to parse SSE data:', data, parseErr)
+          }
         }
         while (true) {
           const { done, value } = await reader.read()

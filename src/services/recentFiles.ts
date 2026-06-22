@@ -63,8 +63,9 @@ export const recentFilesService = {
       try {
         await vaultService.readFile(file.path)
         valid.push(file)
-      } catch {
+      } catch (error) {
         // Missing or unreadable files are removed from the recent list.
+        console.error(`Failed to validate recent file "${file.path}":`, error)
       }
     }
     if (valid.length < stored.length) persist(valid)

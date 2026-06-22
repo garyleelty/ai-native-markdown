@@ -233,7 +233,8 @@ export const fileSystem = {
   async readFileOrEmpty(path: string): Promise<string> {
     try {
       return await this.readFile(path)
-    } catch {
+    } catch (error) {
+      console.error(`Failed to read file: ${path}`, error)
       return ''
     }
   },
@@ -483,7 +484,9 @@ export const fileSystem = {
         for await (const [name, entry] of handle.entries()) {
           const path = `${parentPath}/${name}`
           if (entry.kind === 'directory') {
-            await this.createDirectory(path).catch(() => {})
+            await this.createDirectory(path).catch((error) => {
+              console.error(`Failed to create directory during import: ${path}`, error)
+            })
             await processHandle(entry, path)
           } else if (name.endsWith('.md') || name.endsWith('.markdown')) {
             const file = await entry.getFile()

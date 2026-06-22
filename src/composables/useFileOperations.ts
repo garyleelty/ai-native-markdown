@@ -33,9 +33,9 @@ export function useFileOperations(editorRef: Ref<any>) {
       embedSyncService.notifyChange(path)
       if (isDisposed) return
       editorStore.markPathSaved(path, contentToSave)
-      await versionHistory.saveSnapshot(path, contentToSave, '自动保存').catch(() => {})
+      await versionHistory.saveSnapshot(path, contentToSave, '自动保存').catch((err) => { console.warn('保存版本快照失败:', err) })
       if (settingsStore.enableRAG) {
-        await ragService.indexDocument(path, contentToSave).catch(() => {})
+        await ragService.indexDocument(path, contentToSave).catch((err) => { console.warn('RAG 索引更新失败:', err) })
       }
       if (isDisposed || requestId !== saveRequestId) return
       saveStatusMessage.value = '保存成功'

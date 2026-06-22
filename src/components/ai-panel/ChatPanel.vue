@@ -578,7 +578,7 @@ defineExpose({ clearMessages })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: var(--obsidian-bg-secondary);
   border-bottom: 1px solid var(--obsidian-border);
   flex-shrink: 0;
@@ -587,7 +587,7 @@ defineExpose({ clearMessages })
 .chat-header-left {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .chat-header-right {
@@ -598,18 +598,18 @@ defineExpose({ clearMessages })
 
 .chat-title {
   font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0;
+  font-weight: 650;
+  letter-spacing: -0.01em;
   color: var(--obsidian-text-normal);
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 12px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   scrollbar-width: thin;
   scrollbar-color: var(--obsidian-text-faint) transparent;
 }
@@ -618,8 +618,8 @@ defineExpose({ clearMessages })
   position: sticky;
   bottom: 0;
   z-index: 1;
-  margin-top: 2px;
-  padding: 6px;
+  margin-top: 4px;
+  padding: 8px;
   border: 1px solid var(--obsidian-border);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--obsidian-bg-secondary) 92%, transparent);
@@ -632,22 +632,22 @@ defineExpose({ clearMessages })
 
 .chat-message {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   max-width: 100%;
-  animation: messageIn var(--duration-fast) var(--ease-default);
+  animation: messageIn var(--duration-fast) var(--ease-spring);
 }
 
 @keyframes messageIn {
-  from { opacity: 0; transform: translateY(2px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .chat-message.user { flex-direction: row-reverse; }
 
 .message-avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: var(--radius-sm);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -664,11 +664,11 @@ defineExpose({ clearMessages })
 }
 
 .message-content {
-  max-width: calc(100% - 40px);
-  padding: 8px 10px;
-  border-radius: var(--radius-md);
+  max-width: calc(100% - 42px);
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--obsidian-text-normal);
   font-family: var(--font-sans);
 }
@@ -676,29 +676,31 @@ defineExpose({ clearMessages })
 .chat-message.user .message-content {
   background: var(--obsidian-accent-soft);
   border: none;
+  border-bottom-right-radius: var(--radius-xs);
 }
 
 .chat-message.assistant .message-content {
   background: var(--obsidian-bg-hover);
   border: none;
-  border-left: 2px solid var(--obsidian-accent);
+  border-left: 3px solid var(--obsidian-accent);
+  border-bottom-left-radius: var(--radius-xs);
 }
 
 .message-text :deep(pre) {
   background: var(--obsidian-bg-primary);
-  padding: 10px;
+  padding: 12px;
   border-radius: var(--radius-sm);
   overflow-x: auto;
   font-size: 12px;
-  margin: 6px 0;
-  border: none;
+  margin: 8px 0;
+  border: 1px solid var(--obsidian-border);
   font-family: var(--font-mono);
 }
 
 .message-text :deep(code) {
   background: var(--obsidian-bg-primary);
-  padding: 1px 4px;
-  border-radius: var(--radius-sm);
+  padding: 2px 5px;
+  border-radius: var(--radius-xs);
   font-size: 12px;
   font-family: var(--font-mono);
   color: var(--obsidian-accent);
@@ -713,16 +715,17 @@ defineExpose({ clearMessages })
 .message-text :deep(.source-citation) {
   display: inline-flex;
   align-items: center;
-  padding: 0 3px;
+  padding: 1px 4px;
   border: 1px solid var(--obsidian-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   background: var(--obsidian-bg-primary);
   color: var(--obsidian-accent);
   font-family: var(--font-mono);
-  font-size: 0.9em;
+  font-size: 0.88em;
   line-height: 1.3;
   cursor: pointer;
   vertical-align: baseline;
+  transition: all 0.15s var(--ease-spring);
 }
 
 .message-text :deep(.source-citation:hover),
@@ -737,8 +740,8 @@ defineExpose({ clearMessages })
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 6px;
-  padding-top: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid var(--obsidian-border);
   color: var(--obsidian-text-muted);
   font-size: 11px;
@@ -749,9 +752,9 @@ defineExpose({ clearMessages })
 
 .source-chip {
   max-width: 100%;
-  padding: 1px 5px;
+  padding: 2px 6px;
   border: 1px solid var(--obsidian-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   background: var(--obsidian-bg-primary);
   color: var(--obsidian-text-muted);
   font-family: var(--font-mono);
@@ -761,6 +764,7 @@ defineExpose({ clearMessages })
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+  transition: all 0.15s var(--ease-spring);
 }
 
 .source-chip:hover,
@@ -768,16 +772,17 @@ defineExpose({ clearMessages })
 .source-chip.active {
   border-color: var(--obsidian-accent);
   color: var(--obsidian-accent);
+  background: var(--obsidian-accent-soft);
   outline: none;
 }
 
 .source-preview {
-  margin-top: 6px;
-  padding-top: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid var(--obsidian-border);
   color: var(--obsidian-text-muted);
   font-size: 11px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .source-preview-header {
@@ -785,14 +790,14 @@ defineExpose({ clearMessages })
   align-items: baseline;
   gap: 6px;
   min-width: 0;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 
 .source-preview-id {
   flex-shrink: 0;
   color: var(--obsidian-accent);
   font-family: var(--font-mono);
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .source-preview-target {
@@ -813,18 +818,18 @@ defineExpose({ clearMessages })
 .message-actions {
   display: flex;
   gap: 2px;
-  margin-top: 6px;
-  padding-top: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid var(--obsidian-border);
 }
 
-.message-actions :deep(.el-button) { width: 22px; height: 22px; }
+.message-actions :deep(.el-button) { width: 24px; height: 24px; }
 
-.typing-indicator { display: flex; gap: 4px; padding: 4px 0; }
+.typing-indicator { display: flex; gap: 5px; padding: 6px 0; }
 
 .typing-indicator span {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--obsidian-accent);
   animation: typing 1.4s infinite ease-in-out both;
@@ -839,12 +844,12 @@ defineExpose({ clearMessages })
 }
 
 .chat-input-area {
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-top: 1px solid var(--obsidian-border);
   flex-shrink: 0;
   background: var(--obsidian-bg-secondary);
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: flex-end;
 }
 
@@ -855,14 +860,15 @@ defineExpose({ clearMessages })
   border-radius: var(--radius-md);
   font-family: var(--font-sans);
   font-size: 13px;
-  min-height: 32px !important;
-  padding: 7px 10px;
+  min-height: 34px !important;
+  padding: 8px 12px;
   box-shadow: none;
+  transition: border-color 0.2s var(--ease-spring);
 }
 
 .chat-input-area :deep(.el-textarea__inner:focus) {
   border-color: var(--obsidian-accent);
-  box-shadow: none;
+  box-shadow: 0 0 0 2px var(--violet-dim);
 }
 
 .chat-input-area :deep(.el-textarea__inner::placeholder) { color: var(--obsidian-text-faint); }
@@ -870,12 +876,13 @@ defineExpose({ clearMessages })
 .chat-input-area :deep(.el-button--primary) {
   background: var(--obsidian-accent);
   border-color: var(--obsidian-accent);
+  transition: all 0.2s var(--ease-spring);
 }
 
 .chat-input-area :deep(.el-button--primary:hover) {
-  background: var(--obsidian-accent);
-  border-color: var(--obsidian-accent);
-  opacity: 0.85;
+  background: var(--obsidian-accent-hover);
+  border-color: var(--obsidian-accent-hover);
+  transform: translateY(-1px);
 }
 
 .chat-input-area :deep(.el-button--danger) {
@@ -885,28 +892,28 @@ defineExpose({ clearMessages })
 }
 
 .message-tool-calls {
-  margin-top: 6px;
-  padding-top: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid var(--obsidian-border);
 }
 
 .tool-calls-label {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--obsidian-text-faint);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.04em;
 }
 
 .tool-call-item {
-  padding: 4px 6px;
-  margin-bottom: 4px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
   border-radius: var(--radius-sm);
   background: var(--obsidian-bg-primary);
-  border-left: 2px solid var(--obsidian-accent);
+  border-left: 3px solid var(--obsidian-accent);
   font-size: 11px;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .tool-call-item.tool-call-error { border-left-color: var(--el-color-danger, #f56c6c); }
@@ -918,13 +925,13 @@ defineExpose({ clearMessages })
   gap: 4px;
 }
 
-.tool-call-name { font-family: var(--font-mono); font-weight: 600; color: var(--obsidian-accent); }
+.tool-call-name { font-family: var(--font-mono); font-weight: 650; color: var(--obsidian-accent); }
 .tool-call-status.success { color: var(--el-color-success, #67c23a); }
 .tool-call-status.error { color: var(--el-color-danger, #f56c6c); }
 
 .tool-call-params {
   color: var(--obsidian-text-muted);
-  margin-top: 2px;
+  margin-top: 3px;
   display: flex;
   flex-wrap: wrap;
   gap: 2px 8px;
@@ -932,24 +939,24 @@ defineExpose({ clearMessages })
 
 .param-key { font-family: var(--font-mono); color: var(--obsidian-text-faint); }
 .param-value { color: var(--obsidian-text-muted); word-break: break-all; }
-.tool-call-result { margin-top: 2px; color: var(--obsidian-text-muted); }
-.tool-call-error-msg { margin-top: 2px; color: var(--el-color-danger, #f56c6c); }
-.agent-status { font-size: 11px; color: var(--obsidian-text-muted); margin-top: 4px; }
+.tool-call-result { margin-top: 3px; color: var(--obsidian-text-muted); }
+.tool-call-error-msg { margin-top: 3px; color: var(--el-color-danger, #f56c6c); }
+.agent-status { font-size: 11px; color: var(--obsidian-text-muted); margin-top: 6px; }
 
 .copy-btn {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 8px;
+  right: 8px;
   background: var(--obsidian-bg-tertiary);
   border: 1px solid var(--obsidian-border);
   border-radius: var(--radius-sm);
-  padding: 1px 6px;
+  padding: 2px 8px;
   font-size: 11px;
   font-family: var(--font-sans);
   color: var(--obsidian-text-muted);
   cursor: pointer;
   opacity: 0;
-  transition: opacity var(--duration-fast) var(--ease-default);
+  transition: all var(--duration-fast) var(--ease-spring);
 }
 
 pre:hover .copy-btn { opacity: 1; }
@@ -957,14 +964,14 @@ pre:hover .copy-btn { opacity: 1; }
 
 /* AI 状态面板（未配置 / 连接中 / 错误） */
 .chat-status-panel {
-  padding: 16px;
+  padding: 20px;
   text-align: center;
   color: var(--obsidian-text-muted);
 }
 
 .chat-status-icon {
   font-size: 32px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   opacity: 0.85;
   display: flex;
   justify-content: center;
@@ -973,22 +980,23 @@ pre:hover .copy-btn { opacity: 1; }
 
 .chat-status-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--obsidian-text-normal);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
 }
 
 .chat-status-desc {
   font-size: 12px;
-  line-height: 1.6;
-  margin-bottom: 10px;
+  line-height: 1.65;
+  margin-bottom: 12px;
 }
 
 .chat-status-actions {
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .chat-status-hint {
@@ -1000,7 +1008,7 @@ pre:hover .copy-btn { opacity: 1; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   text-align: left;
 }
 

@@ -5,7 +5,6 @@
         <el-radio-group v-model="format" class="export-format-group">
           <el-radio-button value="markdown">Markdown</el-radio-button>
           <el-radio-button value="html">HTML</el-radio-button>
-          <el-radio-button value="pdf">PDF (浏览器打印)</el-radio-button>
           <el-radio-button value="plain">纯文本</el-radio-button>
         </el-radio-group>
       </el-form-item>
@@ -52,9 +51,10 @@ const visible = computed({
   set: (v) => emit('update:modelValue', v)
 })
 
-const format = ref<'markdown' | 'html' | 'pdf' | 'plain'>('markdown')
+const format = ref<'markdown' | 'html' | 'plain'>('markdown')
 const includeStyles = ref(true)
 const includeTOC = ref(false)
+
 const normalizeBaseName = (name: string): string => {
   const base = name
     .replace(/\.(md|markdown|html|txt)$/i, '')
@@ -69,16 +69,26 @@ watch(() => props.defaultFileName, (newName) => {
   if (newName) fileName.value = normalizeBaseName(newName)
 })
 
+const getExtension = () => format.value === 'markdown' ? '.md' : format.value === 'html' ? '.html' : '.txt'
+
+const convertToPlain = (content: string): string => {
+  return content
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/`(.+?)`/g, '$1')
+    .replace(/\[(.+?)\]\(.+?\)/g, '$1')
+    .replace(/!\[.*?\]\(.+?\)/g, '[图片]')
+}
+
 const handleExport = async () => {
-  let blob: Blob
-  let name: string
   const baseName = normalizeBaseName(fileName.value)
+  const ext = getExtension()
 
   try {
-    if (format.value === 'markdown') {
-      blob = new Blob([props.content], { type: 'text/markdown' })
-      name = `${baseName}.md`
-    } else if (format.value === 'html') {
+    let blob: Blob
+
+    if (format.value === 'html') {
       const html = await createExportHtmlWithEmbeds(props.content, {
         title: baseName,
         includeStyles: includeStyles.value,
@@ -86,53 +96,29 @@ const handleExport = async () => {
         currentFile: props.currentFile,
       })
       blob = new Blob([html], { type: 'text/html' })
-      name = `${baseName}.html`
-    } else if (format.value === 'pdf') {
-      // PDF export via browser print dialog
-      const html = await createExportHtmlWithEmbeds(props.content, {
-        title: baseName,
-        includeStyles: true,
-        includeTOC: includeTOC.value,
-        currentFile: props.currentFile,
-      })
-      const printWindow = window.open('', '_blank')
-      if (printWindow) {
-        printWindow.document.write(html)
-        printWindow.document.close()
-        printWindow.onload = () => {
-          printWindow.print()
-        }
-      }
-      visible.value = false
-      return
+    } else if (format.value === 'plain') {
+      blob = new Blob([convertToPlain(props.content)], { type: 'text/plain' })
     } else {
-      const text = props.content
-        .replace(/^#{1,6}\s+/gm, '')
-        .replace(/\*\*(.+?)\*\*/g, '$1')
-        .replace(/\*(.+?)\*/g, '$1')
-        .replace(/`(.+?)`/g, '$1')
-        .replace(/\[(.+?)\]\(.+?\)/g, '$1')
-        .replace(/!\[.*?\]\(.+?\)/g, '[图片]')
-      blob = new Blob([text], { type: 'text/plain' })
-      name = `${baseName}.txt`
+      blob = new Blob([props.content], { type: 'text/markdown' })
     }
+
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${baseName}${ext}`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    ElMessage.success(`已导出 ${baseName}${ext}`)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     ElMessage.error(`导出失败: ${message}`)
     return
   }
 
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-
   visible.value = false
-  ElMessage.success(`已导出 ${name}`)
 }
 </script>
 

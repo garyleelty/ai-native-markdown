@@ -185,6 +185,7 @@
             @open-file="handleFileSelect"
           />
           <div v-else class="editor-workspace">
+            <ErrorBoundary>
             <VaultConflictOverlay
               :external-conflicts="externalConflicts"
               :current-external-conflict="currentExternalConflict"
@@ -258,6 +259,7 @@
                 @navigate="handleWikiNavigate"
               />
             </div>
+            </ErrorBoundary>
           </div>
         </el-main>
 
@@ -368,6 +370,8 @@
         </div>
       </div>
     </Transition>
+    <UpdateNotifier />
+    <OnboardingGuide ref="onboardingRef" />
   </el-container>
 </template>
 
@@ -397,8 +401,13 @@ import { useTabManagement } from './composables/useTabManagement'
 import { useAppKeyboard } from './composables/useAppKeyboard'
 import { useAIStatus } from './composables/useAIStatus'
 import type { ViewMode, FileTreeRenamePayload } from './types'
+import { pluginManager, createPluginContext, bindEditorAPI } from './plugin-system'
+import { registerAllPlugins } from './plugins'
 import './styles/app.css'
 import VaultConflictOverlay from './components/VaultConflictOverlay.vue'
+import UpdateNotifier from './components/UpdateNotifier.vue'
+import ErrorBoundary from './components/ErrorBoundary.vue'
+import OnboardingGuide from './components/OnboardingGuide.vue'
 import Sidebar from './components/Sidebar.vue'
 import Editor from './components/Editor.vue'
 import Preview from './components/Preview.vue'
@@ -444,6 +453,7 @@ const embedRefreshKey = ref(0)
 const narrowViewportBreakpoint = 768
 const viewportWidth = ref(typeof window === 'undefined' ? 1024 : window.innerWidth)
 const mobileSidebarOpen = ref(false)
+const onboardingRef = ref<{ show: () => void } | null>(null)
 
 const {
   saveStatusMessage,
@@ -934,6 +944,12 @@ onMounted(async () => {
   configureAIProvider(settingsStore.aiConfig)
   settingsStore.applyTheme()
   updateViewportWidth()
+
+  // Initialize plugin system
+  registerAllPlugins()
+  const pluginCtx = createPluginContext()
+  pluginManager.setContext(pluginCtx)
+  await pluginManager.activateAll()
   window.addEventListener('resize', updateViewportWidth)
   window.addEventListener('beforeunload', handleBeforeUnload)
   document.addEventListener('keydown', handleKeyDown)
@@ -957,6 +973,11 @@ onMounted(async () => {
     await refreshMarkdownPaths()
   } catch {
     if (!isAppDisposed.value) editorStore.setContentSilent('')
+  }
+
+  // Show onboarding guide for first-time users
+  if (onboardingRef.value) {
+    onboardingRef.value.show()
   }
 
   if (isAppDisposed.value) return

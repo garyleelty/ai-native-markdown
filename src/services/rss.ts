@@ -377,8 +377,11 @@ tags: {tags}
       currentPath += '/' + part
       try {
         await fileSystem.createDirectory(currentPath)
-      } catch {
-        // 目录已存在，忽略错误
+      } catch (error) {
+        // 目录已存在时忽略，其他错误记录日志
+        if (!(error instanceof Error && error.message.includes('exists'))) {
+          console.error(`Failed to create directory "${currentPath}":`, error)
+        }
       }
     }
   }

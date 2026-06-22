@@ -103,7 +103,8 @@ class AgentControllerImpl {
             let params: Record<string, unknown>
             try {
               params = JSON.parse(toolCall.function.arguments)
-            } catch {
+            } catch (e) {
+              console.warn('[AgentController] Failed to parse tool call arguments:', e instanceof Error ? e.message : String(e))
               params = {}
             }
             const confirmed = await options.onConfirm(tool.name, params)

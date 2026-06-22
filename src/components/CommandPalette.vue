@@ -14,13 +14,13 @@
       <el-input
         ref="inputRef"
         v-model="searchQuery"
-        placeholder="输入命令..."
+        :placeholder="isAIMode ? '告诉 AI 你想做什么...' : '输入命令或用 > 开启 AI 模式...'"
         size="large"
         clearable
         aria-label="搜索命令"
         @keydown.down.prevent="navigateDown"
         @keydown.up.prevent="navigateUp"
-        @keydown.enter.prevent="executeSelected"
+        @keydown.enter.prevent="isNaturalLanguage ? executeAI() : executeSelected()"
         @keydown.escape="$emit('update:modelValue', false)"
         role="combobox"
         aria-controls="command-palette-list"
@@ -28,7 +28,16 @@
         :aria-activedescendant="selectedCommandId ? `command-${safeCommandId(selectedCommandId)}` : undefined"
       >
         <template #prefix>
-          <el-icon><Search /></el-icon>
+          <el-icon v-if="isNaturalLanguage"><MagicStick /></el-icon>
+          <el-icon v-else><Search /></el-icon>
+        </template>
+        <template #append>
+          <el-button
+            :type="isAIMode ? 'primary' : 'default'"
+            @click="isAIMode = !isAIMode"
+            :icon="MagicStick"
+            aria-label="切换 AI 模式"
+          />
         </template>
       </el-input>
 
@@ -57,8 +66,33 @@
             </button>
           </div>
         </div>
-        <div v-if="flatFilteredCommands.length === 0" class="command-empty">
+        <div v-if="flatFilteredCommands.length === 0 && !isNaturalLanguage" class="command-empty">
           未找到匹配的命令
+        </div>
+
+        <!-- AI Mode -->
+        <div v-if="isNaturalLanguage" class="ai-mode-section">
+          <div class="ai-mode-header">
+            <el-icon><MagicStick /></el-icon>
+            <span>AI 执行</span>
+            <span class="ai-mode-hint">按 Enter 执行</span>
+          </div>
+          <button
+            type="button"
+            class="ai-mode-item"
+            @click="executeAI"
+            :disabled="aiProcessing"
+          >
+            <el-icon><Promotion /></el-icon>
+            <span class="ai-mode-prompt">{{ aiPrompt }}</span>
+            <span v-if="aiProcessing" class="ai-processing">处理中...</span>
+          </button>
+          <div class="ai-mode-examples">
+            <span>示例：</span>
+            <button type="button" class="ai-example" @click="searchQuery = '> 把这篇文章改写成更正式的语气'">改写语气</button>
+            <button type="button" class="ai-example" @click="searchQuery = '> 总结当前笔记的要点'">总结要点</button>
+            <button type="button" class="ai-example" @click="searchQuery = '> 创建一个关于机器学习的笔记'">创建笔记</button>
+          </div>
         </div>
       </el-scrollbar>
     </div>
@@ -72,7 +106,7 @@ import {
   Download, EditPen, Edit, Document, Link, Picture,
   Expand, ChatDotRound, View, Sunny,
   Delete, Connection, Grid, Monitor, Clock, FullScreen, Notebook, Calendar,
-  Setting, List, Share, Refresh, Tickets
+  Setting, List, Share, Refresh, Tickets, MagicStick, Promotion
 } from '@element-plus/icons-vue'
 
 const props = defineProps<{
@@ -83,7 +117,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
   (e: 'execute', command: string): void
+  (e: 'ai-execute', prompt: string): void
 }>()
+
+const isAIMode = ref(false)
+const aiProcessing = ref(false)
 
 interface Command {
   id: string
@@ -148,6 +186,13 @@ const categoryOrder = [
 
 const searchQuery = ref('')
 const selectedCommandId = ref('')
+
+// Auto-detect AI mode when > is typed
+watch(searchQuery, (q) => {
+  if (q.startsWith('>')) {
+    isAIMode.value = true
+  }
+})
 
 const getFileName = (path: string) => path.split('/').pop() || path
 const getNoteTitle = (path: string) => getFileName(path).replace(/\.(md|markdown)$/i, '')
@@ -219,6 +264,22 @@ const flatFilteredCommands = computed(() =>
   filteredCategories.value.flatMap(cat => cat.commands)
 )
 
+// AI mode detection - if query starts with > or is natural language
+const isNaturalLanguage = computed(() => {
+  const q = searchQuery.value.trim()
+  if (!q) return false
+  // Starts with > for explicit AI mode
+  if (q.startsWith('>')) return true
+  // If no commands match and query is long enough, suggest AI mode
+  if (flatFilteredCommands.value.length === 0 && q.length > 5) return true
+  return false
+})
+
+const aiPrompt = computed(() => {
+  const q = searchQuery.value.trim()
+  return q.startsWith('>') ? q.slice(1).trim() : q
+})
+
 watch(flatFilteredCommands, (cmds) => {
   if (cmds.length > 0 && !cmds.find(c => c.id === selectedCommandId.value)) {
     selectedCommandId.value = cmds[0].id
@@ -250,6 +311,17 @@ const executeSelected = () => {
 const executeCommand = (id: string) => {
   emit('execute', id)
   emit('update:modelValue', false)
+}
+
+const executeAI = async () => {
+  if (!aiPrompt.value || aiProcessing.value) return
+  aiProcessing.value = true
+  emit('ai-execute', aiPrompt.value)
+  // Don't close immediately - let the parent handle it
+  setTimeout(() => {
+    aiProcessing.value = false
+    emit('update:modelValue', false)
+  }, 500)
 }
 
 watch(() => props.modelValue, (val) => {
@@ -296,6 +368,31 @@ const safeCommandId = (id: string) =>
 
 .command-palette :deep(.el-input__wrapper:focus-within) {
   box-shadow: 0 0 0 2px var(--obsidian-accent);
+}
+
+.command-palette :deep(.el-input-group__append) {
+  background: var(--obsidian-bg-tertiary);
+  border: 1px solid var(--obsidian-border);
+  border-left: none;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 0 8px;
+}
+
+.command-palette :deep(.el-input-group__append .el-button) {
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--obsidian-text-muted);
+  transition: all 0.15s ease;
+}
+
+.command-palette :deep(.el-input-group__append .el-button:hover) {
+  color: var(--obsidian-accent);
+}
+
+.command-palette :deep(.el-input-group__append .el-button--primary) {
+  color: var(--obsidian-accent);
+  background: var(--obsidian-accent-soft);
 }
 
 .command-list-scroll {
@@ -345,6 +442,7 @@ const safeCommandId = (id: string) =>
 
 .command-item.active {
   background: var(--obsidian-accent-soft);
+  box-shadow: inset 3px 0 0 var(--obsidian-accent);
 }
 
 .command-item:active {
@@ -443,6 +541,127 @@ const safeCommandId = (id: string) =>
   font-size: 13px;
 }
 
+/* AI Mode Section */
+.ai-mode-section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--obsidian-border);
+  animation: ai-mode-in 0.2s var(--ease-spring) both;
+}
+
+@keyframes ai-mode-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ai-mode-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--obsidian-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ai-mode-header .el-icon {
+  font-size: 14px;
+}
+
+.ai-mode-hint {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--obsidian-text-faint);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ai-mode-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: var(--obsidian-accent-soft);
+  border: 1px solid var(--obsidian-accent);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s var(--ease-spring);
+  color: var(--obsidian-text-normal);
+  font: inherit;
+  text-align: left;
+}
+
+.ai-mode-item:hover {
+  background: var(--obsidian-accent);
+  color: #fff;
+}
+
+.ai-mode-item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ai-mode-item .el-icon {
+  color: var(--obsidian-accent);
+  font-size: 18px;
+  transition: color 0.15s ease;
+}
+
+.ai-mode-item:hover .el-icon {
+  color: #fff;
+}
+
+.ai-mode-prompt {
+  flex: 1;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-processing {
+  font-size: 11px;
+  color: var(--obsidian-text-faint);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.ai-mode-examples {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--obsidian-text-faint);
+  flex-wrap: wrap;
+}
+
+.ai-example {
+  padding: 2px 8px;
+  background: var(--obsidian-bg-hover);
+  border: 1px solid var(--obsidian-border);
+  border-radius: var(--radius-full);
+  color: var(--obsidian-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ai-example:hover {
+  background: var(--obsidian-accent-soft);
+  border-color: var(--obsidian-accent);
+  color: var(--obsidian-accent);
+}
+
 @media (max-width: 480px) {
   .command-list-scroll {
     margin: 0 -8px;
@@ -467,7 +686,26 @@ const safeCommandId = (id: string) =>
 .command-palette-dialog.el-dialog {
   max-width: calc(100vw - 32px);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(124, 109, 242, 0.1);
   overflow: hidden;
+  backdrop-filter: blur(20px);
+  background: var(--obsidian-bg-secondary);
+  border: 1px solid var(--obsidian-border);
+}
+
+/* Entry animation */
+.command-palette-dialog.el-dialog {
+  animation: palette-in 0.2s var(--ease-spring) both;
+}
+
+@keyframes palette-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 </style>

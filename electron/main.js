@@ -1,6 +1,7 @@
 const { app, BrowserWindow } = require('electron')
 const path = require('path')
 const { registerVaultHandlers } = require('./vaultHandlers')
+const { setupAutoUpdater } = require('./updater')
 require('./menu')
 
 const isDev = !app.isPackaged
@@ -25,6 +26,7 @@ function createWindow() {
   })
 
   registerVaultHandlers(win)
+  setupAutoUpdater()
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
   if (isDev) {

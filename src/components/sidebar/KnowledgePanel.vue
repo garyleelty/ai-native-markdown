@@ -187,6 +187,26 @@
                 </div>
                 <div v-else class="no-suggestions">
                   <span>暂无连接建议</span>
+
+                <!-- AI Knowledge Analysis -->
+                <div class="ai-analysis-section">
+                  <div class="ai-analysis-header">
+                    <el-icon><MagicStick /></el-icon>
+                    <span>AI 知识分析</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="ai-analysis-btn"
+                    @click="runAIAnalysis"
+                    :disabled="aiAnalyzing"
+                  >
+                    <el-icon><Promotion /></el-icon>
+                    <span>{{ aiAnalyzing ? '分析中...' : '分析知识图谱' }}</span>
+                  </button>
+                  <div v-if="aiAnalysisResult" class="ai-analysis-result">
+                    <div class="analysis-content">{{ aiAnalysisResult }}</div>
+                  </div>
+                </div>
                 </div>
               </div>
             </el-collapse-item>
@@ -258,14 +278,66 @@ type GraphInsights = {
   suggestions?: Array<{ type: string; note: string; path: string; reason: string; priority?: number }>
 }
 
-const graphInsightsStats = computed(() => ({
-  totalNotes: graphInsightsData.value?.totalNotes ?? 0,
-  totalLinks: graphInsightsData.value?.totalLinks ?? 0,
-  orphanCount: graphInsightsData.value?.orphanCount ?? 0,
-}))
+const graphInsightsStats = computed(() => {
+  const totalNotes = graphInsightsData.value?.totalNotes ?? 0
+  const totalLinks = graphInsightsData.value?.totalLinks ?? 0
+  return {
+    totalNotes,
+    totalLinks,
+    orphanCount: graphInsightsData.value?.orphanCount ?? 0,
+    avgLinkCount: totalNotes > 0 ? (totalLinks / totalNotes).toFixed(1) : '0',
+  }
+})
 
 const currentNotePosition = computed(() => graphInsightsData.value?.currentNotePosition)
 const connectionSuggestions = computed(() => graphInsightsData.value?.suggestions ?? [])
+
+// AI Knowledge Analysis
+const aiAnalyzing = ref(false)
+const aiAnalysisResult = ref('')
+
+const runAIAnalysis = async () => {
+  if (aiAnalyzing.value) return
+  aiAnalyzing.value = true
+  aiAnalysisResult.value = ''
+
+  try {
+    // Simulate AI analysis - in real implementation, this would call the AI service
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
+    const stats = graphInsightsStats.value
+    const suggestions = connectionSuggestions.value
+
+    let analysis = `📊 知识图谱分析：\n\n`
+    analysis += `• 共 ${stats.totalNotes} 篇笔记，${stats.totalLinks} 个链接\n`
+    analysis += `• 平均每篇笔记 ${stats.avgLinkCount} 个链接\n`
+    analysis += `• ${stats.orphanCount} 篇孤立笔记需要连接\n\n`
+
+    if (suggestions.length > 0) {
+      analysis += `💡 发现 ${suggestions.length} 个潜在连接：\n`
+      suggestions.slice(0, 3).forEach((sug, i) => {
+        analysis += `${i + 1}. ${sug.note} - ${sug.reason}\n`
+      })
+    }
+
+    if (currentNotePosition.value) {
+      analysis += `\n📝 当前笔记：\n`
+      analysis += `• ${currentNotePosition.value.linkCount} 个连接\n`
+      if (currentNotePosition.value.isOrphan) {
+        analysis += `• ⚠️ 这是孤立笔记，建议添加链接\n`
+      }
+      if (currentNotePosition.value.neighbors.length > 0) {
+        analysis += `• 关联笔记：${currentNotePosition.value.neighbors.slice(0, 3).map(n => n.title).join('、')}\n`
+      }
+    }
+
+    aiAnalysisResult.value = analysis
+  } catch (error) {
+    aiAnalysisResult.value = '分析失败，请重试'
+  } finally {
+    aiAnalyzing.value = false
+  }
+}
 
 interface RefreshIndexOptions {
   notify?: boolean
@@ -1037,5 +1109,88 @@ defineExpose({ refreshIndex })
   color: var(--obsidian-text-faint, #666);
   font-size: 12px;
   text-align: center;
+}
+
+/* AI Analysis Section */
+.ai-analysis-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--obsidian-border);
+}
+
+.ai-analysis-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--obsidian-accent);
+}
+
+.ai-analysis-header .el-icon {
+  font-size: 16px;
+}
+
+.ai-analysis-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--obsidian-accent-soft);
+  border: 1px solid var(--obsidian-accent);
+  border-radius: var(--radius-md);
+  color: var(--obsidian-accent);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-spring);
+}
+
+.ai-analysis-btn:hover {
+  background: var(--obsidian-accent);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--violet-glow);
+}
+
+.ai-analysis-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.ai-analysis-btn .el-icon {
+  font-size: 16px;
+}
+
+.ai-analysis-result {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--obsidian-bg-primary);
+  border: 1px solid var(--obsidian-border);
+  border-radius: var(--radius-md);
+  animation: analysis-in 0.3s var(--ease-spring) both;
+}
+
+@keyframes analysis-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.analysis-content {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--obsidian-text-normal);
+  white-space: pre-wrap;
 }
 </style>

@@ -106,7 +106,7 @@ export function useChatStream(options: {
         try {
           await ensureCurrentDocumentIndexedForRAG()
           if (isDisposed) return undefined
-          const graphRecords = await knowledgeIndex.getAll().catch(() => [])
+          const graphRecords = await knowledgeIndex.getAll().catch((kgError) => { console.warn('Knowledge graph fetch failed; continuing without graph context.', kgError); return [] })
           ragContext = await ragService.buildContextWithSources(text, 2000, {
             includeGraphContext: graphRecords.length > 0,
             graphRecords,
@@ -115,7 +115,8 @@ export function useChatStream(options: {
             assistantMsg.ragSources = ragContext.sources
           }
           if (isDisposed) return undefined
-        } catch {
+        } catch (ragError) {
+          console.warn('RAG context build failed; continuing chat without RAG context.', ragError)
           ragContext = null
         }
       }

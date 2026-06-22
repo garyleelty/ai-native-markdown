@@ -27,6 +27,7 @@ const ensureDailyDirectory = async (): Promise<void> => {
   try {
     await vaultService.createDirectory('/workspace/Daily')
   } catch {
+    console.debug('Daily directory may already exist, attempting to read')
     await vaultService.readDirectory('/workspace/Daily')
   }
 }
@@ -46,6 +47,7 @@ export function useDailyNote(options: {
       try {
         await vaultService.readFile(path)
       } catch {
+        console.debug('Daily note does not exist, creating new one')
         await vaultService.writeFile(path, createDailyNoteContent(dateStamp))
         created = true
       }

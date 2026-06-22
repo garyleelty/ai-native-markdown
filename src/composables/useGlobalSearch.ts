@@ -9,6 +9,16 @@ export interface SearchResult {
     lineNumber: number
     lineContent: string
   }>
+  relevanceScore?: number
+  semanticSummary?: string
+}
+
+export interface SemanticSearchResult {
+  filePath: string
+  fileName: string
+  relevance: number
+  summary: string
+  keyTopics: string[]
 }
 
 export interface GlobalSearchOptions {
@@ -16,17 +26,21 @@ export interface GlobalSearchOptions {
   maxMatchesPerFile?: number
   /** Max total results, default 50 */
   maxResults?: number
+  /** Enable AI-powered semantic search */
+  enableSemanticSearch?: boolean
 }
 
 export function useGlobalSearch(options: GlobalSearchOptions = {}) {
-  const { maxMatchesPerFile = 5, maxResults = 50 } = options
+  const { maxMatchesPerFile = 5, maxResults = 50, enableSemanticSearch = false } = options
 
   const query = ref('')
   const scopePath = ref('')
   const results = ref<SearchResult[]>([])
+  const semanticResults = ref<SemanticSearchResult[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const searchMode = ref<'text' | 'regex'>('text')
+  const searchMode = ref<'text' | 'regex' | 'semantic'>('text')
+  const isSemanticSearch = ref(false)
   let isDisposed = false
 
   // Detect if query is a regex pattern (starts and ends with /)
@@ -40,7 +54,8 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
     try {
       const pattern = q.slice(1, -1)
       return new RegExp(pattern, 'gi')
-    } catch {
+    } catch (e) {
+      console.debug('[useGlobalSearch] Invalid regex pattern:', e)
       return null
     }
   }
@@ -139,8 +154,8 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
             matches,
           })
         }
-      } catch {
-        // Skip files that can't be read
+      } catch (e) {
+        console.debug(`[useGlobalSearch] Skipped unreadable file: ${record.filePath}`, e)
       }
     }
 
@@ -188,8 +203,8 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
             matches,
           })
         }
-      } catch {
-        // Skip files that can't be read
+      } catch (e) {
+        console.debug(`[useGlobalSearch] Skipped unreadable file: ${record.filePath}`, e)
       }
     }
 
@@ -235,16 +250,167 @@ export function useGlobalSearch(options: GlobalSearchOptions = {}) {
     error.value = null
   }
 
+  // AI-powered semantic search
+  const semanticSearch = async (searchQuery: string) => {
+    if (!searchQuery.trim()) {
+      semanticResults.value = []
+      return
+    }
+
+    loading.value = true
+    error.value = null
+    isSemanticSearch.value = true
+    searchMode.value = 'semantic'
+
+    try {
+      const allRecords = await knowledgeIndex.getAll()
+      const scope = scopePath.value.trim()
+
+      // Filter by scope
+      const candidateRecords = allRecords.filter(record => {
+        if (scope && !record.filePath.startsWith(scope)) return false
+        return true
+      })
+
+      // Simple semantic matching based on keywords and context
+      const results: SemanticSearchResult[] = []
+      const queryLower = searchQuery.toLowerCase()
+      const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2)
+
+      for (const record of candidateRecords) {
+        const contentLower = record.searchableText.toLowerCase()
+        const titleLower = record.title.toLowerCase()
+        const tagsLower = record.tags.map(t => t.toLowerCase()).join(' ')
+
+        let relevance = 0
+        const matchedTopics: string[] = []
+
+        // Title match (highest weight)
+        if (titleLower.includes(queryLower)) {
+          relevance += 100
+          matchedTopics.push('标题匹配')
+        }
+
+        // Tag match
+        for (const tag of record.tags) {
+          if (tag.toLowerCase().includes(queryLower) || queryLower.includes(tag.toLowerCase())) {
+            relevance += 50
+            matchedTopics.push(`标签: ${tag}`)
+          }
+        }
+
+        // Content keyword match
+        for (const word of queryWords) {
+          if (contentLower.includes(word)) {
+            relevance += 10
+            if (!matchedTopics.includes('内容匹配')) {
+              matchedTopics.push('内容匹配')
+            }
+          }
+        }
+
+        // Frontmatter match
+        for (const [key, value] of Object.entries(record.frontmatter)) {
+          const valueStr = String(value).toLowerCase()
+          if (valueStr.includes(queryLower) || queryLower.includes(valueStr)) {
+            relevance += 30
+            matchedTopics.push(`属性: ${key}`)
+          }
+        }
+
+        // Only include results with some relevance
+        if (relevance > 0) {
+          // Generate summary
+          const summary = generateSemanticSummary(record.searchableText, searchQuery)
+
+          results.push({
+            filePath: record.filePath,
+            fileName: record.title,
+            relevance,
+            summary,
+            keyTopics: matchedTopics,
+          })
+        }
+      }
+
+      // Sort by relevance
+      results.sort((a, b) => b.relevance - a.relevance)
+
+      // Limit results
+      semanticResults.value = results.slice(0, maxResults)
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Semantic search failed'
+      semanticResults.value = []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Generate semantic summary
+  function generateSemanticSummary(content: string, query: string): string {
+    const queryLower = query.toLowerCase()
+    const sentences = content.split(/[.!?。！？]+/).filter(s => s.trim().length > 0)
+
+    // Find most relevant sentence
+    let bestSentence = ''
+    let bestScore = 0
+
+    for (const sentence of sentences) {
+      const sentenceLower = sentence.toLowerCase()
+      let score = 0
+
+      // Check for query words
+      const queryWords = queryLower.split(/\s+/)
+      for (const word of queryWords) {
+        if (sentenceLower.includes(word)) {
+          score += 10
+        }
+      }
+
+      // Check for exact query
+      if (sentenceLower.includes(queryLower)) {
+        score += 50
+      }
+
+      if (score > bestScore) {
+        bestScore = score
+        bestSentence = sentence.trim()
+      }
+    }
+
+    // Return best sentence or first 150 characters
+    if (bestSentence && bestScore > 0) {
+      return bestSentence.length > 150 ? bestSentence.substring(0, 150) + '...' : bestSentence
+    }
+
+    return content.substring(0, 150) + '...'
+  }
+
+  // Check if query looks like a natural language question
+  const isNaturalLanguageQuery = (q: string): boolean => {
+    const questionPatterns = [
+      /^(what|how|why|when|where|who|which|can|could|would|should|is|are|was|were|do|does|did)\b/i,
+      /^(什么|怎么|为什么|何时|哪里|谁|哪个|能否|可以|是否|是不是)/i,
+      /\?$/,
+      /？$/,
+    ]
+    return questionPatterns.some(pattern => pattern.test(q))
+  }
+
   return {
     query,
     scopePath,
     results,
+    semanticResults,
     loading,
     error,
     searchMode,
+    isSemanticSearch,
     totalMatches,
     search,
+    semanticSearch,
     isRegexQuery,
+    isNaturalLanguageQuery,
     dispose,
   }
 }

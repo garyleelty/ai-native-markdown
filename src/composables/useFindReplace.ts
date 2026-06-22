@@ -16,7 +16,8 @@ const buildSearchRegExp = (text: string, options: SearchOptions): RegExp | null 
       source = `\\b${source}\\b`
     }
     return new RegExp(source, options.caseSensitive ? 'g' : 'gi')
-  } catch {
+  } catch (e) {
+    console.debug('buildSearchRegExp: invalid regex pattern', e)
     return null
   }
 }
@@ -28,7 +29,8 @@ const buildExactSearchRegExp = (text: string, options: SearchOptions): RegExp | 
       source = `\\b${source}\\b`
     }
     return new RegExp(`^(?:${source})$`, options.caseSensitive ? '' : 'i')
-  } catch {
+  } catch (e) {
+    console.debug('buildExactSearchRegExp: invalid regex pattern', e)
     return null
   }
 }

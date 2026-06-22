@@ -102,4 +102,232 @@ export const templateService = {
     persistUserTemplates(filtered)
     return true
   },
+
+  // AI-powered template generation
+  async generateTemplate(prompt: string, context?: { currentContent?: string; tags?: string[] }): Promise<string> {
+    // This would integrate with the AI service in a real implementation
+    // For now, return a structured template based on the prompt
+
+    const currentDate = new Date().toISOString().split('T')[0]
+    const currentTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+
+    // Analyze prompt to determine template type
+    const promptLower = prompt.toLowerCase()
+
+    if (promptLower.includes('会议') || promptLower.includes('meeting')) {
+      return `# 会议纪要
+
+**日期**: ${currentDate}
+**时间**: ${currentTime}
+**参与者**:
+**主题**:
+
+## 议程
+
+### 1. 开场
+-
+
+### 2. 主要议题
+-
+
+### 3. 讨论要点
+-
+
+## 决议
+
+-
+
+## 行动项
+
+| 任务 | 负责人 | 截止日期 | 状态 |
+|------|--------|----------|------|
+|      |        |          | ⬜   |
+
+## 下次会议
+
+- **时间**:
+- **议题**:
+
+---
+*会议记录于 ${currentDate} ${currentTime}*`
+    }
+
+    if (promptLower.includes('周报') || promptLower.includes('weekly')) {
+      return `# 周报 ${currentDate}
+
+## 本周完成
+
+1.
+2.
+3.
+
+## 进行中
+
+1.
+2.
+
+## 下周计划
+
+1.
+2.
+3.
+
+## 风险与问题
+
+-
+
+## 学习与反思
+
+-
+
+---
+*周报生成于 ${currentDate}*`
+    }
+
+    if (promptLower.includes('博客') || promptLower.includes('blog')) {
+      return `# 文章标题
+
+> 一句话摘要
+
+## 引言
+
+吸引读者的开头...
+
+## 主要内容
+
+### 要点一
+
+详细说明...
+
+### 要点二
+
+详细说明...
+
+### 要点三
+
+详细说明...
+
+## 实例与案例
+
+具体例子...
+
+## 总结
+
+核心观点回顾...
+
+## 参考资料
+
+- [链接1](url1)
+- [链接2](url2)
+
+---
+*写于 ${currentDate}*`
+    }
+
+    if (promptLower.includes('研究') || promptLower.includes('research')) {
+      return `# 研究笔记
+
+**主题**:
+**日期**: ${currentDate}
+**来源**:
+
+## 研究问题
+
+核心问题描述...
+
+## 背景
+
+相关背景信息...
+
+## 发现
+
+### 关键发现1
+
+详细说明...
+
+### 关键发现2
+
+详细说明...
+
+## 分析
+
+深入分析...
+
+## 结论
+
+初步结论...
+
+## 待验证
+
+- [ ] 需要进一步验证的点
+- [ ] 需要补充的数据
+
+## 参考文献
+
+1.
+2.
+
+---
+*研究笔记创建于 ${currentDate}*`
+    }
+
+    // Default template based on prompt
+    return `# ${prompt}
+
+**创建日期**: ${currentDate}
+**标签**:
+
+## 概述
+
+基于您的需求"${prompt}"生成的文档模板。
+
+## 主要内容
+
+### 第一部分
+
+在此添加内容...
+
+### 第二部分
+
+在此添加内容...
+
+## 要点
+
+-
+-
+-
+
+## 行动项
+
+- [ ]
+- [ ]
+
+## 参考
+
+-
+
+---
+*智能模板生成于 ${currentDate} ${currentTime}*`
+  },
+
+  // Get template suggestions based on content
+  getTemplateSuggestions(content: string): string[] {
+    const suggestions: string[] = []
+    const contentLower = content.toLowerCase()
+
+    if (contentLower.includes('会议') || contentLower.includes('讨论')) {
+      suggestions.push('会议纪要')
+    }
+    if (contentLower.includes('周') || contentLower.includes('本周')) {
+      suggestions.push('周报')
+    }
+    if (contentLower.includes('研究') || contentLower.includes('分析')) {
+      suggestions.push('研究笔记')
+    }
+    if (contentLower.includes('博客') || contentLower.includes('文章')) {
+      suggestions.push('博客文章')
+    }
+
+    return suggestions
+  },
 }

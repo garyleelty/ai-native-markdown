@@ -382,6 +382,31 @@ onBeforeUnmount(() => {
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  background: var(--obsidian-bg-primary);
+}
+
+/* Animated gradient background for graph */
+.knowledge-graph::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(124, 109, 242, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(32, 196, 168, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(240, 160, 48, 0.02) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+  animation: graph-bg-shift 30s ease-in-out infinite;
+}
+
+@keyframes graph-bg-shift {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.knowledge-graph > * {
+  position: relative;
+  z-index: 1;
 }
 
 .graph-toolbar {
@@ -392,6 +417,19 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
   flex-wrap: wrap;
+  position: relative;
+}
+
+/* Subtle gradient accent on bottom */
+.graph-toolbar::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--obsidian-accent), transparent);
+  opacity: 0.15;
 }
 
 .toolbar-search {
@@ -408,7 +446,7 @@ onBeforeUnmount(() => {
 
 .toolbar-search:focus-within {
   border-color: var(--accent-primary);
-  box-shadow: var(--shadow-glow);
+  box-shadow: 0 0 0 2px var(--violet-dim), 0 0 12px var(--violet-glow);
 }
 
 .toolbar-search svg {
@@ -556,6 +594,26 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  background: var(--obsidian-bg-primary, #1e1e1e);
+  border-radius: 2px;
+  position: relative;
+}
+
+/* Grid pattern background */
+.graph-canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
+  background-size: 24px 24px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.graph-canvas :deep(svg) {
+  position: relative;
+  z-index: 1;
 }
 
 .graph-empty-state {
@@ -578,6 +636,18 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--bg-surface) 82%, transparent);
   flex-shrink: 0;
+  animation: search-results-in 0.2s var(--ease-spring) both;
+}
+
+@keyframes search-results-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .graph-search-result {

@@ -196,6 +196,14 @@
       <div class="setting-subsection-title">AI 连接配置</div>
       <slot name="ai-config" />
       </el-collapse-item>
+
+      <el-collapse-item name="plugins">
+        <template #title>
+          <span class="setting-section-title">插件</span>
+          <span class="setting-section-desc">管理功能插件</span>
+        </template>
+        <PluginSettings />
+      </el-collapse-item>
     </el-collapse>
 
     <div class="settings-footer">
@@ -221,6 +229,7 @@
 import { computed, ref } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useSettingsStore } from '@/stores/settings'
+import PluginSettings from '@/components/PluginSettings.vue'
 import type { ThemeMode } from '@/types'
 import version from '@/version'
 

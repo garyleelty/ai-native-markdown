@@ -14,6 +14,14 @@ declare module 'markdown-it-task-lists' {
 
 interface Window {
   aiNativeVault?: import('./src/services/vault/types').VaultBridge
+  aiNativeUpdater?: {
+    checkForUpdates(): Promise<{ ok: boolean; updateAvailable?: boolean; error?: string }>
+    downloadUpdate(): Promise<{ ok: boolean; error?: string }>
+    installUpdate(): void
+    getState(): Promise<{ checking: boolean; available: boolean; version: string; releaseNotes: string }>
+    onStatus(listener: (data: { status: string; version?: string; releaseNotes?: string; error?: string }) => void): () => void
+    onProgress(listener: (data: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void): () => void
+  }
 }
 
 declare module 'markdown-it-katex' {

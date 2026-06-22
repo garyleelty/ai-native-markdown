@@ -54,8 +54,12 @@ async function rebuildElectronKnowledgeIndex(): Promise<void> {
 }
 
 function queueElectronKnowledgeUpdate(task: () => Promise<void>): Promise<void> {
-  const run = electronKnowledgeQueue.catch(() => {}).then(task)
-  electronKnowledgeQueue = run.catch(() => {})
+  const run = electronKnowledgeQueue.catch((err) => {
+    console.warn('[vault] queued knowledge update skipped due to previous error:', err)
+  }).then(task)
+  electronKnowledgeQueue = run.catch((err) => {
+    console.warn('[vault] knowledge update failed:', err)
+  })
   return run
 }
 

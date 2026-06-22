@@ -1,29 +1,50 @@
 <template>
   <div class="welcome-page">
+    <!-- Animated gradient orbs -->
+    <div class="welcome-bg" aria-hidden="true">
+      <div class="orb orb-1" />
+      <div class="orb orb-2" />
+      <div class="orb orb-3" />
+      <div class="grid-overlay" />
+    </div>
     <div class="welcome-content">
       <section class="welcome-primary" aria-labelledby="welcome-title">
         <div class="welcome-logo">
-          ✦
+          <span class="logo-glyph">✦</span>
+          <div class="logo-ring" />
         </div>
         <p class="welcome-kicker">Your AI-powered creative space</p>
-        <h1 id="welcome-title" class="welcome-title">AI Markdown</h1>
+        <h1 id="welcome-title" class="welcome-title">
+          <span class="title-line">AI</span>
+          <span class="title-line title-accent">Markdown</span>
+        </h1>
         <p class="welcome-subtitle">
           面向知识工作流的 Markdown 编辑器，把本地文件、实时预览、知识图谱和 AI 写作放在同一个工作台里。
         </p>
 
         <div class="welcome-actions">
-          <el-button type="primary" native-type="button" size="large" @click="$emit('new-file')">
+          <el-button type="primary" native-type="button" size="large" class="action-primary" @click="$emit('new-file')">
             <el-icon><DocumentAdd /></el-icon>
             新建文档
           </el-button>
-          <el-button native-type="button" size="large" @click="$emit('open-folder')">
+          <el-button native-type="button" size="large" class="action-secondary" @click="$emit('open-folder')">
             <el-icon><FolderAdd /></el-icon>
             打开文件夹
           </el-button>
-          <el-button native-type="button" size="large" @click="$emit('demo')">
+          <el-button native-type="button" size="large" class="action-ghost" @click="$emit('demo')">
             <el-icon><MagicStick /></el-icon>
             试用示例
           </el-button>
+        </div>
+
+        <div class="welcome-meta">
+          <span class="meta-badge">v0.2.0</span>
+          <span class="meta-dot">·</span>
+          <span class="meta-text">本地优先</span>
+          <span class="meta-dot">·</span>
+          <span class="meta-text">AI 原生</span>
+          <span class="meta-dot">·</span>
+          <span class="meta-text">开源 MIT</span>
         </div>
       </section>
 
@@ -175,6 +196,75 @@ const shortcuts = [
   overflow-x: hidden;
   background: var(--obsidian-bg-primary);
   color: var(--obsidian-text-normal);
+  position: relative;
+}
+
+/* ── Animated gradient background ── */
+.welcome-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+  animation: orb-float 20s ease-in-out infinite;
+}
+
+.orb-1 {
+  width: 500px;
+  height: 500px;
+  background: var(--violet);
+  top: -10%;
+  right: -5%;
+  animation-delay: 0s;
+}
+
+.orb-2 {
+  width: 350px;
+  height: 350px;
+  background: var(--teal);
+  bottom: -5%;
+  left: 10%;
+  animation-delay: -7s;
+}
+
+.orb-3 {
+  width: 280px;
+  height: 280px;
+  background: var(--amber);
+  top: 40%;
+  left: 50%;
+  animation-delay: -14s;
+  opacity: 0.08;
+}
+
+@keyframes orb-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(30px, -40px) scale(1.05); }
+  50% { transform: translate(-20px, 20px) scale(0.95); }
+  75% { transform: translate(15px, 30px) scale(1.02); }
+}
+
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black, transparent);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black, transparent);
+}
+
+.welcome-content {
+  position: relative;
+  z-index: 1;
 }
 
 .welcome-content {
@@ -198,7 +288,25 @@ const shortcuts = [
 .welcome-recent {
   border: 1px solid var(--obsidian-border);
   background: var(--obsidian-bg-secondary);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
+  animation: section-rise 0.6s var(--ease-spring) both;
+}
+
+.welcome-primary { animation-delay: 0.1s; }
+.welcome-panel { animation-delay: 0.2s; }
+.workflow-panel { animation-delay: 0.3s; }
+.welcome-shortcuts { animation-delay: 0.4s; }
+.welcome-recent { animation-delay: 0.5s; }
+
+@keyframes section-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .welcome-primary {
@@ -226,16 +334,39 @@ const shortcuts = [
 }
 
 .welcome-logo {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 22px;
-  font-size: 28px;
-  background: var(--gradient-vivid);
-  border: none;
-  border-radius: var(--radius-md);
+  margin-bottom: 28px;
+  position: relative;
+}
+
+.logo-glyph {
+  font-size: 32px;
+  color: var(--violet-bright);
+  z-index: 1;
+  filter: drop-shadow(0 0 12px var(--violet-glow));
+  animation: logo-pulse 3s ease-in-out infinite;
+}
+
+@keyframes logo-pulse {
+  0%, 100% { filter: drop-shadow(0 0 12px var(--violet-glow)); }
+  50% { filter: drop-shadow(0 0 24px var(--violet-glow)) drop-shadow(0 0 48px rgba(124, 109, 242, 0.15)); }
+}
+
+.logo-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--violet-dim);
+  animation: ring-spin 12s linear infinite;
+}
+
+@keyframes ring-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .welcome-kicker {
@@ -245,18 +376,33 @@ const shortcuts = [
   -webkit-text-fill-color: transparent;
   background-clip: text;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 650;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .welcome-title {
   margin: 0;
-  color: var(--obsidian-text-normal);
   font-family: var(--font-sans);
-  font-size: clamp(32px, 5vw, 52px);
-  font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: 0;
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 800;
+  line-height: 1.0;
+  letter-spacing: -0.03em;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title-line {
+  color: var(--obsidian-text-normal);
+  display: block;
+}
+
+.title-accent {
+  background: var(--gradient-vivid);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .welcome-subtitle {
@@ -277,27 +423,47 @@ const shortcuts = [
 .welcome-actions .el-button {
   min-height: 44px !important;
   margin-left: 0 !important;
-  padding: 0 18px !important;
-  border-radius: var(--radius-sm) !important;
+  padding: 0 20px !important;
+  border-radius: var(--radius-md) !important;
   font-family: var(--font-sans) !important;
   font-size: 14px !important;
   font-weight: 600 !important;
   box-shadow: none !important;
+  transition: all 0.2s var(--ease-spring) !important;
 }
 
 .welcome-actions .el-button .el-icon {
-  margin-right: 5px;
+  margin-right: 6px;
 }
 
-.welcome-actions .el-button--primary {
+.welcome-actions .el-button--primary,
+.action-primary {
   background: var(--obsidian-accent) !important;
   border-color: var(--obsidian-accent) !important;
   color: #fff !important;
+  position: relative;
+  overflow: hidden;
 }
 
-.welcome-actions .el-button--primary:hover {
+.action-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.15) 50%, transparent 60%);
+  transform: translateX(-100%);
+  transition: transform 0.5s ease;
+}
+
+.action-primary:hover::before {
+  transform: translateX(100%);
+}
+
+.welcome-actions .el-button--primary:hover,
+.action-primary:hover {
   background: var(--obsidian-accent-hover) !important;
   border-color: var(--obsidian-accent-hover) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px var(--violet-glow) !important;
 }
 
 .welcome-actions .el-button:not(.el-button--primary) {
@@ -310,6 +476,35 @@ const shortcuts = [
   background: var(--obsidian-bg-hover) !important;
   border-color: var(--obsidian-text-faint) !important;
   color: var(--obsidian-text-normal) !important;
+}
+
+.welcome-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--obsidian-border);
+}
+
+.meta-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--obsidian-accent);
+  background: var(--obsidian-accent-soft);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0;
+}
+
+.meta-dot {
+  color: var(--obsidian-text-faint);
+  font-size: 10px;
+}
+
+.meta-text {
+  font-size: 12px;
+  color: var(--obsidian-text-faint);
 }
 
 .section-heading {
@@ -326,6 +521,7 @@ const shortcuts = [
   font-size: 15px;
   font-weight: 650;
   line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 
 .section-heading span {
@@ -348,7 +544,15 @@ const shortcuts = [
   padding: 12px;
   background: var(--obsidian-bg-primary);
   border: 1px solid var(--obsidian-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
+  transition: all 0.2s var(--ease-spring);
+}
+
+.capability-item:hover {
+  border-color: var(--obsidian-accent);
+  background: var(--obsidian-accent-soft);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(124, 109, 242, 0.1);
 }
 
 .capability-icon {
@@ -423,14 +627,15 @@ const shortcuts = [
   border: 1px solid var(--obsidian-border);
   background: var(--obsidian-bg-primary);
   color: inherit;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-default), border-color var(--duration-fast) var(--ease-default);
+  transition: all 0.2s var(--ease-spring);
 }
 
 .recent-card:hover {
-  border-color: var(--obsidian-text-faint);
-  background: var(--obsidian-bg-hover);
+  border-color: var(--obsidian-accent);
+  background: var(--obsidian-accent-soft);
+  transform: translateY(-1px);
 }
 
 .recent-name {
@@ -458,7 +663,7 @@ const shortcuts = [
   padding: 18px;
   border: 1px solid var(--obsidian-border);
   background: var(--obsidian-bg-secondary);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
 }
 
 .shortcut-grid {
@@ -474,13 +679,14 @@ const shortcuts = [
   padding: 8px 12px;
   background: var(--obsidian-bg-primary);
   border: 1px solid var(--obsidian-border);
-  border-radius: var(--radius-sm);
-  transition: all 0.15s ease;
+  border-radius: var(--radius-md);
+  transition: all 0.2s var(--ease-spring);
 }
 
 .shortcut-item:hover {
   border-color: var(--obsidian-accent);
   background: var(--obsidian-accent-soft);
+  transform: translateY(-1px);
 }
 
 .shortcut-key {
@@ -523,7 +729,7 @@ const shortcuts = [
 
 .recent-skeleton-item {
   height: 48px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--obsidian-bg-primary);
   border: 1px solid var(--obsidian-border);
   animation: skeleton-pulse 1.5s ease-in-out infinite;

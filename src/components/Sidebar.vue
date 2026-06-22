@@ -21,6 +21,16 @@
         <el-icon><Document /></el-icon>
         <span class="nav-label">RSS</span>
       </el-menu-item>
+      <!-- Plugin-contributed sidebar tabs -->
+      <el-menu-item
+        v-for="tab in pluginSidebarTabs"
+        :key="tab.id"
+        :index="tab.id"
+        :aria-label="tab.ariaLabel || tab.label"
+        :title="tab.label"
+      >
+        <span class="nav-label">{{ tab.label }}</span>
+      </el-menu-item>
       <el-menu-item index="settings" aria-label="设置" title="设置">
         <el-icon><Setting /></el-icon>
         <span class="nav-label">设置</span>
@@ -83,13 +93,21 @@
             <AIConfigPanel />
           </template>
         </SettingsPanel>
+        <div v-else-if="activePluginTab" class="panel">
+          <div class="panel-header">
+            <span class="panel-title">{{ activePluginTab.label }}</span>
+          </div>
+          <Suspense>
+            <component :is="pluginTabComponents[activePluginTab.id]" v-bind="activePluginTab.props?.() ?? {}" />
+          </Suspense>
+        </div>
       </Transition>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, defineAsyncComponent, watch } from 'vue'
 import { Document, Folder, Search, Setting, Share } from '@element-plus/icons-vue'
 import FileExplorer from './sidebar/FileExplorer.vue'
 import KnowledgePanel from './sidebar/KnowledgePanel.vue'
@@ -98,6 +116,7 @@ import AIConfigPanel from './sidebar/AIConfigPanel.vue'
 import SettingsPanel from './sidebar/SettingsPanel.vue'
 import GlobalSearchPanel from './sidebar/GlobalSearchPanel.vue'
 import { useSettingsStore } from '@/stores/settings'
+import { pluginManager } from '@/plugin-system'
 import type { SidebarTab } from '@/types'
 import { SIDEBAR_TABS } from '@/types'
 import type { KnowledgeReference } from '@/services/knowledgeIndex'
@@ -128,12 +147,26 @@ const emit = defineEmits<{
 
 const settingsStore = useSettingsStore()
 const activeTab = computed(() => settingsStore.activeSidebarTab)
+
+// Plugin-contributed sidebar tabs
+const pluginSidebarTabs = computed(() => pluginManager.sidebarTabs.value)
+const activePluginTab = computed(() => pluginSidebarTabs.value.find(t => t.id === activeTab.value))
+const pluginTabComponents = computed(() => {
+  const components: Record<string, any> = {}
+  for (const tab of pluginManager.sidebarTabs.value) {
+    components[tab.id] = defineAsyncComponent(tab.component)
+  }
+  return components
+})
 const rootPath = ref('')
 const fileExplorerRef = ref()
 const knowledgePanelRef = ref<{ refreshIndex?: (options?: { notify?: boolean; waitForPanels?: boolean }) => Promise<void> } | null>(null)
 
 const handleNavSelect = (index: string) => {
   if ((SIDEBAR_TABS as readonly string[]).includes(index)) {
+    settingsStore.setActiveTab(index as SidebarTab)
+  } else if (pluginSidebarTabs.value.some(t => t.id === index)) {
+    // Plugin tab selected — store in a generic way
     settingsStore.setActiveTab(index as SidebarTab)
   }
 }
@@ -225,16 +258,17 @@ defineExpose({
   content: '';
   position: absolute;
   left: 0;
-  top: 9px;
-  bottom: 9px;
-  width: 2px;
-  border-radius: 2px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
   background: var(--obsidian-accent);
+  box-shadow: 0 0 8px var(--violet-glow);
 }
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.12s ease;
+  transition: opacity 0.15s var(--ease-spring);
 }
 
 .fade-enter-from,

@@ -122,7 +122,8 @@ export function useFileSearch(options: {
             searchResults.push({ filePath, fileName, matches })
           })
           results = searchResults
-        } catch {
+        } catch (e) {
+          console.warn('Regex search failed, falling back to empty results:', e)
           results = []
         }
       } else {

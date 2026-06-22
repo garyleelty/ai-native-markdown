@@ -14,7 +14,8 @@ function loadAgentConfig(): AgentConfig {
     const raw = localStorage.getItem(AGENT_CONFIG_KEY)
     if (!raw) return { ...DEFAULT_AGENT_CONFIG }
     return { ...DEFAULT_AGENT_CONFIG, ...JSON.parse(raw) }
-  } catch {
+  } catch (e) {
+    console.warn('[useAgentChat] Failed to load agent config from localStorage, using defaults:', e)
     return { ...DEFAULT_AGENT_CONFIG }
   }
 }
@@ -22,8 +23,9 @@ function loadAgentConfig(): AgentConfig {
 function saveAgentConfig(config: AgentConfig): void {
   try {
     localStorage.setItem(AGENT_CONFIG_KEY, JSON.stringify(config))
-  } catch {
-    // ignore storage errors
+  } catch (e) {
+    /* optional - localStorage may be full or unavailable */
+    console.debug('[useAgentChat] Failed to save agent config:', e)
   }
 }
 
@@ -168,8 +170,9 @@ export function useAgentChat(options?: {
             if (isDisposed) return
             editorStore.setContentSilent(content)
           })
-          .catch(() => {
-            // File may have been deleted
+          .catch((e) => {
+            /* optional - file may have been deleted by agent */
+            console.debug('[useAgentChat] Could not re-read modified file:', currentPath, e)
           })
       }
     }
