@@ -129,6 +129,10 @@ class _AppShellState extends ConsumerState<_AppShell>
     );
     _shortcutFocusNode = FocusNode();
 
+    // 注册全局键盘快捷键处理器（使用 HardwareKeyboard 确保在所有平台
+    // 包括 Web 上都能收到键盘事件，不依赖 Focus 层级传播）
+    HardwareKeyboard.instance.addHandler(_handleHardwareKeyEvent);
+
     // 延迟初始化插件系统
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initPlugins();
@@ -166,6 +170,11 @@ class _AppShellState extends ConsumerState<_AppShell>
     await registry.register(MarkdownEnhancePlugin());
     await registry.register(ExportPlugin());
     await registry.register(MermaidRenderPlugin());
+
+    // 内置插件注册完成后刷新插件状态，确保状态栏计数正确
+    if (mounted) {
+      ref.invalidate(pluginManagerProvider);
+    }
 
     // 监听插件通知
     _pluginApi!.notifications.listen((notification) {
@@ -329,6 +338,7 @@ class _AppShellState extends ConsumerState<_AppShell>
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleHardwareKeyEvent);
     _graphAnimController.dispose();
     _shortcutFocusNode.dispose();
     _pluginApi?.dispose();
@@ -336,9 +346,9 @@ class _AppShellState extends ConsumerState<_AppShell>
     super.dispose();
   }
 
-  /// 处理全局键盘快捷键
-  KeyEventResult _handleGlobalKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+  /// 全局键盘快捷键处理器（基于 HardwareKeyboard，不依赖 Focus 层级）
+  bool _handleHardwareKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
 
     final isMeta =
         HardwareKeyboard.instance.isMetaPressed ||
@@ -347,7 +357,7 @@ class _AppShellState extends ConsumerState<_AppShell>
     // Cmd+K / Ctrl+K: 命令面板
     if (isMeta && event.logicalKey == LogicalKeyboardKey.keyK) {
       ref.read(commandPaletteProvider.notifier).toggle();
-      return KeyEventResult.handled;
+      return true;
     }
 
     // Cmd+T / Ctrl+T: 模板画廊
@@ -358,19 +368,19 @@ class _AppShellState extends ConsumerState<_AppShell>
       } else {
         ref.read(templateGalleryProvider.notifier).open();
       }
-      return KeyEventResult.handled;
+      return true;
     }
 
     // Cmd+D / Ctrl+D: 今天的日记
     if (isMeta && event.logicalKey == LogicalKeyboardKey.keyD) {
       _openTodayDailyNote();
-      return KeyEventResult.handled;
+      return true;
     }
 
     // Cmd+B / Ctrl+B: 切换侧边栏
     if (isMeta && event.logicalKey == LogicalKeyboardKey.keyB) {
       ref.read(sidebarProvider.notifier).toggleExpanded();
-      return KeyEventResult.handled;
+      return true;
     }
 
     // Cmd+Shift+P / Ctrl+Shift+P: 插件管理
@@ -383,23 +393,23 @@ class _AppShellState extends ConsumerState<_AppShell>
       } else {
         ref.read(pluginManagerProvider.notifier).open();
       }
-      return KeyEventResult.handled;
+      return true;
     }
 
     // ?: 快捷键速查表 (Shift+/)
     if (event.logicalKey == LogicalKeyboardKey.slash &&
         HardwareKeyboard.instance.isShiftPressed) {
       setState(() => _isCheatsheetVisible = !_isCheatsheetVisible);
-      return KeyEventResult.handled;
+      return true;
     }
 
     // Escape: 关闭所有覆盖层
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       _closeAllOverlays();
-      return KeyEventResult.handled;
+      return true;
     }
 
-    return KeyEventResult.ignored;
+    return false;
   }
 
   /// 关闭所有覆盖层
@@ -711,7 +721,6 @@ class _AppShellState extends ConsumerState<_AppShell>
 
     return Focus(
       focusNode: _shortcutFocusNode,
-      onKeyEvent: _handleGlobalKeyEvent,
       autofocus: true,
       child: ScaffoldMessenger(
         key: _scaffoldKey,

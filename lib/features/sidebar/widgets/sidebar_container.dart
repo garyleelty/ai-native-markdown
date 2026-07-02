@@ -352,7 +352,12 @@ class _NoteTreeViewState extends ConsumerState<_NoteTreeView> {
 
   Future<void> _createNote(BuildContext ctx, String title) async {
     if (title.trim().isEmpty) {
-      Navigator.pop(ctx);
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        const SnackBar(
+          content: Text('标题不能为空'),
+          duration: Duration(seconds: 2),
+        ),
+      );
       return;
     }
 

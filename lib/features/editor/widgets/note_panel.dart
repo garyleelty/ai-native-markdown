@@ -410,7 +410,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                   _toolbarDivider(),
                   _ToolbarButton(
                     icon: Icons.link,
-                    tooltip: '链接 (Ctrl+K)',
+                    tooltip: '链接 (Ctrl+Shift+K)',
                     onTap: _applyLink,
                   ),
                   _ToolbarButton(

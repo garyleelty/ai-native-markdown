@@ -69,7 +69,16 @@ class PluginInfo {
 class PluginManagerNotifier extends Notifier<PluginManagerState> {
   @override
   PluginManagerState build() {
-    return const PluginManagerState();
+    // 从注册表读取当前已注册的插件，确保状态栏计数在应用启动后
+    // 即可正确反映（内置插件注册后通过 ref.invalidate 触发重建）
+    final registry = PluginRegistry.instance;
+    final plugins = registry.allManifests.map((manifest) {
+      return PluginInfo(
+        manifest: manifest,
+        state: registry.getState(manifest.id) ?? PluginState.registered,
+      );
+    }).toList();
+    return PluginManagerState(plugins: plugins);
   }
 
   /// 打开管理面板

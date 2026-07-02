@@ -690,6 +690,15 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
       return TextSpan(style: defaultStyle, text: '');
     }
 
+    // 安全网：解析过程中任何异常都降级为纯文本，避免渲染崩溃
+    try {
+      return _parseInlineMarkdownImpl(text, defaultStyle);
+    } catch (_) {
+      return TextSpan(style: defaultStyle, text: text);
+    }
+  }
+
+  TextSpan _parseInlineMarkdownImpl(String text, TextStyle defaultStyle) {
     final spans = <InlineSpan>[];
     int cursor = 0;
 
@@ -732,7 +741,6 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
       }
 
       final content = earliestMatch.group(1) ?? '';
-      final url = earliestMatch.groupCount >= 2 ? earliestMatch.group(2) : null;
 
       switch (earliestPattern.type) {
         case _InlineType.bold:
@@ -763,76 +771,42 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
           ));
           break;
         case _InlineType.code:
-          spans.add(WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(
-                color: AeroColors.bgDeep,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: AeroColors.border, width: 0.5),
-              ),
-              child: Text(
-                content,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 13,
-                  color: AeroColors.accentOrange,
-                  backgroundColor: Colors.transparent,
-                ),
-              ),
+          // 使用 TextSpan 而非 WidgetSpan，避免 Flutter Web 在渲染
+          // 含中文等非 ASCII 文本时的 "Invalid array length" 崩溃
+          spans.add(TextSpan(
+            text: content,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 13,
+              color: AeroColors.accentOrange,
+              backgroundColor: AeroColors.bgDeep,
             ),
           ));
           break;
         case _InlineType.wikiLink:
-          spans.add(WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Text(
-                content,
-                style: TextStyle(
-                  color: AeroColors.accentGreen,
-                  decoration: TextDecoration.underline,
-                  decorationColor: AeroColors.accentGreen.withOpacity(0.3),
-                ),
-              ),
+          spans.add(TextSpan(
+            text: content,
+            style: TextStyle(
+              color: AeroColors.accentGreen,
+              decoration: TextDecoration.underline,
+              decorationColor: AeroColors.accentGreen.withOpacity(0.3),
             ),
           ));
           break;
         case _InlineType.tag:
-          spans.add(WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Text(
-                '#$content',
-                style: TextStyle(
-                  color: AeroColors.accentBlue,
-                ),
-              ),
+          spans.add(TextSpan(
+            text: '#$content',
+            style: const TextStyle(
+              color: AeroColors.accentBlue,
             ),
           ));
           break;
         case _InlineType.link:
-          spans.add(WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Tooltip(
-                message: url ?? '',
-                child: Text(
-                  content,
-                  style: const TextStyle(
-                    color: AeroColors.accentBlue,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
+          spans.add(TextSpan(
+            text: content,
+            style: const TextStyle(
+              color: AeroColors.accentBlue,
+              decoration: TextDecoration.underline,
             ),
           ));
           break;
