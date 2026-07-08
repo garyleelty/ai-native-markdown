@@ -1,7 +1,7 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/note_model.dart';
-import '../models/note_model.g.dart';
-import '../models/entity_highlight.g.dart';
+import '../models/note_model_adapter.dart';
+import '../models/entity_highlight_adapter.dart';
 
 /// ══════════════════════════════════════════════════
 /// HiveService — Hive 数据库初始化与管理
