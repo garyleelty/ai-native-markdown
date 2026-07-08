@@ -16,6 +16,7 @@ on:
     branches:
       - main
       - master
+      - empty-branch
     paths-ignore:
       - '**.md'
       - 'docs/**'
