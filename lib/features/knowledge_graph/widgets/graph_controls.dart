@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../providers/graph_provider.dart';
-import '../models/graph_node.dart';
 
 /// 知识图谱控制栏
 /// ─────────────────────────────

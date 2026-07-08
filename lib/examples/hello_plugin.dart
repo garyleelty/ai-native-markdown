@@ -58,10 +58,6 @@ class HelloPlugin extends BasePlugin {
       ctx.api.showStatusMessage('已保存: $noteId');
     });
 
-    // 从存储读取配置
-    final format = ctx.storage.getString('timestamp_format') ?? 'iso';
-    final enabled = ctx.storage.getBool('enabled') ?? true;
-
     // 写入初始化标记
     await ctx.storage.putBool('initialized', true);
     await ctx.storage.putInt('activated_at', DateTime.now().millisecondsSinceEpoch);

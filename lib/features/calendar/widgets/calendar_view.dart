@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../providers/template_provider.dart';
 import '../../../providers/pane_provider.dart';

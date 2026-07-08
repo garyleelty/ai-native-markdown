@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../core/models/note_model.dart';
 import '../features/sliding_panes/models/pane_state.dart';
 
 // ──────────────────────────────────────────────

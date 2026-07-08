@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
@@ -37,12 +36,8 @@ class _SlidingPanesContainerState
     with TickerProviderStateMixin {
   late final ScrollController _scrollController;
 
-  /// 用于回弹动画的 key 列表，对应每个面板
-  final Map<int, GlobalKey> _paneKeys = {};
-
   /// 堆叠标题的动画控制器 (回弹时使用)
   late final AnimationController _bounceController;
-  Animation<double>? _bounceAnimation;
 
   /// 记录上次布局宽度，避免重复计算
   double _lastLayoutWidth = 0;

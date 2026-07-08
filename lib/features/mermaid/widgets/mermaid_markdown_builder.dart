@@ -11,8 +11,6 @@ import '../services/mermaid_service.dart';
 /// ──────────────────────────────────────────────────
 
 class MermaidMarkdownBuilder extends MarkdownElementBuilder {
-  final MermaidService _service = MermaidService();
-
   @override
   Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
     // 仅处理 code 块

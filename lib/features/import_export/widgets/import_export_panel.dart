@@ -320,7 +320,7 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
       }
       final jsonStr = utf8.decode(bytes);
       final decoded = jsonDecode(jsonStr);
-      final List list = decoded is List ? decoded : [decoded];
+      final List<dynamic> list = decoded is List ? decoded : [decoded];
       final repo = ref.read(noteRepositoryProvider);
       int imported = 0;
       int skipped = 0;

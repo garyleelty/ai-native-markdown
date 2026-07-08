@@ -7,14 +7,13 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart' show WidgetRef, Provider;
+import 'package:flutter_riverpod/flutter_riverpod.dart' show WidgetRef;
 import '../plugin/plugin_api.dart';
 import '../plugin/plugin_storage.dart';
 import '../models/note_model.dart';
 import '../../providers/note_provider.dart';
 import '../../providers/pane_provider.dart';
 import '../../providers/ai_provider.dart';
-import '../../features/ai_engine/services/entity_recognizer.dart';
 import '../../features/command_palette/services/command_registry.dart';
 
 /// 事件回调类型
@@ -85,7 +84,7 @@ class PluginApiImpl implements PluginApi {
     registry.register(CommandDef(
       id: command.id,
       name: command.name,
-      icon: IconData(command.iconCodePoint, fontFamily: 'MaterialIcons'),
+      icon: IconData(command.iconCodePoint, fontFamily: 'MaterialIcons'), // ignore: non_const_argument_for_const_parameter
       shortcut: command.shortcut,
       category: CommandCategory.plugin,
       description: '${command.description} [${command.pluginId}]',

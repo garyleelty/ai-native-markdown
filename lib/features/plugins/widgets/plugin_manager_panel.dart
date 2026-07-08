@@ -267,7 +267,7 @@ class _PluginTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              IconData(manifest.iconCodePoint, fontFamily: 'MaterialIcons'),
+              IconData(manifest.iconCodePoint, fontFamily: 'MaterialIcons'), // ignore: non_const_argument_for_const_parameter
               size: 18,
               color: isActive ? AeroColors.accentCyan : AeroColors.textMuted,
             ),
@@ -451,7 +451,7 @@ class _PluginSettingsDetail extends ConsumerWidget {
                   ),
                   const SizedBox(width: 8),
                   Icon(
-                    IconData(manifest.iconCodePoint, fontFamily: 'MaterialIcons'),
+                    IconData(manifest.iconCodePoint, fontFamily: 'MaterialIcons'), // ignore: non_const_argument_for_const_parameter
                     size: 18,
                     color: AeroColors.accentCyan,
                   ),

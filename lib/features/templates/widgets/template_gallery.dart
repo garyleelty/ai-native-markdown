@@ -422,7 +422,7 @@ class _TemplateCard extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(
-                      IconData(template.iconCodePoint,
+                      IconData(template.iconCodePoint, // ignore: non_const_argument_for_const_parameter
                           fontFamily: 'MaterialIcons'),
                       size: 14,
                       color: _categoryColor,

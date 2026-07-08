@@ -30,8 +30,6 @@ class MermaidBlockWidget extends StatefulWidget {
 
 class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
   final _service = MermaidService();
-  bool _isLoading = true;
-  bool _hasError = false;
 
   @override
   void initState() {
@@ -48,10 +46,6 @@ class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
   }
 
   void _loadImage() {
-    setState(() {
-      _isLoading = true;
-      _hasError = false;
-    });
     // 预加载图片，通过 Image.network 自带错误处理
   }
 
@@ -223,7 +217,7 @@ class _ZoomButton extends StatelessWidget {
   }
 
   void _showZoomDialog(BuildContext context) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: AeroColors.bgDeep,

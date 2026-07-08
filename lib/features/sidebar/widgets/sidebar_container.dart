@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../core/models/note_model.dart';
-import '../../../core/services/file_picker_service.dart';
 import '../../../core/services/search_service.dart';
 import '../../../core/services/task_service.dart';
 import '../../../providers/sidebar_provider.dart';
@@ -319,7 +318,7 @@ class _NoteTreeViewState extends ConsumerState<_NoteTreeView> {
 
   void _showNewNoteDialog() {
     final controller = TextEditingController();
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AeroColors.bgElevated,
@@ -687,7 +686,7 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
 
   void _showRenameDialog() {
     final controller = TextEditingController(text: widget.node.title);
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AeroColors.bgElevated,
@@ -750,7 +749,7 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
   }
 
   void _confirmDelete() {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AeroColors.bgElevated,

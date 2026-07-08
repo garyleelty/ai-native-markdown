@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../providers/pane_provider.dart';
 import '../../../providers/template_provider.dart';
-import '../services/daily_note_service.dart';
 
 // ──────────────────────────────────────────────
 // 日记快速面板 (Daily Note Panel)
@@ -28,9 +27,6 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
   /// 有日记的日期列表（当前月份）
   List<int> _daysWithNotes = [];
 
-  /// 是否正在加载
-  bool _isLoading = true;
-
   @override
   void initState() {
     super.initState();
@@ -40,8 +36,6 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
 
   /// 加载当月有日记的日期
   Future<void> _loadDaysWithNotes() async {
-    setState(() => _isLoading = true);
-
     try {
       final service = ref.read(dailyNoteServiceProvider);
       final days = await service.getDaysWithNotes(
@@ -50,12 +44,10 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
       );
       setState(() {
         _daysWithNotes = days;
-        _isLoading = false;
       });
     } catch (_) {
       setState(() {
         _daysWithNotes = [];
-        _isLoading = false;
       });
     }
   }

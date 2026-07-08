@@ -37,7 +37,6 @@ import 'providers/plugin_provider.dart';
 import 'providers/quick_switcher_provider.dart';
 import 'providers/note_provider.dart';
 import 'providers/settings_provider.dart';
-import 'core/services/version_service.dart';
 import 'features/editor/widgets/version_history_panel.dart';
 import 'features/sidebar/models/sidebar_state.dart';
 
@@ -95,9 +94,6 @@ class _AppShellState extends ConsumerState<_AppShell>
 
   /// 导入导出面板是否可见
   bool _isImportExportVisible = false;
-
-  /// 是否已显示过欢迎页 (从 metaBox 读取)
-  bool _hasShownWelcome = false;
 
   /// 展开动画控制器
   late AnimationController _graphAnimController;
@@ -479,7 +475,7 @@ class _AppShellState extends ConsumerState<_AppShell>
   /// 显示重命名笔记对话框
   /// 显示版本历史面板
   void _showVersionHistory(String noteId) {
-    showDialog(
+    showDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) => Dialog(
@@ -548,7 +544,7 @@ class _AppShellState extends ConsumerState<_AppShell>
     if (note == null || !mounted) return;
 
     final controller = TextEditingController(text: note.title);
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AeroColors.bgElevated,
@@ -594,7 +590,7 @@ class _AppShellState extends ConsumerState<_AppShell>
     final note = await repo.getNote(noteId);
     if (note == null || !mounted) return;
 
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AeroColors.bgElevated,

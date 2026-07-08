@@ -9,9 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../core/plugin/plugin_registry.dart';
 import '../../../features/ai_engine/services/entity_recognizer.dart';
-import '../../../providers/plugin_provider.dart';
 import '../../../providers/settings_provider.dart';
-import '../../plugins/widgets/plugin_manager_panel.dart';
 
 /// 设置页面 (全屏覆盖层)
 class SettingsPage extends ConsumerStatefulWidget {

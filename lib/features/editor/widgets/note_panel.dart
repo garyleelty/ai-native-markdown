@@ -864,7 +864,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   // AI 联想卡片弹窗
   // ──────────────────────────────────────────────
   void _showEntityCard(BuildContext context, EntityHighlight entity) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: AeroColors.bgElevated,
       shape: const RoundedRectangleBorder(
@@ -1346,7 +1346,7 @@ class _EntityAssociationCard extends ConsumerWidget {
 
           // 关联笔记
           if (entity.linkedNoteId != null && linkedNote != null)
-            linkedNote!.when(
+            linkedNote.when(
               data: (note) => note != null
                   ? _LinkedNotePreview(note: note)
                   : const Text('未找到关联笔记'),

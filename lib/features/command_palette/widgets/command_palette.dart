@@ -42,9 +42,6 @@ class _CommandPaletteOverlayState
   /// 列表滚动控制器（用于键盘导航时滚动到可见区域）
   final ScrollController _listScrollController = ScrollController();
 
-  /// 用于跟踪「最近使用」和「全部命令」的分隔线索引
-  int _recentEndIndex = 0;
-
   @override
   void initState() {
     super.initState();
@@ -89,8 +86,6 @@ class _CommandPaletteOverlayState
   /// 处理键盘事件
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
-
-    final state = ref.read(commandPaletteProvider);
 
     // Escape: 关闭
     if (event.logicalKey == LogicalKeyboardKey.escape) {
@@ -290,8 +285,6 @@ class _CommandPaletteOverlayState
     final others = state.filteredCommands
         .where((c) => !recentIds.contains(c.id))
         .toList();
-
-    _recentEndIndex = recent.length;
 
     final items = <_CommandListItem>[];
     for (final cmd in recent) {
