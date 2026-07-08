@@ -34,6 +34,9 @@ class ParsedSearchQuery {
   final String? titleFilter;
   final String? contentFilter;
   final String? tagFilter;
+  final String? pathFilter; // 路径过滤值，子串匹配 folderPath
+  final bool isRegex; // 是否为正则模式
+  final String? regexPattern; // 正则模式字符串，仅 isRegex=true 时有值
   final List<String> keywords;
 
   const ParsedSearchQuery({
@@ -41,6 +44,9 @@ class ParsedSearchQuery {
     this.titleFilter,
     this.contentFilter,
     this.tagFilter,
+    this.pathFilter,
+    this.isRegex = false,
+    this.regexPattern,
     this.keywords = const [],
   });
 
@@ -58,15 +64,29 @@ class SearchService {
   /// - `title:关键词` - 仅搜索标题
   /// - `content:关键词` - 仅搜索正文
   /// - `tag:标签名` - 按标签搜索
+  /// - `path:路径` / `p:路径` - 按文件夹路径过滤
+  /// - `/pattern/` - 正则搜索（整个 query 被一对 /.../ 包裹时启用）
   static ParsedSearchQuery parseQuery(String query) {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
-      return ParsedSearchQuery(rawQuery: '');
+      return const ParsedSearchQuery(rawQuery: '');
+    }
+
+    // 正则模式检测：整个 query 被 /.../ 包裹时启用正则搜索
+    // 注意：必须在 prefix 解析之前判定，正则模式独占整个 query
+    final regexMatch = RegExp(r'^/(.+)/$').firstMatch(trimmed);
+    if (regexMatch != null) {
+      return ParsedSearchQuery(
+        rawQuery: trimmed,
+        isRegex: true,
+        regexPattern: regexMatch.group(1),
+      );
     }
 
     String? titleFilter;
     String? contentFilter;
     String? tagFilter;
+    String? pathFilter;
     final keywords = <String>[];
 
     // 匹配高级语法: prefix:value
@@ -91,13 +111,19 @@ class SearchService {
         case 'tag':
           tagFilter = value;
           break;
+        case 'path':
+        case 'p':
+          pathFilter = value;
+          break;
         default:
           // 未知前缀，当作普通关键词
           keywords.add(value);
           continue;
       }
-      removedIndices.add(match.start);
-      removedIndices.add(match.end);
+      // 移除整个前缀匹配区间，避免残留字符污染关键词
+      for (int i = match.start; i < match.end; i++) {
+        removedIndices.add(i);
+      }
     }
 
     // 提取剩余的普通关键词
@@ -117,6 +143,7 @@ class SearchService {
       titleFilter: titleFilter,
       contentFilter: contentFilter,
       tagFilter: tagFilter,
+      pathFilter: pathFilter,
       keywords: keywords,
     );
   }
@@ -129,11 +156,59 @@ class SearchService {
     final parsed = parseQuery(query);
     if (parsed.rawQuery.isEmpty) return [];
 
+    // path 过滤：先收窄候选集（子串匹配 folderPath，不区分大小写）
+    // 注意：空 folderPath 永远不匹配非空 pathFilter
+    Iterable<NoteModel> candidates = notes;
+    if (parsed.pathFilter != null) {
+      final pathFilter = parsed.pathFilter!.toLowerCase();
+      candidates = notes.where(
+        (n) => n.folderPath.toLowerCase().contains(pathFilter),
+      );
+    }
+
     final results = <SearchResult>[];
 
-    for (final note in notes) {
+    for (final note in candidates) {
       final matches = <SearchMatch>[];
       double score = 0;
+
+      // 正则搜索模式
+      if (parsed.isRegex && parsed.regexPattern != null) {
+        RegExp? regex;
+        try {
+          regex = RegExp(parsed.regexPattern!);
+        } on FormatException {
+          // 非法正则，降级为字面量搜索（使用 regexPattern 作为字面量）
+          final literal = parsed.regexPattern!;
+          final titleMatches = _findMatches(note.title, literal, 'title');
+          matches.addAll(titleMatches);
+          score += titleMatches.length * 10;
+          final contentMatches =
+              _findMatches(note.rawMarkdown, literal, 'content');
+          matches.addAll(contentMatches);
+          score += contentMatches.length * 3;
+        }
+        if (regex != null) {
+          // 标题正则匹配（每个匹配 +10 分）
+          for (final m in regex.allMatches(note.title)) {
+            matches.add(SearchMatch(
+              start: m.start,
+              end: m.end,
+              field: 'title',
+            ));
+            score += 10;
+          }
+          // 正文正则匹配（每个匹配 +3 分）
+          for (final m in regex.allMatches(note.rawMarkdown)) {
+            matches.add(SearchMatch(
+              start: m.start,
+              end: m.end,
+              field: 'content',
+            ));
+            score += 3;
+          }
+        }
+      }
 
       // 标题搜索
       if (parsed.titleFilter != null) {
@@ -217,8 +292,8 @@ class SearchService {
         }
       }
 
-      // 如果没有过滤条件也没有关键词，就不匹配
-      if (!parsed.hasFilters && parsed.keywords.isEmpty) {
+      // 如果没有过滤条件也没有关键词，就不匹配（正则模式除外）
+      if (!parsed.isRegex && !parsed.hasFilters && parsed.keywords.isEmpty) {
         continue;
       }
 
@@ -281,8 +356,8 @@ class SearchService {
     }
 
     final firstMatch = contentMatches.first;
-    final previewLength = 100;
-    final halfLen = previewLength ~/ 2;
+    const previewLength = 100;
+    const halfLen = previewLength ~/ 2;
 
     int start = (firstMatch.start - halfLen).clamp(0, content.length);
     int end = (firstMatch.end + halfLen).clamp(0, content.length);

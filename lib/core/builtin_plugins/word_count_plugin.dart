@@ -25,6 +25,23 @@ class WordCountPlugin extends BasePlugin {
         extensionTypes: ['command', 'statusBarItem'],
         category: '工具',
         iconCodePoint: 0xe873, // Icons.format_size
+        // 插件设置项：声明后齿轮按钮可见，设置 UI 渲染这些控件
+        settings: [
+          PluginSettingDef(
+            key: 'includeCodeBlocks',
+            label: '包含代码块字数',
+            type: PluginSettingType.boolean,
+            defaultValue: true,
+            description: '统计字数时是否包含代码块内容',
+          ),
+          PluginSettingDef(
+            key: 'minThreshold',
+            label: '最小显示阈值',
+            type: PluginSettingType.number,
+            defaultValue: 0,
+            description: '字数低于此值时不显示状态栏提示',
+          ),
+        ],
       );
 
   @override

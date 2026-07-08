@@ -20,10 +20,14 @@ class PluginManagerState {
   /// 所有已注册插件信息列表
   final List<PluginInfo> plugins;
 
+  /// 当前选中查看设置的插件 ID (null 表示列表视图)
+  final String? selectedPluginId;
+
   const PluginManagerState({
     this.isOpen = false,
     this.searchQuery = '',
     this.plugins = const [],
+    this.selectedPluginId,
   });
 
   /// 过滤后的插件列表
@@ -48,11 +52,17 @@ class PluginManagerState {
     bool? isOpen,
     String? searchQuery,
     List<PluginInfo>? plugins,
+    String? selectedPluginId,
+    bool clearSelectedPluginId = false,
   }) {
     return PluginManagerState(
       isOpen: isOpen ?? this.isOpen,
       searchQuery: searchQuery ?? this.searchQuery,
       plugins: plugins ?? this.plugins,
+      // 显式传 clearSelectedPluginId=true 才会置空；否则 nullable 透传/保留
+      selectedPluginId: clearSelectedPluginId
+          ? null
+          : (selectedPluginId ?? this.selectedPluginId),
     );
   }
 }
@@ -90,6 +100,16 @@ class PluginManagerNotifier extends Notifier<PluginManagerState> {
   /// 关闭管理面板
   void close() {
     state = state.copyWith(isOpen: false);
+  }
+
+  /// 打开指定插件的设置详情视图
+  void openSettings(String pluginId) {
+    state = state.copyWith(selectedPluginId: pluginId);
+  }
+
+  /// 关闭设置详情视图，返回插件列表
+  void closeSettings() {
+    state = state.copyWith(clearSelectedPluginId: true);
   }
 
   /// 更新搜索

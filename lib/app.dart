@@ -22,6 +22,7 @@ import 'features/command_palette/widgets/command_palette.dart';
 import 'features/templates/widgets/template_gallery.dart';
 import 'features/sidebar/widgets/sidebar_container.dart';
 import 'features/plugins/widgets/plugin_manager_panel.dart';
+import 'features/quick_switcher/widgets/quick_switcher_overlay.dart';
 import 'features/settings/widgets/settings_page.dart';
 import 'features/help/widgets/keyboard_cheatsheet.dart';
 import 'features/help/widgets/welcome_page.dart';
@@ -33,6 +34,7 @@ import 'providers/command_provider.dart';
 import 'providers/template_provider.dart';
 import 'providers/sidebar_provider.dart';
 import 'providers/plugin_provider.dart';
+import 'providers/quick_switcher_provider.dart';
 import 'providers/note_provider.dart';
 import 'providers/settings_provider.dart';
 import 'core/services/version_service.dart';
@@ -208,6 +210,16 @@ class _AppShellState extends ConsumerState<_AppShell>
     final notifier = ref.read(commandPaletteProvider.notifier);
 
     notifier.bindActions({
+      // Quick Switcher（复用既有 note.open 命令，避免重复注册）
+      'note.open': () {
+        ref.read(quickSwitcherProvider.notifier).open();
+      },
+
+      // Quick Switcher（命令面板入口，快捷键由 note.open 提供）
+      'nav.quickSwitcher': () {
+        ref.read(quickSwitcherProvider.notifier).open();
+      },
+
       // 打开本地文件 (直接打开)
       'note.openFile': () async {
         final service = ref.read(filePickerServiceProvider);
@@ -383,6 +395,17 @@ class _AppShellState extends ConsumerState<_AppShell>
       return true;
     }
 
+    // Cmd+O / Ctrl+O: Quick Switcher 快速跳转
+    if (isMeta && event.logicalKey == LogicalKeyboardKey.keyO) {
+      final qsState = ref.read(quickSwitcherProvider);
+      if (qsState.isOpen) {
+        ref.read(quickSwitcherProvider.notifier).close();
+      } else {
+        ref.read(quickSwitcherProvider.notifier).open();
+      }
+      return true;
+    }
+
     // Cmd+Shift+P / Ctrl+Shift+P: 插件管理
     if (isMeta &&
         HardwareKeyboard.instance.isShiftPressed &&
@@ -417,9 +440,12 @@ class _AppShellState extends ConsumerState<_AppShell>
     final cmdState = ref.read(commandPaletteProvider);
     final tplState = ref.read(templateGalleryProvider);
     final pluginState = ref.read(pluginManagerProvider);
+    final qsState = ref.read(quickSwitcherProvider);
 
     if (cmdState.isOpen) {
       ref.read(commandPaletteProvider.notifier).close();
+    } else if (qsState.isOpen) {
+      ref.read(quickSwitcherProvider.notifier).close();
     } else if (tplState.isOpen) {
       ref.read(templateGalleryProvider.notifier).close();
     } else if (pluginState.isOpen) {
@@ -789,6 +815,21 @@ class _AppShellState extends ConsumerState<_AppShell>
 
               // ── 插件管理覆盖层 ──
               const PluginManagerOverlay(),
+
+              // ── Quick Switcher 覆盖层 ──
+              QuickSwitcherOverlay(
+                onOpenNote: (noteId) {
+                  // 异步获取笔记标题后通过 paneStackProvider 打开面板
+                  final repo = ref.read(noteRepositoryProvider);
+                  repo.getNote(noteId).then((note) {
+                    if (note != null && mounted) {
+                      ref
+                          .read(paneStackProvider.notifier)
+                          .openPane(note.id, note.title);
+                    }
+                  });
+                },
+              ),
 
               // ── 设置页面覆盖层 ──
               if (_isSettingsVisible)

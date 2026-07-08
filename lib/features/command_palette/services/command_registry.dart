@@ -230,6 +230,15 @@ class CommandRegistry {
         category: CommandCategory.nav,
         description: '在所有笔记中搜索内容',
       ),
+      // Quick Switcher：模糊跳转面板入口（与 note.open 共用 Ctrl+O）
+      CommandDef(
+        id: 'nav.quickSwitcher',
+        name: '快速跳转',
+        icon: Icons.flash_on,
+        shortcut: null, // 不显示 shortcut（note.open 已声明 Ctrl+O，避免重复）
+        category: CommandCategory.nav,
+        description: '模糊搜索并打开笔记 (Ctrl+O)',
+      ),
       CommandDef(
         id: 'note.rename',
         name: '重命名笔记',

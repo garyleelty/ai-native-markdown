@@ -977,18 +977,48 @@ class _SearchResultTile extends StatelessWidget {
       );
     }
 
-    final lowerText = text.toLowerCase();
-    final lowerQuery = query.toLowerCase();
-
-    // 提取普通关键词（去掉高级搜索语法）
     final parsed = SearchService.parseQuery(query);
-    final keywords = <String>[];
-    if (parsed.titleFilter != null) keywords.add(parsed.titleFilter!);
-    if (parsed.contentFilter != null) keywords.add(parsed.contentFilter!);
-    if (parsed.tagFilter != null) keywords.add(parsed.tagFilter!);
-    keywords.addAll(parsed.keywords);
 
-    if (keywords.isEmpty) {
+    // 收集所有需要高亮的区间 [start, end)，扁平存储：[s1, e1, s2, e2, ...]
+    final ranges = <int>[];
+
+    if (parsed.isRegex && parsed.regexPattern != null) {
+      // 正则模式：用 RegExp 在文本中找所有匹配
+      try {
+        final regex = RegExp(parsed.regexPattern!);
+        for (final m in regex.allMatches(text)) {
+          ranges.add(m.start);
+          ranges.add(m.end);
+        }
+      } catch (_) {
+        // 非法正则，不做高亮（降级为纯文本返回）
+      }
+    } else {
+      // 普通关键词模式：合并 titleFilter + contentFilter + tagFilter + keywords
+      // 注意 pathFilter 仅用于过滤笔记，不参与文本高亮
+      final keywords = <String>[
+        if (parsed.titleFilter != null) parsed.titleFilter!,
+        if (parsed.contentFilter != null) parsed.contentFilter!,
+        if (parsed.tagFilter != null) parsed.tagFilter!,
+        ...parsed.keywords,
+      ];
+
+      final lowerText = text.toLowerCase();
+      for (final kw in keywords) {
+        if (kw.isEmpty) continue;
+        final lowerKw = kw.toLowerCase();
+        int start = 0;
+        while (true) {
+          final index = lowerText.indexOf(lowerKw, start);
+          if (index == -1) break;
+          ranges.add(index);
+          ranges.add(index + kw.length);
+          start = index + kw.length;
+        }
+      }
+    }
+
+    if (ranges.isEmpty) {
       return Text(
         text,
         maxLines: maxLines,
@@ -997,34 +1027,45 @@ class _SearchResultTile extends StatelessWidget {
       );
     }
 
-    // 用第一个关键词做高亮
-    final keyword = keywords.first.toLowerCase();
+    // 合并重叠或相邻的匹配区间，避免嵌套 TextSpan
+    // 1. 将扁平 ranges 转为 [start, end] 列表
+    final sortedRanges = <List<int>>[];
+    for (int i = 0; i < ranges.length; i += 2) {
+      sortedRanges.add([ranges[i], ranges[i + 1]]);
+    }
+    // 2. 按 start 排序
+    sortedRanges.sort((a, b) => a[0].compareTo(b[0]));
+
+    // 3. 合并：相邻（end == next.start）或重叠（end > next.start）的区间合并为一个
+    final merged = <List<int>>[];
+    for (final r in sortedRanges) {
+      if (merged.isEmpty || merged.last[1] < r[0]) {
+        merged.add([r[0], r[1]]);
+      } else {
+        // 重叠或相邻，扩展当前区间右端
+        merged.last[1] = merged.last[1] > r[1] ? merged.last[1] : r[1];
+      }
+    }
+
+    // 4. 构造 TextSpan 列表（普通段继承 style，匹配段附加高亮样式）
     final spans = <TextSpan>[];
-
-    int start = 0;
-    while (true) {
-      final index = lowerText.indexOf(keyword, start);
-      if (index == -1) {
-        if (start < text.length) {
-          spans.add(TextSpan(text: text.substring(start)));
-        }
-        break;
+    int cursor = 0;
+    for (final r in merged) {
+      if (r[0] > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, r[0])));
       }
-
-      if (index > start) {
-        spans.add(TextSpan(text: text.substring(start, index)));
-      }
-
       spans.add(TextSpan(
-        text: text.substring(index, index + keyword.length),
+        text: text.substring(r[0], r[1]),
         style: style.copyWith(
-          backgroundColor: AeroColors.accentOrange.withOpacity(0.25),
+          backgroundColor: AeroColors.accentYellow.withOpacity(0.3),
           color: AeroColors.textPrimary,
           fontWeight: FontWeight.w600,
         ),
       ));
-
-      start = index + keyword.length;
+      cursor = r[1];
+    }
+    if (cursor < text.length) {
+      spans.add(TextSpan(text: text.substring(cursor)));
     }
 
     return RichText(
