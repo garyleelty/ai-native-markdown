@@ -13,6 +13,7 @@ import 'core/builtin_plugins/word_count_plugin.dart';
 import 'core/builtin_plugins/markdown_enhance_plugin.dart';
 import 'core/builtin_plugins/export_plugin.dart';
 import 'core/builtin_plugins/mermaid_plugin.dart';
+import 'core/builtin_plugins/ai_chat_plugin.dart';
 import 'features/sliding_panes/widgets/sliding_panes_container.dart';
 import 'features/editor/widgets/note_panel.dart';
 import 'features/knowledge_graph/widgets/graph_canvas.dart';
@@ -27,8 +28,8 @@ import 'features/settings/widgets/settings_page.dart';
 import 'features/help/widgets/keyboard_cheatsheet.dart';
 import 'features/help/widgets/welcome_page.dart';
 import 'features/import_export/widgets/import_export_panel.dart';
+import 'features/ai_chat/widgets/ai_chat_panel.dart';
 import 'providers/pane_provider.dart';
-import 'providers/ai_provider.dart';
 import 'providers/graph_provider.dart';
 import 'providers/command_provider.dart';
 import 'providers/template_provider.dart';
@@ -168,6 +169,7 @@ class _AppShellState extends ConsumerState<_AppShell>
     await registry.register(MarkdownEnhancePlugin());
     await registry.register(ExportPlugin());
     await registry.register(MermaidRenderPlugin());
+    await registry.register(AiChatPlugin());
 
     // 内置插件注册完成后刷新插件状态，确保状态栏计数正确
     if (mounted) {
@@ -780,7 +782,7 @@ class _AppShellState extends ConsumerState<_AppShell>
                   ),
 
                   // ── 右侧: AI 上下文面板 ──
-                  const _AIContextSidePanel(),
+                  const AiChatPanel(),
                 ],
               ),
 
@@ -974,126 +976,6 @@ class _CircleRevealClipper extends CustomClipper<Path> {
   @override
   bool shouldReclip(covariant _CircleRevealClipper oldClipper) {
     return center != oldClipper.center || radius != oldClipper.radius;
-  }
-}
-
-/// 右侧 AI 上下文面板
-class _AIContextSidePanel extends ConsumerWidget {
-  const _AIContextSidePanel();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final aiContext = ref.watch(aiContextPromptProvider);
-
-    return Container(
-      width: 260,
-      decoration: const BoxDecoration(
-        color: AeroColors.bgSurface,
-        border: Border(left: BorderSide(color: AeroColors.divider, width: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: const BoxDecoration(
-              color: AeroColors.bgElevated,
-              border: Border(
-                bottom: BorderSide(color: AeroColors.divider, width: 0.5),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.auto_awesome,
-                  size: 14,
-                  color: AeroColors.accentPurple,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'AI 上下文',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: AeroColors.accentPurple,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '~${aiContext.estimatedTokens} tokens',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(8),
-              children: [
-                Text(
-                  '可见面板 (${aiContext.fragments.length})',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: AeroColors.textMuted),
-                ),
-                const SizedBox(height: 6),
-                ...aiContext.fragments.map(
-                  (f) => _ContextFragmentTile(fragment: f),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ContextFragmentTile extends StatelessWidget {
-  final PaneContextFragment fragment;
-  const _ContextFragmentTile({required this.fragment});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: fragment.isActive
-            ? AeroColors.accentBlue.withOpacity(0.08)
-            : AeroColors.bgElevated,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: fragment.isActive
-              ? AeroColors.accentBlue.withOpacity(0.3)
-              : AeroColors.border,
-          width: 0.5,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            fragment.isActive ? Icons.push_pin : Icons.description_outlined,
-            size: 12,
-            color: fragment.isActive
-                ? AeroColors.accentBlue
-                : AeroColors.textMuted,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              fragment.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: fragment.isActive
-                    ? AeroColors.accentBlue
-                    : AeroColors.textSecondary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

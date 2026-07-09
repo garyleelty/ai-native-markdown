@@ -125,8 +125,8 @@ class _ViewTabBar extends ConsumerWidget {
     final notifier = ref.read(sidebarProvider.notifier);
 
     return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       decoration: const BoxDecoration(
         color: AeroColors.bgElevated,
         border: Border(
@@ -225,8 +225,8 @@ class _TabIcon extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(4),
         child: Container(
-          width: 32,
-          height: 28,
+          width: 26,
+          height: 26,
           decoration: BoxDecoration(
             border: isActive
                 ? const Border(
@@ -237,7 +237,7 @@ class _TabIcon extends StatelessWidget {
           ),
           child: Icon(
             icon,
-            size: 16,
+            size: 14,
             color: isActive ? AeroColors.accentBlue : AeroColors.textSecondary,
           ),
         ),

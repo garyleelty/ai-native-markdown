@@ -159,7 +159,7 @@ class SidebarState {
   const SidebarState({
     this.currentView = SidebarView.noteTree,
     this.isExpanded = true,
-    this.width = 240,
+    this.width = 260,
     this.noteTree = const [],
     this.searchQuery = '',
     this.searchResults = const [],
