@@ -89,7 +89,7 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build macOS app
-        run: flutter build macos --release --no-codesign
+        run: flutter build macos --release
 
       - name: Package .app to zip
         run: |
