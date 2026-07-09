@@ -7,6 +7,8 @@ import '../../../providers/template_provider.dart';
 import '../../../providers/quick_switcher_provider.dart';
 import '../../../core/models/note_model.dart';
 import '../models/pane_state.dart';
+import '../../../core/services/file_service.dart';
+import '../../../providers/sidebar_provider.dart';
 
 /// ══════════════════════════════════════════════════
 /// SlidingPanesContainer
@@ -259,8 +261,8 @@ class _SlidingPanesContainerState
     return Center(
       child: SingleChildScrollView(
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 480),
-          padding: const EdgeInsets.all(48),
+          constraints: const BoxConstraints(maxWidth: 420),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -481,7 +483,7 @@ class _QuickActionCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: AeroColors.bgSurface,
             borderRadius: BorderRadius.circular(8),
@@ -490,18 +492,19 @@ class _QuickActionCard extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   color: AeroColors.accentBlue.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, size: 18, color: AeroColors.accentBlue),
+                child: Icon(icon, size: 16, color: AeroColors.accentBlue),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       title,
@@ -510,6 +513,7 @@ class _QuickActionCard extends StatelessWidget {
                         fontWeight: FontWeight.w500,
                         color: AeroColors.textPrimary,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       subtitle,
@@ -517,11 +521,12 @@ class _QuickActionCard extends StatelessWidget {
                         fontSize: 11,
                         color: AeroColors.textMuted,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, size: 16, color: AeroColors.textMuted),
+              const Icon(Icons.chevron_right, size: 14, color: AeroColors.textMuted),
             ],
           ),
         ),
@@ -725,19 +730,28 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
     }
 
     if (newTitle != widget.title) {
-      // 更新面板标题
       ref.read(paneStackProvider.notifier).updatePaneTitle(widget.index, newTitle);
-      // 更新笔记标题
       final repo = ref.read(noteRepositoryProvider);
       final note = await repo.getNote(widget.noteId);
       if (note != null) {
-        await repo.saveNote(note.copyWith(
+        var newMarkdown = note.rawMarkdown;
+        final h1Regex = RegExp(r'^#\s+.+$', multiLine: true);
+        final h1Match = h1Regex.firstMatch(newMarkdown);
+        if (h1Match != null) {
+          newMarkdown = newMarkdown.replaceFirst(h1Match.group(0)!, '# $newTitle');
+        }
+        final updated = note.copyWith(
           title: newTitle,
+          rawMarkdown: newMarkdown,
           updatedAt: DateTime.now(),
-        ));
-        // 失效相关缓存
+        );
+        await repo.saveNote(updated);
+        if (FileService.shouldSyncToFile(updated.filePath)) {
+          await FileService.syncToFile(updated.filePath, updated.rawMarkdown);
+        }
         ref.invalidate(noteByIdProvider(widget.noteId));
         ref.invalidate(allNotesProvider);
+        await ref.read(sidebarProvider.notifier).loadNoteTree();
       }
     }
 

@@ -84,11 +84,15 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
     final repo = ref.read(noteRepositoryProvider);
     final (note, isNew) = await service.getNoteForDate(date);
     final existing = await repo.getNote(note.id);
-    if (existing == null) {
+    final wasNew = existing == null;
+    if (wasNew) {
       await repo.saveNote(note);
     }
     if (mounted) {
       ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
+      if (wasNew) {
+        _loadDaysWithNotes();
+      }
     }
   }
 

@@ -8,7 +8,7 @@ void main() {
 
       expect(state.currentView, SidebarView.noteTree);
       expect(state.isExpanded, true);
-      expect(state.width, 240);
+      expect(state.width, SidebarLayout.defaultWidth);
       expect(state.noteTree, isEmpty);
       expect(state.searchQuery, '');
       expect(state.searchResults, isEmpty);

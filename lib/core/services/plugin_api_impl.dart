@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' show WidgetRef;
 import '../plugin/plugin_api.dart';
 import '../plugin/plugin_storage.dart';
 import '../models/note_model.dart';
+import 'file_service.dart';
 import '../../providers/note_provider.dart';
 import '../../providers/pane_provider.dart';
 import '../../providers/ai_provider.dart';
@@ -55,6 +56,9 @@ class PluginApiImpl implements PluginApi {
   Future<void> saveNote(NoteModel note) async {
     final repo = _ref.read(noteRepositoryProvider);
     await repo.saveNote(note);
+    if (FileService.shouldSyncToFile(note.filePath)) {
+      await FileService.syncToFile(note.filePath, note.rawMarkdown);
+    }
   }
 
   @override

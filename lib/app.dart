@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/aeromind_theme.dart';
 import 'core/models/note_model.dart';
+import 'core/plugin/base_plugin.dart';
 import 'core/plugin/plugin_registry.dart';
 import 'core/plugin/plugin_api.dart';
 import 'core/services/plugin_api_impl.dart';
 import 'core/services/hive_service.dart';
+import 'core/services/file_service.dart';
 import 'core/builtin_plugins/word_count_plugin.dart';
 import 'core/builtin_plugins/markdown_enhance_plugin.dart';
 import 'core/builtin_plugins/export_plugin.dart';
@@ -164,12 +166,21 @@ class _AppShellState extends ConsumerState<_AppShell>
     // 初始化注册表
     await registry.initialize(_pluginApi!);
 
-    // 注册内置插件
-    await registry.register(WordCountPlugin());
-    await registry.register(MarkdownEnhancePlugin());
-    await registry.register(ExportPlugin());
-    await registry.register(MermaidRenderPlugin());
-    await registry.register(AiChatPlugin());
+    // 注册内置插件（单个插件失败不影响其他插件）
+    final builtinPlugins = <BasePlugin>[
+      WordCountPlugin(),
+      MarkdownEnhancePlugin(),
+      ExportPlugin(),
+      MermaidRenderPlugin(),
+      AiChatPlugin(),
+    ];
+    for (final plugin in builtinPlugins) {
+      try {
+        await registry.register(plugin);
+      } catch (e) {
+        debugPrint('[PluginRegistry] 插件 ${plugin.manifest.name} 激活失败: $e');
+      }
+    }
 
     // 内置插件注册完成后刷新插件状态，确保状态栏计数正确
     if (mounted) {
@@ -285,7 +296,7 @@ class _AppShellState extends ConsumerState<_AppShell>
           id: now.millisecondsSinceEpoch.toString(),
           title: '${note.title} 副本',
           rawMarkdown: note.rawMarkdown,
-          filePath: note.filePath,
+          filePath: "",
           createdAt: now,
           updatedAt: now,
           tags: note.tags,
@@ -497,10 +508,14 @@ class _AppShellState extends ConsumerState<_AppShell>
               final repo = ref.read(noteRepositoryProvider);
               final note = await repo.getNote(noteId);
               if (note != null) {
-                await repo.saveNote(note.copyWith(
+                final updated = note.copyWith(
                   rawMarkdown: content,
                   updatedAt: DateTime.now(),
-                ));
+                );
+                await repo.saveNote(updated);
+                if (FileService.shouldSyncToFile(updated.filePath)) {
+                  await FileService.syncToFile(updated.filePath, updated.rawMarkdown);
+                }
               }
               if (mounted) Navigator.pop(ctx);
             },

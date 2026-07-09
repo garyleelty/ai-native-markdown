@@ -1,0 +1,95 @@
+# Progress
+
+## Round 1 (Spec Phase)
+
+- 已完成：
+  - 代码审计：全面审查了 17 处 openPane 调用点、NotePanel 加载/保存逻辑、PaneStackNotifier 边界条件、侧边栏布局、日历视图、文件选择服务
+  - 确认上一轮修复的 3 个问题已正确实现
+  - 发现 5 个同类型新问题：_syncToFile 写入 bug（数据丢失风险）、NotePanel 无笔记时空白、activePaneId 空字符串、日历新建后不刷新标记
+  - spec.md/tasks.md/checklist.md 已生成
+- 进行中：等待用户审阅规划文档
+- 阻塞/风险：无
+- 关键决策（grill-me 自我拷问）：
+  - _syncToFile 添加防御性父目录创建（即使 DailyNoteService 已创建目录，外部删除场景仍需保护）
+  - NotePanel 笔记不存在时显示关闭按钮而非自动创建（避免孤儿数据）
+  - activePaneId 改为 nullable（无消费者，低风险）
+- 下一轮计划：实现 Task 2-5 的代码修复 → Task 6 验证
+
+## Round 2 (Implementation + Verification) — DONE
+
+- 已完成：
+  - **Fix A (_syncToFile)**: 将同步方法改为 async，写入前递归创建父目录，修复 catchError 返回无意义 File 的 bug
+  - **Fix B-E (NotePanel 错误状态)**: 添加 `_noteNotFound` 标志，_loadNote 在 note==null 时设置错误状态，build 方法返回 _buildNoteNotFound() 错误 UI（图标+提示+关闭按钮）
+  - **Fix F (activePaneId nullable)**: AIContext.activePaneId 从 String 改为 String?，移除 `?? ''` 回退
+  - **Fix G (日历刷新)**: _openNoteForDay 在新日记保存后调用 _loadMonthData() 刷新月份标记
+- 验证结果：
+  - flutter analyze lib/ 退出码 0，0 errors，0 warnings
+  - checklist.md 18/18 项全部通过
+  - 代码审查确认修改范围仅限于 spec 定义的 3 个文件
+- 文件变更：
+  - 修改：lib/features/editor/widgets/note_panel.dart（_syncToFile, _loadNote, build, _buildNoteNotFound）
+  - 修改：lib/providers/pane_provider.dart（AIContext 类 + aiContextProvider）
+  - 修改：lib/features/calendar/widgets/calendar_view.dart（_openNoteForDay）
+- 关键决策回顾：
+  - _syncToFile 防御性创建父目录，覆盖外部删除文件夹的边缘情况
+  - NotePanel 笔记未找到时显示关闭按钮而非自动创建，避免孤儿数据
+  - activePaneId nullable 修复语义错误，为未来 AI 上下文接入奠定正确基础
+  - 日历仅在新建笔记后刷新，避免不必要的 IO
+- 下一轮计划：所有任务完成，checklist 全部通过，本 spec 标记为 DONE
+
+## Round 3
+
+- **Verdict**: PARTIAL (code fixes applied + verified)
+- **Scope reviewed**: 上一轮完成后，进行同类型问题深度审计。
+- **Issues discovered (similar pattern)**:
+  - **Critical Bug**: sidebar_container.dart _duplicateNote() 副本笔记直接复用原笔记 filePath，导致两个 Hive 条目指向同一个文件，编辑副本会覆盖原文件内容。修复：副本 filePath 设为空字符串（与手动新建笔记一致）。
+  - **Bug**: sidebar_provider.dart renameNote() 只更新 note.title，未更新 rawMarkdown 开头的 `# 标题`，导致面板标题与文档内 H1 不一致。修复：用正则替换第一个 `# ...` 行。
+  - **Data Sync Gap**: sidebar_provider.dart 中 toggleTask()、renameTag()、deleteTag()、renameNote()、sidebar_container.dart duplicateNote() 仅更新 Hive，对有 filePath 的笔记未同步到文件系统。修复：在 repo.saveNote() 后调用 FileService.syncToFile()。
+  - **Code Duplication**: _syncToFile 是 note_panel.dart 私有方法，其他 provider/widget 无法复用。修复：提取到 FileService.syncToFile() 公共静态方法，并添加 shouldSyncToFile() 辅助方法处理 kIsWeb 和空路径判断。
+- **Files changed in this round**:
+  - Modified: lib/core/services/file_service.dart (新增 syncToFile/shouldSyncToFile 静态方法，带 dart:io 和 foundation 导入)
+  - Modified: lib/features/editor/widgets/note_panel.dart (使用 FileService 替代私有 _syncToFile，移除 dart:io 导入)
+  - Modified: lib/features/sidebar/widgets/sidebar_container.dart (duplicateNote: filePath='' + FileService 导入)
+  - Modified: lib/providers/sidebar_provider.dart (toggleTask/renameTag/deleteTag/renameNote 添加文件同步 + renameNote 更新 H1 标题 + FileService 导入)
+- **Verification results**:
+  - flutter analyze lib/ 退出码 0，0 errors，0 warnings，240 info（均为 pre-existing 风格问题）
+  - 代码审查确认：FileService.syncToFile 正确处理父目录创建、静默 catch、kIsWeb/空路径守卫；duplicateNote 不再复用原 filePath；renameNote 正确更新 H1 并同步；toggleTask/renameTag/deleteTag 在 changed 分支内对每个更新的笔记调用 syncToFile。
+- **Key decisions**:
+  - 副本笔记 filePath 设为空而非自动生成路径，因为当前应用中无 filePath 的笔记仅存于 Hive（与新建笔记行为一致），避免意外写入磁盘。
+  - FileService.syncToFile 为静态方法，无需实例化 FileService（后者需要 vaultRoot 构造参数），方便在任意 provider/widget 中调用。
+  - 保持现有架构：文件同步为单向（Hive→文件），不重构为 repository 层统一处理（避免大范围改动风险）。
+- **Risks and issues**:
+  - TrashService.moveToTrash/deletePermanently 仍未处理文件系统删除（磁盘上会留孤立文件）。此为设计权衡——当前架构以 Hive 为 source of truth，回收站仅软删除 Hive 条目，不删除磁盘文件，避免误删用户数据。可在后续轮次考虑添加"永久删除时询问是否删除文件"。
+  - 240 条 info 级 lint 提示（prefer_const_constructors/deprecated_member_use/dangling_library_doc_comments 等）建议后续用 dart fix --apply 批量清理。
+
+## Round 4
+
+- **Verdict**: COMPLETE (additional similar-pattern audit + fixes)
+- **Scope reviewed**: After Round 3 fixes, performed exhaustive audit of all 22 saveNote call sites across 12 files to find remaining similar issues.
+- **Issues discovered and fixed (4 bugs)**:
+  1. **app.dart version history restore (data loss bug)**: Restoring a note from version history saved to Hive but never synced to the file system, so disk content would be stale. Fix: added FileService.shouldSyncToFile/syncToFile after saveNote, added FileService import.
+  2. **sliding_panes_container.dart inline tab rename (3 bugs)**: `_finishEditing()` (double-click tab title to rename) had three issues: (a) only updated title field but not the H1 heading in rawMarkdown (same bug that was fixed for sidebar renameNote in Round 3); (b) didn't sync to file system; (c) didn't refresh note tree. Fix: added H1 regex replacement, FileService.syncToFile, and sidebarProvider.loadNoteTree() call, plus required imports.
+  3. **plugin_api_impl.dart saveNote (data sync gap)**: Plugin API's saveNote method wrote to Hive but didn't sync to file, meaning any plugin modifying notes would cause data inconsistency between Hive and disk. Fix: added FileService.shouldSyncToFile/syncToFile after repo.saveNote.
+  4. **daily_note_panel.dart _openDailyNote (missing UI refresh)**: Creating a new diary from the daily note panel (sidebar mini-calendar) didn't refresh the `_daysWithNotes` markers, so the cyan dot wouldn't appear until navigation (same bug fixed in calendar_view.dart in Round 2). Fix: added `_loadDaysWithNotes()` call after wasNew, matching calendar_view pattern.
+- **Files changed in this round**:
+  - Modified: lib/app.dart (FileService import + version restore sync)
+  - Modified: lib/core/services/plugin_api_impl.dart (FileService import + saveNote sync)
+  - Modified: lib/features/daily_notes/widgets/daily_note_panel.dart (_openDailyNote refresh)
+  - Modified: lib/features/sliding_panes/widgets/sliding_panes_container.dart (imports + _finishEditing H1/sync/tree refresh)
+- **Verification results**:
+  - flutter analyze lib/ exit code 0, 0 errors, 0 warnings, 241 info (pre-existing)
+  - 88/89 tests pass; widget_test.dart failure is pre-existing Hive initialization issue in test environment (documented in spec NFR)
+  - All 4 fixes verified via code inspection
+- **Key decisions**:
+  - plugin_api_impl.dart saveNote should sync to file: plugins are treated the same as internal code paths; if a plugin modifies a note with a filePath, changes must persist to disk
+  - sliding_panes inline rename must update H1: consistency with sidebar renameNote behavior from Round 3
+  - DailyNoteService already writes files to disk on creation, so no extra syncToFile needed there; only _loadDaysWithNotes UI refresh was missing
+- **Audit conclusions**: All 22 saveNote call sites have been reviewed. Remaining saveNote calls without explicit syncToFile are:
+  - note.new/template/duplicate/create commands: filePath is '' (intentionally, new notes start unsaved)
+  - daily note creation: file already written by DailyNoteService._storage.writeAsString
+  - file import/open: reads from existing files, no write needed at import time
+  - trash restore: doesn't rewrite file (user edits will trigger sync via autosave)
+  - moveNoteToFolder: only changes folderPath metadata, not content
+  - JSON import: imported notes default filePath to ''
+  These are all correct by design.
+- **Risks/issues**: None. Audit is complete for the similar-pattern issues tracked in this spec.
