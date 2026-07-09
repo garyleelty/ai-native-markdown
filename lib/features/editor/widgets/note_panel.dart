@@ -12,8 +12,10 @@ import '../../../providers/sidebar_provider.dart';
 import '../../../providers/pane_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../services/editor_service.dart';
+import '../../quick_switcher/services/fuzzy_matcher.dart';
 import 'entity_text_editor.dart';
 import 'live_markdown_editor.dart';
+import 'wiki_link_completer.dart';
 import 'wiki_link_preview.dart';
 
 /// ══════════════════════════════════════════════════
@@ -38,6 +40,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   late final TextEditingController _textController;
   late final FocusNode _focusNode;
   late final ScrollController _scrollController;
+  final GlobalKey _editorKey = GlobalKey();
   EditorMode _editorMode = EditorMode.source; // 三种模式
   String _rawMarkdown = '';
   DateTime? _lastHandledScrollRequest;
@@ -59,6 +62,20 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   // wiki link 悬浮预览
   WikiLinkHoverHandler? _wikiLinkHover;
 
+  // wiki link 补全
+  bool _wikiLinkVisible = false;
+  bool _wikiLinkLoading = false;
+  String _wikiLinkQuery = '';
+  int _wikiLinkStart = -1;
+  int _wikiLinkSelectedIndex = 0;
+  List<WikiLinkSuggestion> _wikiLinkSuggestions = [];
+  List<NoteModel> _wikiLinkAllNotes = [];
+
+  int get _wikiLinkTotalCount {
+    if (_wikiLinkLoading) return 0;
+    return _wikiLinkSuggestions.isEmpty ? 1 : _wikiLinkSuggestions.length + 1;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -66,6 +83,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     _focusNode = FocusNode();
     _scrollController = ScrollController();
     _textController.addListener(_onControllerTextChanged);
+    HardwareKeyboard.instance.addHandler(_handleHardwareKey);
     _loadNote();
   }
 
@@ -78,6 +96,8 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   @override
   void dispose() {
     _autoSaveTimer?.cancel();
+    _wikiLinkVisible = false;
+    HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     _textController.removeListener(_onControllerTextChanged);
     _textController.dispose();
     _focusNode.dispose();
@@ -216,6 +236,9 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     // 同步大纲数据
     ref.read(sidebarProvider.notifier).updateOutline(widget.noteId, text);
 
+    // 检查 wiki link 补全触发
+    _checkWikiLinkTrigger(text);
+
     // 更新搜索匹配
     if (_showSearchBar && _searchController.text.isNotEmpty) {
       _updateMatches();
@@ -305,6 +328,236 @@ class _NotePanelState extends ConsumerState<NotePanel> {
         await VersionService.saveSnapshot(widget.noteId, text);
       }
     });
+  }
+
+  // ──────────────────────────────────────────────
+  // WikiLink 补全
+  // ──────────────────────────────────────────────
+
+  void _checkWikiLinkTrigger(String text) {
+    if (_editorMode != EditorMode.source) {
+      if (_wikiLinkVisible) setState(() => _dismissWikiLinkCompleter());
+      return;
+    }
+
+    final selection = _textController.selection;
+    if (!selection.isValid || !selection.isCollapsed) {
+      if (_wikiLinkVisible) setState(() => _dismissWikiLinkCompleter());
+      return;
+    }
+
+    final cursorPos = selection.baseOffset;
+    if (cursorPos < 2) {
+      if (_wikiLinkVisible) setState(() => _dismissWikiLinkCompleter());
+      return;
+    }
+
+    final textBefore = text.substring(0, cursorPos);
+
+    final lastOpen = textBefore.lastIndexOf('[[');
+    if (lastOpen == -1) {
+      if (_wikiLinkVisible) setState(() => _dismissWikiLinkCompleter());
+      return;
+    }
+
+    final textAfterOpen = textBefore.substring(lastOpen + 2);
+    if (textAfterOpen.contains(']]') ||
+        textAfterOpen.contains('\n') ||
+        (lastOpen >= 1 && textBefore[lastOpen - 1] == '!')) {
+      if (_wikiLinkVisible) setState(() => _dismissWikiLinkCompleter());
+      return;
+    }
+
+    _wikiLinkQuery = textAfterOpen;
+    _wikiLinkStart = lastOpen;
+
+    if (!_wikiLinkVisible) {
+      _wikiLinkSelectedIndex = 0;
+      _wikiLinkVisible = true;
+      _wikiLinkLoading = true;
+      _wikiLinkSuggestions = [];
+      _loadWikiLinkSuggestions();
+      setState(() {});
+    } else {
+      _refreshWikiLinkSuggestions();
+      setState(() {});
+    }
+  }
+
+  Future<void> _loadWikiLinkSuggestions() async {
+    try {
+      final repo = ref.read(noteRepositoryProvider);
+      final allNotes = await repo.getAllNotes();
+      if (!_wikiLinkVisible || !mounted) return;
+      _wikiLinkAllNotes = allNotes;
+      _refreshSuggestionsFromNotes(allNotes);
+      _wikiLinkLoading = false;
+      setState(() {});
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _wikiLinkSuggestions = [];
+          _wikiLinkLoading = false;
+        });
+      }
+    }
+  }
+
+  void _refreshWikiLinkSuggestions() {
+    _wikiLinkSelectedIndex = 0;
+    if (_wikiLinkAllNotes.isEmpty) return;
+    _refreshSuggestionsFromNotes(_wikiLinkAllNotes);
+  }
+
+  void _refreshSuggestionsFromNotes(List<NoteModel> allNotes) {
+    final query = _wikiLinkQuery;
+    if (allNotes.isEmpty) {
+      _wikiLinkSuggestions = [];
+      return;
+    }
+    if (query.isEmpty) {
+      _wikiLinkSuggestions = allNotes
+          .take(8)
+          .map((n) => WikiLinkSuggestion(noteId: n.id, title: n.title))
+          .toList();
+    } else {
+      final matches = FuzzyMatcher.match(query, allNotes);
+      _wikiLinkSuggestions = matches.take(8).map((m) {
+        final note = allNotes.firstWhere(
+          (n) => n.id == m.noteId,
+          orElse: () => allNotes.first,
+        );
+        return WikiLinkSuggestion(
+          noteId: m.noteId,
+          title: note.title,
+          matchedRanges: m.matchedRanges,
+        );
+      }).toList();
+    }
+  }
+
+  double _getCaretLocalY() {
+    final text = _textController.text;
+    final cursorPos = _textController.selection.baseOffset;
+    if (cursorPos < 0) return 20;
+    final fontSize = ref.read(settingsProvider).fontSize;
+
+    int line = 0;
+    for (int i = 0; i < cursorPos && i < text.length; i++) {
+      if (text[i] == '\n') line++;
+    }
+
+    final lineHeight = fontSize * 1.5;
+    const padding = 16.0;
+    double y = line * lineHeight + padding + lineHeight;
+
+    if (_scrollController.hasClients) {
+      y -= _scrollController.offset;
+    }
+
+    if (y < 0) y = 0;
+
+    return y;
+  }
+
+  void _dismissWikiLinkCompleter() {
+    _wikiLinkVisible = false;
+    _wikiLinkStart = -1;
+    _wikiLinkQuery = '';
+    _wikiLinkSelectedIndex = 0;
+    _wikiLinkSuggestions = [];
+    _wikiLinkAllNotes = [];
+    _wikiLinkLoading = false;
+  }
+
+  void _applyWikiLinkCompletion(String title) {
+    if (_wikiLinkStart < 0 || title.isEmpty) {
+      setState(() => _dismissWikiLinkCompleter());
+      _focusNode.requestFocus();
+      return;
+    }
+
+    final text = _textController.text;
+    final cursorPos = _textController.selection.baseOffset;
+    final replaceStart = _wikiLinkStart;
+    final replaceEnd = cursorPos;
+
+    final completion = '[[$title]]';
+    final newText = text.replaceRange(replaceStart, replaceEnd, completion);
+    final newCursor = replaceStart + completion.length;
+
+    setState(() => _dismissWikiLinkCompleter());
+
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+    _onTextChanged(newText);
+    _focusNode.requestFocus();
+  }
+
+  void _wikiLinkMoveUp() {
+    if (!_wikiLinkVisible) return;
+    final total = _wikiLinkTotalCount;
+    if (total == 0) return;
+    setState(() {
+      _wikiLinkSelectedIndex =
+          (_wikiLinkSelectedIndex - 1 + total) % total;
+    });
+  }
+
+  void _wikiLinkMoveDown() {
+    if (!_wikiLinkVisible) return;
+    final total = _wikiLinkTotalCount;
+    if (total == 0) return;
+    setState(() {
+      _wikiLinkSelectedIndex = (_wikiLinkSelectedIndex + 1) % total;
+    });
+  }
+
+  void _wikiLinkConfirm() {
+    if (!_wikiLinkVisible) return;
+    final index = _wikiLinkSelectedIndex;
+    final String title;
+    if (index < _wikiLinkSuggestions.length) {
+      title = _wikiLinkSuggestions[index].title;
+    } else {
+      title = _wikiLinkQuery;
+    }
+    if (title.isEmpty) {
+      setState(() => _dismissWikiLinkCompleter());
+      _focusNode.requestFocus();
+      return;
+    }
+    _applyWikiLinkCompletion(title);
+  }
+
+  bool _handleHardwareKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (!_wikiLinkVisible) return false;
+    if (!_focusNode.hasFocus) return false;
+
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      setState(() => _dismissWikiLinkCompleter());
+      return true;
+    }
+
+    if (_wikiLinkLoading) return false;
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      _wikiLinkMoveUp();
+      return true;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      _wikiLinkMoveDown();
+      return true;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.tab) {
+      _wikiLinkConfirm();
+      return true;
+    }
+    return false;
   }
 
   // ──────────────────────────────────────────────
@@ -534,21 +787,25 @@ class _NotePanelState extends ConsumerState<NotePanel> {
           if (mode == EditorMode.preview) {
             _focusNode.unfocus();
           }
+          if (mode != EditorMode.source && _wikiLinkVisible) {
+            _dismissWikiLinkCompleter();
+          }
         });
       },
       child: _ToolbarButton(
         icon: icon,
         tooltip: tooltip,
         onTap: () {
-          // 单击循环切换
           setState(() {
             switch (_editorMode) {
               case EditorMode.source:
                 _editorMode = EditorMode.livePreview;
+                if (_wikiLinkVisible) _dismissWikiLinkCompleter();
                 break;
               case EditorMode.livePreview:
                 _editorMode = EditorMode.preview;
                 _focusNode.unfocus();
+                if (_wikiLinkVisible) _dismissWikiLinkCompleter();
                 break;
               case EditorMode.preview:
                 _editorMode = EditorMode.source;
@@ -752,89 +1009,113 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   // 编辑模式下通过 toolbar 的实体计数徽标提示 AI 识别状态。
   Widget _buildEditMode(List<EntityHighlight> entities) {
     return Shortcuts(
-      shortcuts: <ShortcutActivator, Intent>{
-        const SingleActivator(LogicalKeyboardKey.keyB, control: true, meta: true):
-            const _FormatBoldIntent(),
-        const SingleActivator(LogicalKeyboardKey.keyI, control: true, meta: true):
-            const _FormatItalicIntent(),
-        const SingleActivator(LogicalKeyboardKey.keyK, control: true, meta: true, shift: true):
-            const _InsertLinkIntent(),
-        const SingleActivator(LogicalKeyboardKey.keyZ, control: true, meta: true):
-            const _UndoIntent(),
-        const SingleActivator(LogicalKeyboardKey.keyY, control: true, meta: true):
-            const _RedoIntent(),
-        const SingleActivator(LogicalKeyboardKey.keyF, control: true, meta: true):
-            const _SearchIntent(),
-        const SingleActivator(LogicalKeyboardKey.escape):
-            const _CloseSearchIntent(),
-        const SingleActivator(LogicalKeyboardKey.enter, shift: true):
-            const _FindPreviousIntent(),
-        const SingleActivator(LogicalKeyboardKey.enter):
-            const _FindNextIntent(),
-      },
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          _FormatBoldIntent: CallbackAction<_FormatBoldIntent>(
-            onInvoke: (_) => _applyBold(),
-          ),
-          _FormatItalicIntent: CallbackAction<_FormatItalicIntent>(
-            onInvoke: (_) => _applyItalic(),
-          ),
-          _InsertLinkIntent: CallbackAction<_InsertLinkIntent>(
-            onInvoke: (_) => _applyLink(),
-          ),
-          _UndoIntent: CallbackAction<_UndoIntent>(
-            onInvoke: (_) => _undo(),
-          ),
-          _RedoIntent: CallbackAction<_RedoIntent>(
-            onInvoke: (_) => _redo(),
-          ),
-          _SearchIntent: CallbackAction<_SearchIntent>(
-            onInvoke: (_) {
-              if (!_showSearchBar) _toggleSearchBar();
-              return null;
-            },
-          ),
-          _CloseSearchIntent: CallbackAction<_CloseSearchIntent>(
-            onInvoke: (_) {
-              if (_showSearchBar) _toggleSearchBar();
-              return null;
-            },
-          ),
-          _FindNextIntent: CallbackAction<_FindNextIntent>(
-            onInvoke: (_) => _findNext(),
-          ),
-          _FindPreviousIntent: CallbackAction<_FindPreviousIntent>(
-            onInvoke: (_) => _findPrevious(),
-          ),
+        shortcuts: <ShortcutActivator, Intent>{
+          const SingleActivator(LogicalKeyboardKey.keyB, control: true, meta: true):
+              const _FormatBoldIntent(),
+          const SingleActivator(LogicalKeyboardKey.keyI, control: true, meta: true):
+              const _FormatItalicIntent(),
+          const SingleActivator(LogicalKeyboardKey.keyK, control: true, meta: true, shift: true):
+              const _InsertLinkIntent(),
+          const SingleActivator(LogicalKeyboardKey.keyZ, control: true, meta: true):
+              const _UndoIntent(),
+          const SingleActivator(LogicalKeyboardKey.keyY, control: true, meta: true):
+              const _RedoIntent(),
+          const SingleActivator(LogicalKeyboardKey.keyF, control: true, meta: true):
+              const _SearchIntent(),
+          const SingleActivator(LogicalKeyboardKey.escape):
+              const _CloseSearchIntent(),
+          const SingleActivator(LogicalKeyboardKey.enter, shift: true):
+              const _FindPreviousIntent(),
+          const SingleActivator(LogicalKeyboardKey.enter):
+              const _FindNextIntent(),
         },
-        child: Focus(
-          autofocus: true,
-          child: TextField(
-            controller: _textController,
-            focusNode: _focusNode,
-            scrollController: _scrollController,
-            maxLines: null,
-            expands: true,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontSize: ref.watch(settingsProvider.select((s) => s.fontSize)),
-                ),
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.all(16),
-              hintText: '开始书写...',
-              hintStyle: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(
-                    color: AeroColors.textMuted,
-                    fontSize: ref.watch(settingsProvider.select((s) => s.fontSize)),
-                  ),
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            _FormatBoldIntent: CallbackAction<_FormatBoldIntent>(
+              onInvoke: (_) => _applyBold(),
             ),
-            onChanged: _onTextChanged,
+            _FormatItalicIntent: CallbackAction<_FormatItalicIntent>(
+              onInvoke: (_) => _applyItalic(),
+            ),
+            _InsertLinkIntent: CallbackAction<_InsertLinkIntent>(
+              onInvoke: (_) => _applyLink(),
+            ),
+            _UndoIntent: CallbackAction<_UndoIntent>(
+              onInvoke: (_) => _undo(),
+            ),
+            _RedoIntent: CallbackAction<_RedoIntent>(
+              onInvoke: (_) => _redo(),
+            ),
+            _SearchIntent: CallbackAction<_SearchIntent>(
+              onInvoke: (_) {
+                if (!_showSearchBar) _toggleSearchBar();
+                return null;
+              },
+            ),
+            _CloseSearchIntent: CallbackAction<_CloseSearchIntent>(
+              onInvoke: (_) {
+                if (_wikiLinkVisible) {
+                  setState(() => _dismissWikiLinkCompleter());
+                  return null;
+                }
+                if (_showSearchBar) _toggleSearchBar();
+                return null;
+              },
+            ),
+            _FindPreviousIntent: CallbackAction<_FindPreviousIntent>(
+              onInvoke: (_) => _findPrevious(),
+            ),
+            _FindNextIntent: CallbackAction<_FindNextIntent>(
+              onInvoke: (_) => _findNext(),
+            ),
+          },
+          child: ClipRect(
+            child: Stack(
+              key: _editorKey,
+              children: [
+                TextField(
+                  controller: _textController,
+                  focusNode: _focusNode,
+                  scrollController: _scrollController,
+                  maxLines: null,
+                  expands: true,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: ref.watch(settingsProvider.select((s) => s.fontSize)),
+                      ),
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.all(16),
+                    hintText: '开始书写...',
+                    hintStyle: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(
+                          color: AeroColors.textMuted,
+                          fontSize: ref.watch(settingsProvider.select((s) => s.fontSize)),
+                        ),
+                  ),
+                  onChanged: _onTextChanged,
+                ),
+                if (_wikiLinkVisible)
+                  Positioned(
+                    left: 16,
+                    top: _getCaretLocalY(),
+                    child: Material(
+                      color: Colors.transparent,
+                      elevation: 8,
+                      child: WikiLinkCompleter(
+                        query: _wikiLinkQuery,
+                        selectedIndex: _wikiLinkSelectedIndex,
+                        suggestions: _wikiLinkSuggestions,
+                        loading: _wikiLinkLoading,
+                        onSelected: _applyWikiLinkCompletion,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
-      ),
     );
   }
 
