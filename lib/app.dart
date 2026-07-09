@@ -465,7 +465,12 @@ class _AppShellState extends ConsumerState<_AppShell>
   void _openTodayDailyNote() async {
     try {
       final service = ref.read(dailyNoteServiceProvider);
+      final repo = ref.read(noteRepositoryProvider);
       final (note, isNew) = await service.getTodayNote();
+      final existing = await repo.getNote(note.id);
+      if (existing == null) {
+        await repo.saveNote(note);
+      }
       if (mounted) {
         ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
       }

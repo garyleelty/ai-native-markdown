@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/note_model.dart';
 import '../../../core/models/predictive_link.dart';
+import '../../../core/services/file_service.dart';
 import '../../../core/services/version_service.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../providers/ai_provider.dart';
@@ -44,6 +46,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   EditorMode _editorMode = EditorMode.source; // 三种模式
   String _rawMarkdown = '';
   DateTime? _lastHandledScrollRequest;
+  bool _noteNotFound = false;
 
   // 撤销/重做
   final List<_HistoryItem> _undoStack = [];
@@ -143,6 +146,10 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     final linksAsync =
         ref.watch(predictiveLinksProvider(widget.noteId));
 
+    if (_noteNotFound) {
+      return _buildNoteNotFound();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -215,20 +222,23 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   Future<void> _loadNote() async {
     final repo = ref.read(noteRepositoryProvider);
     final note = await repo.getNote(widget.noteId);
-    if (note != null && mounted) {
+    if (!mounted) return;
+    if (note == null) {
       setState(() {
-        _rawMarkdown = note.rawMarkdown;
-        _lastSavedText = note.rawMarkdown;
-        _hasUnsavedChanges = false;
-        _textController.text = note.rawMarkdown;
+        _noteNotFound = true;
       });
-      // 加载完成后立即触发一次实体识别
-      _triggerEntityRecognition(note.rawMarkdown);
-      // 同步大纲数据
-      ref.read(sidebarProvider.notifier).updateOutline(widget.noteId, note.rawMarkdown);
-      // 加载反向链接
-      ref.read(sidebarProvider.notifier).loadBacklinks(widget.noteId);
+      return;
     }
+    setState(() {
+      _noteNotFound = false;
+      _rawMarkdown = note.rawMarkdown;
+      _lastSavedText = note.rawMarkdown;
+      _hasUnsavedChanges = false;
+      _textController.text = note.rawMarkdown;
+    });
+    _triggerEntityRecognition(note.rawMarkdown);
+    ref.read(sidebarProvider.notifier).updateOutline(widget.noteId, note.rawMarkdown);
+    ref.read(sidebarProvider.notifier).loadBacklinks(widget.noteId);
   }
 
   /// 文本变化时防抖触发 AI 实体识别
@@ -332,23 +342,27 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     final noteId = widget.noteId;
     repo.getNote(noteId).then((note) {
       if (note == null) return;
-      // 提取链接
       final links = EditorService.extractLinks(text);
       final wikiLinks = links
           .where((l) => l.isWikiLink)
           .map((l) => l.text)
           .toList();
 
-      repo.saveNote(note.copyWith(
+      final updatedNote = note.copyWith(
         rawMarkdown: text,
         updatedAt: DateTime.now(),
         outgoingLinks: wikiLinks,
-      ));
+      );
+      repo.saveNote(updatedNote);
 
-      // 保存版本快照
+      if (FileService.shouldSyncToFile(note.filePath)) {
+        FileService.syncToFile(note.filePath, text);
+      }
+
       VersionService.saveSnapshot(noteId, text);
     });
   }
+
 
   // ──────────────────────────────────────────────
   // WikiLink 补全
@@ -1541,6 +1555,49 @@ class _NotePanelState extends ConsumerState<NotePanel> {
               color: AeroColors.textMuted,
               fontSize: 10,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoteNotFound() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.error_outline,
+            size: 48,
+            color: AeroColors.textMuted,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '笔记未找到',
+            style: TextStyle(
+              fontSize: 16,
+              color: AeroColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '该笔记可能已被删除',
+            style: TextStyle(
+              fontSize: 12,
+              color: AeroColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 20),
+          TextButton.icon(
+            onPressed: () {
+              final paneState = ref.read(paneStackProvider);
+              final index = paneState.panes.indexWhere((p) => p.noteId == widget.noteId);
+              if (index >= 0) {
+                ref.read(paneStackProvider.notifier).closePane(index);
+              }
+            },
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('关闭面板'),
           ),
         ],
       ),

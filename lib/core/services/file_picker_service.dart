@@ -9,7 +9,7 @@ import 'hive_service.dart';
 /// ══════════════════════════════════════════════════
 /// 支持两种模式:
 ///   1. 导入模式: 选择文件 → 读取内容 → 存入 Hive → 返回 NoteModel
-///   2. 直接打开: 选择文件 → 读取内容 → 返回临时 NoteModel (不存入 Hive)
+///   2. 直接打开: 选择文件 → 读取内容 → 存入 Hive → 返回 NoteModel
 /// ──────────────────────────────────────────────────
 class FilePickerService {
   /// 选择并导入 .md 文件到 Hive
@@ -21,9 +21,9 @@ class FilePickerService {
     return importFromPath(filePath);
   }
 
-  /// 选择并直接打开 .md 文件 (不存入 Hive)
+  /// 选择并直接打开 .md 文件
   ///
-  /// 返回临时 NoteModel，如果用户取消选择则返回 null
+  /// 返回 NoteModel，如果用户取消选择则返回 null
   Future<NoteModel?> pickAndOpen() async {
     final filePath = await _pickMdFile();
     if (filePath == null) return null;
@@ -55,7 +55,7 @@ class FilePickerService {
     }
   }
 
-  /// 从文件路径直接打开 (不存入 Hive)
+  /// 从文件路径直接打开
   Future<NoteModel?> openFromPath(String filePath) async {
     try {
       final fileContent = await File(filePath).readAsString();
@@ -64,7 +64,7 @@ class FilePickerService {
       final now = DateTime.now();
       final id = 'file_${filePath.hashCode.toRadixString(36)}';
 
-      return NoteModel(
+      final note = NoteModel(
         id: id,
         title: title,
         rawMarkdown: fileContent,
@@ -72,6 +72,12 @@ class FilePickerService {
         createdAt: now,
         updatedAt: now,
       );
+
+      final existing = await HiveService.noteBox.get(id);
+      if (existing == null || existing.rawMarkdown != fileContent) {
+        await HiveService.noteBox.put(id, note);
+      }
+      return note;
     } catch (_) {
       return null;
     }

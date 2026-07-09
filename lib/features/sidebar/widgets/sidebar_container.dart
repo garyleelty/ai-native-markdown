@@ -10,11 +10,13 @@
 ///   - 插件面板入口
 /// ──────────────────────────────────────────────────
 
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../core/models/note_model.dart';
 import '../../../core/services/search_service.dart';
+import '../../../core/services/file_service.dart';
 import '../../../core/services/task_service.dart';
 import '../../../providers/sidebar_provider.dart';
 import '../../../providers/note_provider.dart';
@@ -25,36 +27,62 @@ import '../../outline/widgets/outline_panel.dart';
 import '../../backlinks/widgets/backlinks_panel.dart';
 import 'trash_panel.dart';
 
-/// 侧边栏主容器
-class SidebarContainer extends ConsumerWidget {
-  /// 选中笔记后的回调 (打开面板)
+/// 侧边栏主容器 — VS Code 风格：左侧纵向活动栏 + 可拖拽宽度的内容面板
+class SidebarContainer extends ConsumerStatefulWidget {
   final void Function(String noteId, String title)? onNoteSelected;
 
   const SidebarContainer({super.key, this.onNoteSelected});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SidebarContainer> createState() => _SidebarContainerState();
+}
+
+class _SidebarContainerState extends ConsumerState<SidebarContainer> {
+  bool _isDragging = false;
+
+  @override
+  Widget build(BuildContext context) {
     final sidebarState = ref.watch(sidebarProvider);
+    final totalWidth = sidebarState.isExpanded
+        ? SidebarLayout.activityBarWidth + sidebarState.width + SidebarLayout.resizerWidth
+        : SidebarLayout.activityBarWidth;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+      duration: _isDragging ? Duration.zero : const Duration(milliseconds: 200),
       curve: Curves.easeOutCubic,
-      width: sidebarState.isExpanded ? sidebarState.width : 0,
-      clipBehavior: Clip.hardEdge,
-      decoration: const BoxDecoration(
-        color: AeroColors.bgSurface,
-        border: Border(
-          right: BorderSide(color: AeroColors.divider, width: 0.5),
-        ),
+      width: totalWidth,
+      child: Row(
+        children: [
+          // ── 纵向活动栏 (始终可见) ──
+          _ActivityBar(
+            isExpanded: sidebarState.isExpanded,
+            currentView: sidebarState.currentView,
+            onToggle: () => ref.read(sidebarProvider.notifier).toggleExpanded(),
+          ),
+
+          // ── 内容面板 (展开时可见) ──
+          if (sidebarState.isExpanded)
+            Expanded(
+              child: _SidebarContent(onNoteSelected: widget.onNoteSelected),
+            ),
+
+          // ── 拖拽调整宽度 ──
+          if (sidebarState.isExpanded)
+            _Resizer(
+              onDragStart: () => setState(() => _isDragging = true),
+              onDragEnd: () => setState(() => _isDragging = false),
+              onDragUpdate: (delta) {
+                final current = ref.read(sidebarProvider).width;
+                ref.read(sidebarProvider.notifier).setWidth(current + delta);
+              },
+            ),
+        ],
       ),
-      child: sidebarState.isExpanded
-          ? _SidebarContent(onNoteSelected: onNoteSelected)
-          : const SizedBox.shrink(),
     );
   }
 }
 
-/// 侧边栏内容
+/// 侧边栏内容区
 class _SidebarContent extends ConsumerWidget {
   final void Function(String noteId, String title)? onNoteSelected;
 
@@ -64,137 +92,54 @@ class _SidebarContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(sidebarProvider);
 
-    return Column(
-      children: [
-        // ── 顶部视图切换标签 ──
-        _ViewTabBar(currentView: state.currentView),
-
-        // ── 内容区 ──
-        Expanded(
-          child: switch (state.currentView) {
-            SidebarView.noteTree =>
-              _NoteTreeView(onNoteSelected: onNoteSelected),
-            SidebarView.calendar => const CalendarView(),
-            SidebarView.search => _SearchView(onNoteSelected: onNoteSelected),
-            SidebarView.tags => _TagView(onNoteSelected: onNoteSelected),
-            SidebarView.recent =>
-              _RecentView(onNoteSelected: onNoteSelected),
-            SidebarView.plugins => const _PluginPlaceholder(),
-            SidebarView.outline => OutlinePanel(
-              onHeadingTap: (offset) {
-                final activeNoteId = ref.read(paneStackProvider).activeNoteId;
-                if (activeNoteId != null) {
-                  ref.read(paneStackProvider.notifier).scrollTo(
-                        activeNoteId,
-                        offset.toDouble(),
-                      );
-                }
-              },
-            ),
-            SidebarView.backlinks => BacklinksPanel(
-              onNoteTap: (noteId, title) {
-                onNoteSelected?.call(noteId, title);
-              },
-            ),
-            SidebarView.tasks =>
-              _TaskView(onNoteSelected: onNoteSelected),
-            SidebarView.trash => TrashPanel(
-                onRestore: () {
-                  ref.read(sidebarProvider.notifier).loadNoteTree();
-                },
-                onClose: () {
-                  ref.read(sidebarProvider.notifier)
-                      .switchView(SidebarView.noteTree);
-                },
-              ),
-          },
-        ),
-      ],
-    );
-  }
-}
-
-/// 视图切换标签栏
-class _ViewTabBar extends ConsumerWidget {
-  final SidebarView currentView;
-
-  const _ViewTabBar({required this.currentView});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final notifier = ref.read(sidebarProvider.notifier);
-
     return Container(
-      height: 34,
-      padding: const EdgeInsets.symmetric(horizontal: 2),
       decoration: const BoxDecoration(
-        color: AeroColors.bgElevated,
+        color: AeroColors.bgSurface,
         border: Border(
-          bottom: BorderSide(color: AeroColors.divider, width: 0.5),
+          right: BorderSide(color: AeroColors.divider, width: 0.5),
         ),
       ),
-      child: Row(
+      child: Column(
         children: [
-          _TabIcon(
-            icon: Icons.article_outlined,
-            isActive: currentView == SidebarView.noteTree,
-            tooltip: '笔记树',
-            onTap: notifier.showNoteTree,
-          ),
-          _TabIcon(
-            icon: Icons.calendar_today,
-            isActive: currentView == SidebarView.calendar,
-            tooltip: '日历',
-            onTap: notifier.showCalendar,
-          ),
-          _TabIcon(
-            icon: Icons.search,
-            isActive: currentView == SidebarView.search,
-            tooltip: '搜索',
-            onTap: notifier.showSearch,
-          ),
-          _TabIcon(
-            icon: Icons.sell_outlined,
-            isActive: currentView == SidebarView.tags,
-            tooltip: '标签',
-            onTap: notifier.showTags,
-          ),
-          _TabIcon(
-            icon: Icons.schedule,
-            isActive: currentView == SidebarView.recent,
-            tooltip: '最近',
-            onTap: notifier.showRecent,
-          ),
-          _TabIcon(
-            icon: Icons.list_alt,
-            isActive: currentView == SidebarView.outline,
-            tooltip: '大纲',
-            onTap: notifier.showOutline,
-          ),
-          _TabIcon(
-            icon: Icons.link,
-            isActive: currentView == SidebarView.backlinks,
-            tooltip: '反向链接',
-            onTap: notifier.showBacklinks,
-          ),
-          _TabIcon(
-            icon: Icons.check_box_outlined,
-            isActive: currentView == SidebarView.tasks,
-            tooltip: '任务',
-            onTap: () => notifier.showTasks(),
-          ),
-          _TabIcon(
-            icon: Icons.delete_outline,
-            isActive: currentView == SidebarView.trash,
-            tooltip: '回收站',
-            onTap: () => notifier.switchView(SidebarView.trash),
-          ),
-          const Spacer(),
-          _TabIcon(
-            icon: Icons.extension_outlined,
-            isActive: currentView == SidebarView.plugins,
-            tooltip: '插件',
-            onTap: notifier.showPlugins,
+          // ── 内容区标题（显示当前视图名称 + 折叠按钮）──
+          _SidebarContentHeader(currentView: state.currentView),
+          const Divider(height: 1, thickness: 0.5),
+          // ── 内容区 ──
+          Expanded(
+            child: switch (state.currentView) {
+              SidebarView.noteTree => _NoteTreeView(onNoteSelected: onNoteSelected),
+              SidebarView.calendar => const CalendarView(),
+              SidebarView.search => _SearchView(onNoteSelected: onNoteSelected),
+              SidebarView.tags => _TagView(onNoteSelected: onNoteSelected),
+              SidebarView.recent => _RecentView(onNoteSelected: onNoteSelected),
+              SidebarView.plugins => const _PluginPlaceholder(),
+              SidebarView.outline => OutlinePanel(
+                  onHeadingTap: (offset) {
+                    final activeNoteId = ref.read(paneStackProvider).activeNoteId;
+                    if (activeNoteId != null) {
+                      ref.read(paneStackProvider.notifier).scrollTo(
+                            activeNoteId,
+                            offset.toDouble(),
+                          );
+                    }
+                  },
+                ),
+              SidebarView.backlinks => BacklinksPanel(
+                  onNoteTap: (noteId, title) {
+                    onNoteSelected?.call(noteId, title);
+                  },
+                ),
+              SidebarView.tasks => _TaskView(onNoteSelected: onNoteSelected),
+              SidebarView.trash => TrashPanel(
+                  onRestore: () {
+                    ref.read(sidebarProvider.notifier).loadNoteTree();
+                  },
+                  onClose: () {
+                    ref.read(sidebarProvider.notifier)
+                        .switchView(SidebarView.noteTree);
+                  },
+                ),
+            },
           ),
         ],
       ),
@@ -202,18 +147,181 @@ class _ViewTabBar extends ConsumerWidget {
   }
 }
 
-/// 单个标签图标
-class _TabIcon extends StatelessWidget {
+/// 纵向活动栏 (VS Code 风格左侧图标列)
+class _ActivityBar extends ConsumerWidget {
+  final bool isExpanded;
+  final SidebarView currentView;
+  final VoidCallback onToggle;
+
+  const _ActivityBar({
+    required this.isExpanded,
+    required this.currentView,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(sidebarProvider.notifier);
+
+    return Container(
+      width: SidebarLayout.activityBarWidth,
+      decoration: const BoxDecoration(
+        color: AeroColors.bgDeep,
+        border: Border(
+          right: BorderSide(color: AeroColors.divider, width: 0.5),
+        ),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+          _ActivityIcon(
+            icon: Icons.article_outlined,
+            isActive: currentView == SidebarView.noteTree && isExpanded,
+            tooltip: '笔记树',
+            onTap: () {
+              if (currentView == SidebarView.noteTree && isExpanded) {
+                notifier.collapse();
+              } else {
+                notifier.showNoteTree();
+                if (!isExpanded) notifier.expand();
+              }
+            },
+          ),
+          _ActivityIcon(
+            icon: Icons.calendar_today,
+            isActive: currentView == SidebarView.calendar && isExpanded,
+            tooltip: '日历',
+            onTap: () {
+              if (currentView == SidebarView.calendar && isExpanded) {
+                notifier.collapse();
+              } else {
+                notifier.showCalendar();
+                if (!isExpanded) notifier.expand();
+              }
+            },
+          ),
+          _ActivityIcon(
+            icon: Icons.search,
+            isActive: currentView == SidebarView.search && isExpanded,
+            tooltip: '搜索',
+            onTap: () {
+              if (currentView == SidebarView.search && isExpanded) {
+                notifier.collapse();
+              } else {
+                notifier.showSearch();
+                if (!isExpanded) notifier.expand();
+              }
+            },
+          ),
+          _ActivityIcon(
+            icon: Icons.sell_outlined,
+            isActive: currentView == SidebarView.tags && isExpanded,
+            tooltip: '标签',
+            onTap: () {
+              if (currentView == SidebarView.tags && isExpanded) {
+                notifier.collapse();
+              } else {
+                notifier.showTags();
+                if (!isExpanded) notifier.expand();
+              }
+            },
+          ),
+          _ActivityIcon(
+            icon: Icons.schedule,
+            isActive: currentView == SidebarView.recent && isExpanded,
+            tooltip: '最近',
+            onTap: () {
+              if (currentView == SidebarView.recent && isExpanded) {
+                notifier.collapse();
+              } else {
+                notifier.showRecent();
+                if (!isExpanded) notifier.expand();
+              }
+            },
+          ),
+          _ActivityIcon(
+            icon: Icons.list_alt,
+            isActive: currentView == SidebarView.outline && isExpanded,
+            tooltip: '大纲',
+            onTap: () {
+              if (currentView == SidebarView.outline && isExpanded) {
+                notifier.collapse();
+              } else {
+                notifier.showOutline();
+                if (!isExpanded) notifier.expand();
+              }
+            },
+          ),
+          _ActivityIcon(
+            icon: Icons.link,
+            isActive: currentView == SidebarView.backlinks && isExpanded,
+            tooltip: '反向链接',
+            onTap: () {
+              if (currentView == SidebarView.backlinks && isExpanded) {
+                notifier.collapse();
+              } else {
+                notifier.showBacklinks();
+                if (!isExpanded) notifier.expand();
+              }
+            },
+          ),
+          _ActivityIcon(
+            icon: Icons.check_box_outlined,
+            isActive: currentView == SidebarView.tasks && isExpanded,
+            tooltip: '任务',
+            onTap: () => notifier.showTasks(),
+          ),
+          _ActivityIcon(
+            icon: Icons.delete_outline,
+            isActive: currentView == SidebarView.trash && isExpanded,
+            tooltip: '回收站',
+            onTap: () {
+              notifier.switchView(SidebarView.trash);
+              if (!isExpanded) notifier.expand();
+            },
+          ),
+          const Spacer(),
+          _ActivityIcon(
+            icon: Icons.chevron_left,
+            isActive: false,
+            tooltip: isExpanded ? '折叠侧边栏' : '展开侧边栏',
+            onTap: onToggle,
+            iconRotation: isExpanded ? 0 : pi,
+          ),
+          _ActivityIcon(
+            icon: Icons.extension_outlined,
+            isActive: currentView == SidebarView.plugins && isExpanded,
+            tooltip: '插件',
+            onTap: () {
+              if (currentView == SidebarView.plugins && isExpanded) {
+                notifier.collapse();
+              } else {
+                notifier.showPlugins();
+                if (!isExpanded) notifier.expand();
+              }
+            },
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+/// 单个活动栏图标
+class _ActivityIcon extends StatelessWidget {
   final IconData icon;
   final bool isActive;
   final String tooltip;
   final VoidCallback onTap;
+  final double iconRotation;
 
-  const _TabIcon({
+  const _ActivityIcon({
     required this.icon,
     required this.isActive,
     required this.tooltip,
     required this.onTap,
+    this.iconRotation = 0,
   });
 
   @override
@@ -223,26 +331,175 @@ class _TabIcon extends StatelessWidget {
       preferBelow: false,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(6),
         child: Container(
-          width: 26,
-          height: 26,
+          width: 36,
+          height: 36,
+          margin: const EdgeInsets.symmetric(vertical: 2),
           decoration: BoxDecoration(
             border: isActive
                 ? const Border(
-                    bottom:
-                        BorderSide(color: AeroColors.accentBlue, width: 2),
+                    left: BorderSide(color: AeroColors.accentBlue, width: 2),
                   )
                 : null,
           ),
-          child: Icon(
-            icon,
-            size: 14,
-            color: isActive ? AeroColors.accentBlue : AeroColors.textSecondary,
+          child: Transform.rotate(
+            angle: iconRotation,
+            child: Icon(
+              icon,
+              size: 18,
+              color: isActive ? AeroColors.accentBlue : AeroColors.textSecondary,
+            ),
           ),
         ),
       ),
     );
+  }
+}
+
+/// 拖拽调整宽度的分隔条
+class _Resizer extends StatelessWidget {
+  final VoidCallback onDragStart;
+  final VoidCallback onDragEnd;
+  final ValueChanged<double> onDragUpdate;
+
+  const _Resizer({
+    required this.onDragStart,
+    required this.onDragEnd,
+    required this.onDragUpdate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onPanStart: (_) => onDragStart(),
+      onPanEnd: (_) => onDragEnd(),
+      onPanUpdate: (details) => onDragUpdate(details.delta.dx),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.resizeColumn,
+        child: Container(
+          width: SidebarLayout.resizerWidth,
+          color: Colors.transparent,
+          child: Center(
+            child: Container(
+              width: 1,
+              color: AeroColors.divider,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 侧边栏内容区标题栏
+class _SidebarContentHeader extends ConsumerWidget {
+  final SidebarView currentView;
+
+  const _SidebarContentHeader({required this.currentView});
+
+  String get _viewName {
+    switch (currentView) {
+      case SidebarView.noteTree: return '笔记';
+      case SidebarView.calendar: return '日历';
+      case SidebarView.search: return '搜索';
+      case SidebarView.tags: return '标签';
+      case SidebarView.recent: return '最近编辑';
+      case SidebarView.plugins: return '插件';
+      case SidebarView.outline: return '大纲';
+      case SidebarView.backlinks: return '反向链接';
+      case SidebarView.tasks: return '任务';
+      case SidebarView.trash: return '回收站';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          Text(
+            _viewName,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AeroColors.textSecondary,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const Spacer(),
+          if (currentView == SidebarView.noteTree)
+            IconButton(
+              icon: const Icon(Icons.add, size: 16, color: AeroColors.textSecondary),
+              tooltip: '新建笔记',
+              onPressed: () => _showNewNoteFromHeader(context, ref),
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              padding: EdgeInsets.zero,
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showNewNoteFromHeader(BuildContext context, WidgetRef ref) {
+    final controller = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AeroColors.bgElevated,
+        title: const Text('新建笔记', style: TextStyle(color: AeroColors.textPrimary, fontSize: 14)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: AeroColors.textPrimary, fontSize: 13),
+          decoration: const InputDecoration(
+            hintText: '输入笔记标题...',
+            hintStyle: TextStyle(color: AeroColors.textMuted),
+            isDense: true,
+          ),
+          onSubmitted: (_) => _createNote(ctx, controller.text, ref),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消', style: TextStyle(color: AeroColors.textMuted)),
+          ),
+          TextButton(
+            onPressed: () => _createNote(ctx, controller.text, ref),
+            child: const Text('创建', style: TextStyle(color: AeroColors.accentBlue)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _createNote(BuildContext ctx, String title, WidgetRef ref) async {
+    if (title.trim().isEmpty) {
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        const SnackBar(content: Text('标题不能为空'), duration: Duration(seconds: 2)),
+      );
+      return;
+    }
+    final repo = ref.read(noteRepositoryProvider);
+    final now = DateTime.now();
+    final trimmedTitle = title.trim();
+    final note = NoteModel(
+      id: now.millisecondsSinceEpoch.toString(),
+      title: trimmedTitle,
+      rawMarkdown: '# $trimmedTitle\n\n',
+      filePath: '',
+      createdAt: now,
+      updatedAt: now,
+    );
+    await repo.saveNote(note);
+    await ref.read(sidebarProvider.notifier).loadNoteTree();
+    if (ctx.mounted) {
+      Navigator.pop(ctx);
+      ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
+    }
   }
 }
 
@@ -270,9 +527,6 @@ class _NoteTreeViewState extends ConsumerState<_NoteTreeView> {
 
     return Column(
       children: [
-        // ── 标题栏 + 新建按钮 ──
-        _NoteTreeHeader(onNewNote: _showNewNoteDialog),
-
         // ── 打开文件按钮 ──
         _OpenFileButtons(onNoteSelected: widget.onNoteSelected),
 
@@ -313,105 +567,6 @@ class _NoteTreeViewState extends ConsumerState<_NoteTreeView> {
                 ),
         ),
       ],
-    );
-  }
-
-  void _showNewNoteDialog() {
-    final controller = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AeroColors.bgElevated,
-        title: const Text('新建笔记',
-            style: TextStyle(color: AeroColors.textPrimary, fontSize: 14)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(color: AeroColors.textPrimary, fontSize: 13),
-          decoration: const InputDecoration(
-            hintText: '输入笔记标题...',
-            hintStyle: TextStyle(color: AeroColors.textMuted),
-            isDense: true,
-          ),
-          onSubmitted: (_) => _createNote(ctx, controller.text),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消', style: TextStyle(color: AeroColors.textMuted)),
-          ),
-          TextButton(
-            onPressed: () => _createNote(ctx, controller.text),
-            child: const Text('创建', style: TextStyle(color: AeroColors.accentBlue)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _createNote(BuildContext ctx, String title) async {
-    if (title.trim().isEmpty) {
-      ScaffoldMessenger.of(ctx).showSnackBar(
-        const SnackBar(
-          content: Text('标题不能为空'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-
-    final repo = ref.read(noteRepositoryProvider);
-    final now = DateTime.now();
-    final trimmedTitle = title.trim();
-    final note = NoteModel(
-      id: now.millisecondsSinceEpoch.toString(),
-      title: trimmedTitle,
-      rawMarkdown: '# $trimmedTitle\n\n',
-      filePath: '',
-      createdAt: now,
-      updatedAt: now,
-    );
-    await repo.saveNote(note);
-    await ref.read(sidebarProvider.notifier).loadNoteTree();
-
-    if (mounted) {
-      Navigator.pop(ctx);
-      widget.onNoteSelected?.call(note.id, note.title);
-    }
-  }
-}
-
-/// 笔记树标题栏
-class _NoteTreeHeader extends StatelessWidget {
-  final VoidCallback onNewNote;
-
-  const _NoteTreeHeader({required this.onNewNote});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          const Text(
-            '笔记',
-            style: TextStyle(
-              color: AeroColors.textSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.add, size: 16, color: AeroColors.textSecondary),
-            tooltip: '新建笔记',
-            onPressed: onNewNote,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            padding: EdgeInsets.zero,
-          ),
-        ],
-      ),
     );
   }
 }
@@ -738,13 +893,16 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
       id: now.millisecondsSinceEpoch.toString(),
       title: '${note.title} 副本',
       rawMarkdown: note.rawMarkdown,
-      filePath: note.filePath,
+      filePath: '',
       createdAt: now,
       updatedAt: now,
       tags: note.tags,
       folderPath: note.folderPath,
     );
     await repo.saveNote(duplicated);
+    if (FileService.shouldSyncToFile(duplicated.filePath)) {
+      await FileService.syncToFile(duplicated.filePath, duplicated.rawMarkdown);
+    }
     await ref.read(sidebarProvider.notifier).loadNoteTree();
   }
 

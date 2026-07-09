@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../providers/note_provider.dart';
 import '../../../providers/pane_provider.dart';
 import '../../../providers/template_provider.dart';
 
@@ -80,9 +81,12 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
   /// 打开指定日期的日记
   void _openDailyNote(DateTime date) async {
     final service = ref.read(dailyNoteServiceProvider);
+    final repo = ref.read(noteRepositoryProvider);
     final (note, isNew) = await service.getNoteForDate(date);
-
-    // 在面板栈中打开日记
+    final existing = await repo.getNote(note.id);
+    if (existing == null) {
+      await repo.saveNote(note);
+    }
     if (mounted) {
       ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
     }

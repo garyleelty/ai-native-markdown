@@ -89,12 +89,22 @@ class PaneStackNotifier extends Notifier<PaneStackState> {
   void closePane(int index) {
     if (index < 0 || index >= state.panes.length) return;
     final updatedPanes = [...state.panes]..removeAt(index);
-    final newActive = state.activeIndex >= updatedPanes.length
-        ? updatedPanes.length - 1
-        : state.activeIndex;
+    if (updatedPanes.isEmpty) {
+      state = state.copyWith(
+        panes: const [],
+        activeIndex: 0,
+      );
+      return;
+    }
+    var newActive = state.activeIndex;
+    if (state.activeIndex >= updatedPanes.length) {
+      newActive = updatedPanes.length - 1;
+    } else if (state.activeIndex > index) {
+      newActive = state.activeIndex - 1;
+    }
     state = state.copyWith(
       panes: updatedPanes,
-      activeIndex: newActive.clamp(0, updatedPanes.length - 1),
+      activeIndex: newActive,
     );
   }
 
@@ -182,24 +192,21 @@ final paneStackProvider =
 final aiContextProvider = Provider<AIContext>((ref) {
   final paneState = ref.watch(paneStackProvider);
 
-  // 聚合可见面板 (非堆叠) 的内容
-  // 实际使用时通过 noteRepository 获取各面板的 Markdown 内容
   return AIContext(
     visiblePaneIds: paneState.visiblePaneIds,
-    activePaneId: paneState.activeNoteId ?? '',
+    activePaneId: paneState.activeNoteId,
     stackedPaneIds: paneState.stackedPaneIds,
-    // fullPrompt 在 service 层组装，此处只提供结构信息
   );
 });
 
 class AIContext {
   final List<String> visiblePaneIds;
-  final String activePaneId;
+  final String? activePaneId;
   final List<String> stackedPaneIds;
 
   const AIContext({
     required this.visiblePaneIds,
-    required this.activePaneId,
+    this.activePaneId,
     required this.stackedPaneIds,
   });
 }

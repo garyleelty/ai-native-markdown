@@ -9,6 +9,7 @@ import '../core/models/note_model.dart';
 import '../core/models/backlink_info.dart';
 import '../core/services/search_service.dart';
 import '../core/services/task_service.dart';
+import '../core/services/file_service.dart';
 import '../core/services/trash_service.dart';
 import '../features/sidebar/models/sidebar_state.dart';
 import '../features/editor/services/editor_service.dart';
@@ -212,10 +213,14 @@ class SidebarNotifier extends Notifier<SidebarState> {
       task.startOffset,
     );
 
-    await repo.saveNote(note.copyWith(
+    final updatedNote = note.copyWith(
       rawMarkdown: newMarkdown,
       updatedAt: DateTime.now(),
-    ));
+    );
+    await repo.saveNote(updatedNote);
+    if (FileService.shouldSyncToFile(updatedNote.filePath)) {
+      await FileService.syncToFile(updatedNote.filePath, updatedNote.rawMarkdown);
+    }
 
     // 刷新任务列表
     await loadAllTasks();
@@ -253,6 +258,12 @@ class SidebarNotifier extends Notifier<SidebarState> {
   /// 切换展开状态
   void toggleExpanded() {
     state = state.copyWith(isExpanded: !state.isExpanded);
+  }
+
+  /// 设置侧边栏宽度 (在拖拽调整时调用)
+  void setWidth(double width) {
+    final clamped = width.clamp(SidebarLayout.minWidth, SidebarLayout.maxWidth);
+    state = state.copyWith(width: clamped);
   }
 
   // ── 搜索 ──
@@ -340,11 +351,15 @@ class SidebarNotifier extends Notifier<SidebarState> {
         changed = true;
       }
       if (changed) {
-        await repo.saveNote(note.copyWith(
+        final updatedNote = note.copyWith(
           rawMarkdown: newMarkdown,
           tags: newTags,
           updatedAt: DateTime.now(),
-        ));
+        );
+        await repo.saveNote(updatedNote);
+        if (FileService.shouldSyncToFile(updatedNote.filePath)) {
+          await FileService.syncToFile(updatedNote.filePath, updatedNote.rawMarkdown);
+        }
       }
     }
     // 刷新标签统计
@@ -384,11 +399,15 @@ class SidebarNotifier extends Notifier<SidebarState> {
         changed = true;
       }
       if (changed) {
-        await repo.saveNote(note.copyWith(
+        final updatedNote = note.copyWith(
           rawMarkdown: newMarkdown,
           tags: newTags,
           updatedAt: DateTime.now(),
-        ));
+        );
+        await repo.saveNote(updatedNote);
+        if (FileService.shouldSyncToFile(updatedNote.filePath)) {
+          await FileService.syncToFile(updatedNote.filePath, updatedNote.rawMarkdown);
+        }
       }
     }
     // 清除选中状态并刷新统计
@@ -608,10 +627,23 @@ class SidebarNotifier extends Notifier<SidebarState> {
     final note = await repo.getNote(noteId);
     if (note == null) return;
 
-    await repo.saveNote(note.copyWith(
+    // Update the first # heading in markdown if present
+    var newMarkdown = note.rawMarkdown;
+    final h1Regex = RegExp(r'^#\s+.+$', multiLine: true);
+    final h1Match = h1Regex.firstMatch(newMarkdown);
+    if (h1Match != null) {
+      newMarkdown = newMarkdown.replaceFirst(h1Match.group(0)!, '# ' + newTitle);
+    }
+
+    final updatedNote = note.copyWith(
       title: newTitle,
+      rawMarkdown: newMarkdown,
       updatedAt: DateTime.now(),
-    ));
+    );
+    await repo.saveNote(updatedNote);
+    if (FileService.shouldSyncToFile(updatedNote.filePath)) {
+      await FileService.syncToFile(updatedNote.filePath, updatedNote.rawMarkdown);
+    }
 
     await loadNoteTree();
   }

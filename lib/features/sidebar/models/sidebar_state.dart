@@ -42,6 +42,16 @@ enum SidebarView {
   trash,
 }
 
+/// 侧边栏布局常量
+class SidebarLayout {
+  SidebarLayout._();
+  static const double activityBarWidth = 48.0;
+  static const double minWidth = 200.0;
+  static const double maxWidth = 500.0;
+  static const double defaultWidth = 270.0;
+  static const double resizerWidth = 4.0;
+}
+
 /// 笔记树节点
 class NoteTreeNode {
   /// 笔记 ID
@@ -159,7 +169,7 @@ class SidebarState {
   const SidebarState({
     this.currentView = SidebarView.noteTree,
     this.isExpanded = true,
-    this.width = 260,
+    this.width = SidebarLayout.defaultWidth,
     this.noteTree = const [],
     this.searchQuery = '',
     this.searchResults = const [],

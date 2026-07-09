@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import '../models/note_model.dart';
 import 'hive_service.dart';
@@ -25,6 +27,27 @@ class FileService {
     final h1Match = RegExp(r'^#\s+(.+)$', multiLine: true).firstMatch(content);
     if (h1Match != null) return h1Match.group(1)!.trim();
     return p.basenameWithoutExtension(filePath);
+  }
+
+  /// 同步笔记内容到文件系统（桌面端）
+  ///
+  /// 如果 [filePath] 为空或在 Web 端，则不执行操作。
+  /// 父目录不存在时自动递归创建。写入失败时静默忽略。
+  static Future<void> syncToFile(String filePath, String content) async {
+    if (kIsWeb || filePath.isEmpty) return;
+    try {
+      final file = File(filePath);
+      final parent = file.parent;
+      if (!await parent.exists()) {
+        await parent.create(recursive: true);
+      }
+      await file.writeAsString(content);
+    } catch (_) {}
+  }
+
+  /// 检查是否应该同步到文件
+  static bool shouldSyncToFile(String filePath) {
+    return !kIsWeb && filePath.isNotEmpty;
   }
 
   /// 保存笔记到 Hive (Web + 桌面通用)

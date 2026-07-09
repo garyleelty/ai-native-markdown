@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../providers/note_provider.dart';
 import '../../../providers/pane_provider.dart';
+import '../../../providers/template_provider.dart';
+import '../../../providers/quick_switcher_provider.dart';
+import '../../../core/models/note_model.dart';
 import '../models/pane_state.dart';
 
 /// ══════════════════════════════════════════════════
@@ -250,12 +253,148 @@ class _SlidingPanesContainerState
   }
 
   // ──────────────────────────────────────────────
+  // 欢迎页面（无面板时显示）
+  // ──────────────────────────────────────────────
+  Widget _buildEmptyWelcome(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 480),
+          padding: const EdgeInsets.all(48),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AeroColors.accentBlue, AeroColors.accentPurple],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  size: 40,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                '欢迎使用 AeroMind',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: AeroColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'AI Native 笔记 · Sliding Panes · 知识图谱',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AeroColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 40),
+              _QuickActionCard(
+                icon: Icons.add,
+                title: '新建笔记',
+                subtitle: 'Ctrl/Cmd + N',
+                onTap: () => _createNewNote(context),
+              ),
+              const SizedBox(height: 8),
+              _QuickActionCard(
+                icon: Icons.search,
+                title: '快速跳转',
+                subtitle: 'Ctrl/Cmd + O',
+                onTap: () => _openQuickSwitcher(context),
+              ),
+              const SizedBox(height: 8),
+              _QuickActionCard(
+                icon: Icons.calendar_today,
+                title: '今天的日记',
+                subtitle: 'Ctrl/Cmd + D',
+                onTap: () => _openTodayNote(context),
+              ),
+              const SizedBox(height: 8),
+              _QuickActionCard(
+                icon: Icons.file_open_outlined,
+                title: '打开本地文件',
+                subtitle: '打开 .md 文件',
+                onTap: () => _openLocalFile(context),
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                '从左侧侧边栏开始浏览笔记，或使用快捷键快速操作',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AeroColors.textMuted,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _createNewNote(BuildContext context) {
+    final repo = ref.read(noteRepositoryProvider);
+    final now = DateTime.now();
+    final note = NoteModel(
+      id: now.millisecondsSinceEpoch.toString(),
+      title: '新笔记',
+      rawMarkdown: '',
+      filePath: '',
+      createdAt: now,
+      updatedAt: now,
+    );
+    repo.saveNote(note);
+    ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
+  }
+
+  void _openQuickSwitcher(BuildContext context) {
+    ref.read(quickSwitcherProvider.notifier).open();
+  }
+
+  void _openTodayNote(BuildContext context) async {
+    try {
+      final service = ref.read(dailyNoteServiceProvider);
+      final repo = ref.read(noteRepositoryProvider);
+      final (note, _) = await service.getTodayNote();
+      final existing = await repo.getNote(note.id);
+      if (existing == null) {
+        await repo.saveNote(note);
+      }
+      if (context.mounted) {
+        ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
+      }
+    } catch (_) {}
+  }
+
+  void _openLocalFile(BuildContext context) async {
+    final service = ref.read(filePickerServiceProvider);
+    final note = await service.pickAndOpen();
+    if (note != null && context.mounted) {
+      ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
+    }
+  }
+
+  // ──────────────────────────────────────────────
   // 横向滚动面板流
   // ──────────────────────────────────────────────
   Widget _buildScrollablePanelStream(
     PaneStackState paneState,
     double panelWidth,
   ) {
+    if (paneState.panes.isEmpty) {
+      return _buildEmptyWelcome(context);
+    }
+
     // 只渲染未堆叠的面板
     final visiblePanes = paneState.panes
         .asMap()
@@ -266,7 +405,7 @@ class _SlidingPanesContainerState
     if (visiblePanes.isEmpty) {
       return Center(
         child: Text(
-          '打开一篇笔记开始书写',
+          '点击左侧标题返回对应面板',
           style: Theme.of(context)
               .textTheme
               .bodySmall
@@ -313,6 +452,79 @@ class _SlidingPanesContainerState
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════
+// 快速操作卡片 Widget
+// ══════════════════════════════════════════════════
+class _QuickActionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _QuickActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: AeroColors.bgSurface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AeroColors.border, width: 0.5),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AeroColors.accentBlue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 18, color: AeroColors.accentBlue),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AeroColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AeroColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 16, color: AeroColors.textMuted),
+            ],
+          ),
+        ),
       ),
     );
   }

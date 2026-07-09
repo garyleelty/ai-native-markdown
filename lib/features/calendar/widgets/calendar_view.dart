@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../providers/template_provider.dart';
 import '../../../providers/pane_provider.dart';
+import '../../../providers/note_provider.dart';
 
 /// ══════════════════════════════════════════════════
 /// CalendarView — 日历视图 (日记导航)
@@ -80,14 +81,24 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
 
   void _openNoteForDay(int day) async {
     final date = DateTime(_displayMonth.year, _displayMonth.month, day);
-    // 只打开今天及之前日期的日记
-    if (date.isAfter(DateTime.now())) return;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (date.isAfter(today)) return;
 
     try {
       final service = ref.read(dailyNoteServiceProvider);
-      final (note, _) = await service.getNoteForDate(date);
+      final repo = ref.read(noteRepositoryProvider);
+      final (note, isNew) = await service.getNoteForDate(date);
+      final existing = await repo.getNote(note.id);
+      final wasNew = existing == null;
+      if (wasNew) {
+        await repo.saveNote(note);
+      }
       if (mounted) {
         ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
+        if (wasNew) {
+          _loadMonthData();
+        }
       }
     } catch (_) {}
   }
