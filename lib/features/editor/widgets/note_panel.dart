@@ -95,7 +95,13 @@ class _NotePanelState extends ConsumerState<NotePanel> {
 
   @override
   void dispose() {
-    _autoSaveTimer?.cancel();
+    // 如果有待保存的内容，立即执行最后一次保存 (fire-and-forget)
+    if (_hasUnsavedChanges) {
+      _autoSaveTimer?.cancel();
+      _doSave(_rawMarkdown);
+    } else {
+      _autoSaveTimer?.cancel();
+    }
     _wikiLinkVisible = false;
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     _textController.removeListener(_onControllerTextChanged);
@@ -212,6 +218,8 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     if (note != null && mounted) {
       setState(() {
         _rawMarkdown = note.rawMarkdown;
+        _lastSavedText = note.rawMarkdown;
+        _hasUnsavedChanges = false;
         _textController.text = note.rawMarkdown;
       });
       // 加载完成后立即触发一次实体识别
@@ -305,28 +313,40 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   }
 
   Timer? _autoSaveTimer;
+  String _lastSavedText = '';
+  bool _hasUnsavedChanges = false;
+
   void _autoSave(String text) {
+    _hasUnsavedChanges = text != _lastSavedText;
     _autoSaveTimer?.cancel();
-    _autoSaveTimer = Timer(const Duration(seconds: 2), () async {
-      final repo = ref.read(noteRepositoryProvider);
-      final note = await repo.getNote(widget.noteId);
-      if (note != null) {
-        // 提取链接
-        final links = EditorService.extractLinks(text);
-        final wikiLinks = links
-            .where((l) => l.isWikiLink)
-            .map((l) => l.text)
-            .toList();
+    _autoSaveTimer = Timer(const Duration(seconds: 2), () {
+      _doSave(text);
+    });
+  }
 
-        await repo.saveNote(note.copyWith(
-          rawMarkdown: text,
-          updatedAt: DateTime.now(),
-          outgoingLinks: wikiLinks,
-        ));
+  /// 执行实际保存逻辑 (fire-and-forget, 不依赖 widget 生命周期)
+  void _doSave(String text) {
+    _hasUnsavedChanges = false;
+    _lastSavedText = text;
+    final repo = ref.read(noteRepositoryProvider);
+    final noteId = widget.noteId;
+    repo.getNote(noteId).then((note) {
+      if (note == null) return;
+      // 提取链接
+      final links = EditorService.extractLinks(text);
+      final wikiLinks = links
+          .where((l) => l.isWikiLink)
+          .map((l) => l.text)
+          .toList();
 
-        // 保存版本快照
-        await VersionService.saveSnapshot(widget.noteId, text);
-      }
+      repo.saveNote(note.copyWith(
+        rawMarkdown: text,
+        updatedAt: DateTime.now(),
+        outgoingLinks: wikiLinks,
+      ));
+
+      // 保存版本快照
+      VersionService.saveSnapshot(noteId, text);
     });
   }
 
@@ -1102,7 +1122,6 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                     top: _getCaretLocalY(),
                     child: Material(
                       color: Colors.transparent,
-                      elevation: 8,
                       child: WikiLinkCompleter(
                         query: _wikiLinkQuery,
                         selectedIndex: _wikiLinkSelectedIndex,
