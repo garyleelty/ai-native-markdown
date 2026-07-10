@@ -27,6 +27,7 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
   late DateTime _displayMonth;
   List<int> _daysWithNotes = [];
   bool _isLoading = true;
+  int _loadVersion = 0;
 
   @override
   void initState() {
@@ -37,21 +38,24 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
   }
 
   Future<void> _loadMonthData() async {
-    setState(() => _isLoading = true);
+    final version = ++_loadVersion;
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
     try {
       final service = ref.read(dailyNoteServiceProvider);
       final days = await service.getDaysWithNotes(
         _displayMonth.year,
         _displayMonth.month,
       );
-      if (mounted) {
+      if (mounted && version == _loadVersion) {
         setState(() {
           _daysWithNotes = days;
           _isLoading = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && version == _loadVersion) setState(() => _isLoading = false);
     }
   }
 
@@ -79,7 +83,7 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
     _loadMonthData();
   }
 
-  void _openNoteForDay(int day) async {
+  Future<void> _openNoteForDay(int day) async {
     final date = DateTime(_displayMonth.year, _displayMonth.month, day);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -146,6 +150,7 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
             statsText: statsText,
             totalDays: _daysWithNotes.length,
             daysWithNotes: _daysWithNotes,
+            isCurrentMonth: isCurrentMonth,
           ),
         ],
       ),
@@ -181,7 +186,7 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
                 final isToday = isCurrentMonth &&
                     dayNum == today.day;
                 final hasNote = _daysWithNotes.contains(dayNum);
-                final isFuture = date.isAfter(DateTime.now());
+                final isFuture = date.isAfter(today);
 
                 return Expanded(
                   child: GestureDetector(
@@ -190,9 +195,9 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
                       margin: const EdgeInsets.all(1.5),
                       decoration: BoxDecoration(
                         color: isToday
-                            ? AeroColors.accentBlue.withOpacity(0.2)
+                            ? AeroColors.accentBlue.withValues(alpha: 0.2)
                             : hasNote
-                                ? AeroColors.accentCyan.withOpacity(0.08)
+                                ? AeroColors.accentCyan.withValues(alpha: 0.08)
                                 : Colors.transparent,
                         borderRadius: BorderRadius.circular(6),
                         border: isToday
@@ -212,7 +217,7 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
                               color: isToday
                                   ? AeroColors.accentBlue
                                   : isFuture
-                                      ? AeroColors.textMuted.withOpacity(0.35)
+                                      ? AeroColors.textMuted.withValues(alpha: 0.35)
                                       : AeroColors.textPrimary,
                             ),
                           ),
@@ -321,7 +326,7 @@ class _TodayButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          color: AeroColors.accentBlue.withOpacity(0.12),
+          color: AeroColors.accentBlue.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(3),
         ),
         child: Text(
@@ -372,16 +377,18 @@ class _CalendarFooter extends StatelessWidget {
   final String statsText;
   final int totalDays;
   final List<int> daysWithNotes;
+  final bool isCurrentMonth;
 
   const _CalendarFooter({
     required this.statsText,
     required this.totalDays,
     required this.daysWithNotes,
+    required this.isCurrentMonth,
   });
 
   @override
   Widget build(BuildContext context) {
-    final todayHas = daysWithNotes.contains(DateTime.now().day);
+    final todayHas = isCurrentMonth && daysWithNotes.contains(DateTime.now().day);
 
     return Container(
       height: 32,
@@ -403,7 +410,7 @@ class _CalendarFooter extends StatelessWidget {
               width: 4,
               height: 4,
               decoration: BoxDecoration(
-                color: AeroColors.accentGreen.withOpacity(0.5),
+                color: AeroColors.accentGreen.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
             ),

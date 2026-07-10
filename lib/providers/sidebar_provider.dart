@@ -4,6 +4,8 @@
 /// 管理笔记树、全局搜索、标签过滤、大纲等侧边栏功能。
 /// ──────────────────────────────────────────────────
 
+library;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/note_model.dart';
 import '../core/models/backlink_info.dart';
@@ -14,6 +16,7 @@ import '../core/services/trash_service.dart';
 import '../features/sidebar/models/sidebar_state.dart';
 import '../features/editor/services/editor_service.dart';
 import 'note_provider.dart';
+import 'pane_provider.dart';
 
 /// 侧边栏 Notifier
 class SidebarNotifier extends Notifier<SidebarState> {
@@ -332,7 +335,7 @@ class SidebarNotifier extends Notifier<SidebarState> {
     if (oldTag == newTag || newTag.isEmpty) return;
     final repo = ref.read(noteRepositoryProvider);
     final allNotes = await repo.getAllNotes();
-    final oldTagPattern = RegExp('#' + RegExp.escape(oldTag) + r'(?![A-Za-z0-9_])');
+    final oldTagPattern = RegExp('#${RegExp.escape(oldTag)}(?![A-Za-z0-9_])');
 
     for (final note in allNotes) {
       var changed = false;
@@ -374,7 +377,7 @@ class SidebarNotifier extends Notifier<SidebarState> {
   Future<void> deleteTag(String tag) async {
     final repo = ref.read(noteRepositoryProvider);
     final allNotes = await repo.getAllNotes();
-    final tagPattern = RegExp('#' + RegExp.escape(tag) + r'(?![A-Za-z0-9_])');
+    final tagPattern = RegExp('#${RegExp.escape(tag)}(?![A-Za-z0-9_])');
 
     for (final note in allNotes) {
       var changed = false;
@@ -615,6 +618,7 @@ class SidebarNotifier extends Notifier<SidebarState> {
       await TrashService.moveToTrash(note);
     }
     await repo.deleteNote(noteId);
+    ref.read(paneStackProvider.notifier).closePaneByNoteId(noteId);
     await loadNoteTree();
     if (state.selectedNoteId == noteId) {
       clearSelection();
@@ -627,12 +631,15 @@ class SidebarNotifier extends Notifier<SidebarState> {
     final note = await repo.getNote(noteId);
     if (note == null) return;
 
-    // Update the first # heading in markdown if present
     var newMarkdown = note.rawMarkdown;
     final h1Regex = RegExp(r'^#\s+.+$', multiLine: true);
     final h1Match = h1Regex.firstMatch(newMarkdown);
     if (h1Match != null) {
-      newMarkdown = newMarkdown.replaceFirst(h1Match.group(0)!, '# ' + newTitle);
+      newMarkdown = newMarkdown.replaceFirst(h1Match.group(0)!, '# $newTitle');
+    } else if (newMarkdown.isNotEmpty) {
+      newMarkdown = '# $newTitle\n\n$newMarkdown';
+    } else {
+      newMarkdown = '# $newTitle\n';
     }
 
     final updatedNote = note.copyWith(

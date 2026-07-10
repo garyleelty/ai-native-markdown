@@ -350,7 +350,7 @@ class _SlidingPanesContainerState
     final note = NoteModel(
       id: now.millisecondsSinceEpoch.toString(),
       title: '新笔记',
-      rawMarkdown: '',
+      rawMarkdown: '# 新笔记\n',
       filePath: '',
       createdAt: now,
       updatedAt: now,
@@ -495,7 +495,7 @@ class _QuickActionCard extends StatelessWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: AeroColors.accentBlue.withOpacity(0.1),
+                  color: AeroColors.accentBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, size: 16, color: AeroColors.accentBlue),
@@ -635,7 +635,7 @@ class _PaneFrame extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: isActive
-                ? AeroColors.accentBlue.withOpacity(0.08)
+                ? AeroColors.accentBlue.withValues(alpha: 0.08)
                 : AeroColors.shadow,
             blurRadius: isActive ? 16 : 12,
             offset: const Offset(2, 0),
@@ -739,6 +739,10 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
         final h1Match = h1Regex.firstMatch(newMarkdown);
         if (h1Match != null) {
           newMarkdown = newMarkdown.replaceFirst(h1Match.group(0)!, '# $newTitle');
+        } else if (newMarkdown.isNotEmpty) {
+          newMarkdown = '# $newTitle\n\n$newMarkdown';
+        } else {
+          newMarkdown = '# $newTitle\n';
         }
         final updated = note.copyWith(
           title: newTitle,

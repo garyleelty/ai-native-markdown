@@ -79,7 +79,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
   }
 
   /// 打开指定日期的日记
-  void _openDailyNote(DateTime date) async {
+  Future<void> _openDailyNote(DateTime date) async {
     final service = ref.read(dailyNoteServiceProvider);
     final repo = ref.read(noteRepositoryProvider);
     final (note, isNew) = await service.getNoteForDate(date);
@@ -147,7 +147,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: AeroColors.accentBlue.withOpacity(0.12),
+                color: AeroColors.accentBlue.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
@@ -272,7 +272,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
                   margin: const EdgeInsets.all(1),
                   decoration: BoxDecoration(
                     color: isToday
-                        ? AeroColors.accentBlue.withOpacity(0.2)
+                        ? AeroColors.accentBlue.withValues(alpha: 0.2)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(4),
                     border: isToday
@@ -290,7 +290,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
                           color: isToday
                               ? AeroColors.accentBlue
                               : isFuture
-                                  ? AeroColors.textMuted.withOpacity(0.4)
+                                  ? AeroColors.textMuted.withValues(alpha: 0.4)
                                   : AeroColors.textSecondary,
                           fontWeight:
                               isToday ? FontWeight.w600 : FontWeight.normal,
@@ -412,7 +412,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(

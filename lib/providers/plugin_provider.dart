@@ -4,6 +4,8 @@
 /// 管理插件管理面板 UI 状态、插件生命周期操作的 Riverpod 集成。
 /// ──────────────────────────────────────────────────
 
+library;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/plugin/plugin_registry.dart';
 import '../core/plugin/plugin_manifest.dart';

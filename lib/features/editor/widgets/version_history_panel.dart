@@ -318,7 +318,7 @@ class _VersionTile extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
-              color: AeroColors.accent.withOpacity(0.15),
+              color: AeroColors.accent.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Text(
@@ -431,7 +431,7 @@ class _RestoreButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),
             side: BorderSide(
-              color: AeroColors.accent.withOpacity(onPressed == null ? 0.3 : 0.5),
+              color: AeroColors.accent.withValues(alpha: onPressed == null ? 0.3 : 0.5),
               width: 0.5,
             ),
           ),

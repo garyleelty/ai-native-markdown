@@ -88,7 +88,7 @@ class _MermaidInlineWidgetState extends State<MermaidInlineWidget> {
               color: AeroColors.bgElevated,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                  color: AeroColors.accentOrange.withOpacity(0.3), width: 0.5),
+                  color: AeroColors.accentOrange.withValues(alpha: 0.3), width: 0.5),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

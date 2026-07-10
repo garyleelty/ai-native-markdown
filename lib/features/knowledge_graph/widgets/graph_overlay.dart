@@ -151,10 +151,10 @@ class _NodeInfoCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: node.color.withOpacity(0.15),
+                      color: node.color.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(3),
                       border: Border.all(
-                        color: node.color.withOpacity(0.3),
+                        color: node.color.withValues(alpha: 0.3),
                         width: 0.5,
                       ),
                     ),
@@ -180,10 +180,10 @@ class _NodeInfoCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   decoration: BoxDecoration(
-                    color: AeroColors.accentBlue.withOpacity(0.15),
+                    color: AeroColors.accentBlue.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
-                      color: AeroColors.accentBlue.withOpacity(0.3),
+                      color: AeroColors.accentBlue.withValues(alpha: 0.3),
                       width: 0.5,
                     ),
                   ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/note_model.dart';
+import '../../../core/services/file_service.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../providers/template_provider.dart';
 import '../../../providers/pane_provider.dart';
@@ -74,20 +75,21 @@ class _TemplateGalleryOverlayState
   }
 
   /// 应用模板并创建新面板
-  void _applyTemplate(TemplateDef template) async {
+  Future<void> _applyTemplate(TemplateDef template) async {
     final paneNotifier = ref.read(paneStackProvider.notifier);
     final templateNotifier = ref.read(templateGalleryProvider.notifier);
     final noteRepo = ref.read(noteRepositoryProvider);
 
     // 替换模板变量
     final content = templateNotifier.applyTemplate(template.id, {});
+    final title = FileService.extractTitle(content, '');
 
     // 创建新笔记
     final now = DateTime.now();
     final id = now.millisecondsSinceEpoch.toString();
     final note = NoteModel(
       id: id,
-      title: template.name,
+      title: title,
       rawMarkdown: content,
       filePath: '',
       createdAt: now,
@@ -96,7 +98,7 @@ class _TemplateGalleryOverlayState
     await noteRepo.saveNote(note);
 
     // 打开新面板
-    paneNotifier.openPane(id, template.name);
+    paneNotifier.openPane(id, title);
 
     // 刷新侧边栏
     await ref.read(sidebarProvider.notifier).loadNoteTree();
@@ -293,12 +295,12 @@ class _TemplateGalleryOverlayState
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AeroColors.accentBlue.withOpacity(0.15)
+                    ? AeroColors.accentBlue.withValues(alpha: 0.15)
                     : AeroColors.bgSurface,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isSelected
-                      ? AeroColors.accentBlue.withOpacity(0.4)
+                      ? AeroColors.accentBlue.withValues(alpha: 0.4)
                       : AeroColors.border,
                   width: 0.5,
                 ),
@@ -468,7 +470,7 @@ class _TemplateCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 6, vertical: 1),
                       decoration: BoxDecoration(
-                        color: _categoryColor.withOpacity(0.12),
+                        color: _categoryColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(3),
                       ),
                       child: Text(
@@ -486,7 +488,7 @@ class _TemplateCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 1),
                         decoration: BoxDecoration(
-                          color: AeroColors.accentOrange.withOpacity(0.12),
+                          color: AeroColors.accentOrange.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(3),
                         ),
                         child: Text(

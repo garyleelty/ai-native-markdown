@@ -5,6 +5,8 @@
 /// 通过命令面板或设置页面打开。
 /// ──────────────────────────────────────────────────
 
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
@@ -101,7 +103,7 @@ class _PluginManagerDialog extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AeroColors.accentCyan.withOpacity(0.15),
+                      color: AeroColors.accentCyan.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -244,12 +246,12 @@ class _PluginTile extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: hasError
-            ? AeroColors.accentOrange.withOpacity(0.05)
+            ? AeroColors.accentOrange.withValues(alpha: 0.05)
             : AeroColors.bgElevated,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: hasError
-              ? AeroColors.accentOrange.withOpacity(0.3)
+              ? AeroColors.accentOrange.withValues(alpha: 0.3)
               : AeroColors.border,
           width: 0.5,
         ),
@@ -262,7 +264,7 @@ class _PluginTile extends StatelessWidget {
             height: 36,
             decoration: BoxDecoration(
               color: isActive
-                  ? AeroColors.accentCyan.withOpacity(0.12)
+                  ? AeroColors.accentCyan.withValues(alpha: 0.12)
                   : AeroColors.bgDeep,
               borderRadius: BorderRadius.circular(8),
             ),
@@ -379,7 +381,7 @@ class _PluginTile extends StatelessWidget {
               child: Switch(
                 value: isActive,
                 onChanged: (_) => onToggle(),
-                activeColor: AeroColors.accentCyan,
+                activeThumbColor: AeroColors.accentCyan,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),

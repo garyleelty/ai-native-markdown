@@ -5,6 +5,8 @@
 /// 与最近打开笔记 ID 列表的 Riverpod 集成。
 /// ──────────────────────────────────────────────────
 
+library;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aeromind/core/models/note_model.dart';
 import 'package:aeromind/features/quick_switcher/services/fuzzy_matcher.dart';

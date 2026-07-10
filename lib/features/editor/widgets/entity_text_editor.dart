@@ -220,12 +220,12 @@ class _EntityInlineWidgetState extends State<_EntityInlineWidget> {
             padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 2),
             decoration: BoxDecoration(
               color: _isHovered
-                  ? _entityColor.withOpacity(0.15)
+                  ? _entityColor.withValues(alpha: 0.15)
                   : _entityBgColor,
               borderRadius: BorderRadius.circular(3),
               border: Border(
                 bottom: BorderSide(
-                  color: _entityColor.withOpacity(0.6),
+                  color: _entityColor.withValues(alpha: 0.6),
                   width: 1.5,
                   style: BorderStyle.solid,
                 ),

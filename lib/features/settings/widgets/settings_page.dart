@@ -4,12 +4,15 @@
 /// 包含: 通用设置、AI 配置、插件管理入口、主题设置。
 /// ──────────────────────────────────────────────────
 
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../core/plugin/plugin_registry.dart';
 import '../../../features/ai_engine/services/entity_recognizer.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../providers/git_backup_provider.dart';
 
 /// 设置页面 (全屏覆盖层)
 class SettingsPage extends ConsumerStatefulWidget {
@@ -97,7 +100,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           height: 36,
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           color: isSelected
-                              ? AeroColors.accentBlue.withOpacity(0.08)
+                              ? AeroColors.accentBlue.withValues(alpha: 0.08)
                               : Colors.transparent,
                           child: Row(
                             children: [
@@ -179,7 +182,7 @@ class _GeneralSection extends ConsumerWidget {
               trailing: Switch(
                 value: settings.autoSaveEnabled,
                 onChanged: notifier.setAutoSaveEnabled,
-                activeColor: AeroColors.accentBlue,
+                activeThumbColor: AeroColors.accentBlue,
               ),
             ),
             _SettingsTile(
@@ -188,7 +191,7 @@ class _GeneralSection extends ConsumerWidget {
               trailing: Switch(
                 value: settings.defaultEditMode,
                 onChanged: notifier.setDefaultEditMode,
-                activeColor: AeroColors.accentBlue,
+                activeThumbColor: AeroColors.accentBlue,
               ),
             ),
             _SettingsTile(
@@ -529,7 +532,7 @@ class _PluginSection extends ConsumerWidget {
                   // ignore: use_build_context_synchronously
                   (context as Element).markNeedsBuild();
                 },
-                activeColor: AeroColors.accentCyan,
+                activeThumbColor: AeroColors.accentCyan,
               ),
             );
           }).toList(),
@@ -540,9 +543,43 @@ class _PluginSection extends ConsumerWidget {
 }
 
 /// 存储设置
-class _StorageSection extends ConsumerWidget {
+class _StorageSection extends ConsumerStatefulWidget {
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_StorageSection> createState() => _StorageSectionState();
+}
+
+class _StorageSectionState extends ConsumerState<_StorageSection> {
+  final _remoteUrlController = TextEditingController();
+  final _userNameController = TextEditingController();
+  final _userEmailController = TextEditingController();
+  final _branchController = TextEditingController();
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final state = ref.read(gitBackupProvider);
+      _remoteUrlController.text = state.remoteUrl;
+      _userNameController.text = state.userName;
+      _userEmailController.text = state.userEmail;
+      _branchController.text = state.branch;
+      setState(() => _initialized = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _remoteUrlController.dispose();
+    _userNameController.dispose();
+    _userEmailController.dispose();
+    _branchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gitState = ref.watch(gitBackupProvider);
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -568,8 +605,245 @@ class _StorageSection extends ConsumerWidget {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        _SettingsGroup(
+          title: 'Git 远程备份',
+          children: [
+            _SettingsTile(
+              title: '启用 Git 备份',
+              subtitle: gitState.enabled ? '已启用' : '未启用',
+              trailing: Switch(
+                value: gitState.enabled,
+                onChanged: (v) {
+                  ref.read(gitBackupProvider.notifier).updateConfig(enabled: v);
+                },
+                activeColor: AeroColors.accentBlue,
+              ),
+            ),
+            _buildTextField(
+              controller: _remoteUrlController,
+              label: '远程仓库 URL',
+              hint: 'https://github.com/user/notes.git 或 git@github.com:user/notes.git',
+              onChanged: (v) => ref
+                  .read(gitBackupProvider.notifier)
+                  .updateConfig(remoteUrl: v),
+              enabled: gitState.enabled,
+            ),
+            _buildTextField(
+              controller: _userNameController,
+              label: '用户名',
+              hint: 'your-name',
+              onChanged: (v) => ref
+                  .read(gitBackupProvider.notifier)
+                  .updateConfig(userName: v),
+              enabled: gitState.enabled,
+            ),
+            _buildTextField(
+              controller: _userEmailController,
+              label: '邮箱',
+              hint: 'you@example.com',
+              onChanged: (v) => ref
+                  .read(gitBackupProvider.notifier)
+                  .updateConfig(userEmail: v),
+              enabled: gitState.enabled,
+            ),
+            _buildTextField(
+              controller: _branchController,
+              label: '分支',
+              hint: 'main',
+              onChanged: (v) => ref
+                  .read(gitBackupProvider.notifier)
+                  .updateConfig(branch: v.isEmpty ? 'main' : v),
+              enabled: gitState.enabled,
+            ),
+            _SettingsTile(
+              title: '自动备份',
+              subtitle: '编辑后自动提交并推送',
+              trailing: Switch(
+                value: gitState.autoBackup,
+                onChanged: gitState.enabled
+                    ? (v) => ref
+                        .read(gitBackupProvider.notifier)
+                        .updateConfig(autoBackup: v)
+                    : null,
+                activeColor: AeroColors.accentBlue,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: gitState.enabled &&
+                              gitState.status != SyncStatus.syncing
+                          ? () async {
+                              final ok = await ref
+                                  .read(gitBackupProvider.notifier)
+                                  .backup();
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(ok ? '备份成功' : '备份失败'),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            }
+                          : null,
+                      icon: gitState.status == SyncStatus.syncing
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AeroColors.textMuted),
+                            )
+                          : const Icon(Icons.cloud_upload, size: 16),
+                      label: const Text('立即备份'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AeroColors.textPrimary,
+                        side:
+                            const BorderSide(color: AeroColors.border),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: gitState.enabled &&
+                              gitState.status != SyncStatus.syncing &&
+                              gitState.remoteUrl.isNotEmpty
+                          ? () async {
+                              final ok = await ref
+                                  .read(gitBackupProvider.notifier)
+                                  .restore();
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(ok ? '恢复成功' : '恢复失败'),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            }
+                          : null,
+                      icon: const Icon(Icons.cloud_download, size: 16),
+                      label: const Text('从远程恢复'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AeroColors.textPrimary,
+                        side:
+                            const BorderSide(color: AeroColors.border),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (gitState.lastError != null)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: Text(
+                  '错误: ${gitState.lastError}',
+                  style: const TextStyle(
+                    color: AeroColors.accentRed,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            if (gitState.lastBackupTime != null)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                child: Text(
+                  '上次备份: ${_formatTime(gitState.lastBackupTime!)}',
+                  style: const TextStyle(
+                    color: AeroColors.textMuted,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ],
     );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required ValueChanged<String> onChanged,
+    bool enabled = true,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: enabled
+                  ? AeroColors.textPrimary
+                  : AeroColors.textMuted,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 4),
+          TextField(
+            controller: controller,
+            onChanged: onChanged,
+            enabled: enabled,
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(
+                color: AeroColors.textMuted,
+                fontSize: 12,
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              isDense: true,
+              filled: true,
+              fillColor: AeroColors.bgSurface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide:
+                    const BorderSide(color: AeroColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide:
+                    const BorderSide(color: AeroColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide:
+                    const BorderSide(color: AeroColors.accentBlue),
+              ),
+            ),
+            style: TextStyle(
+              color: enabled
+                  ? AeroColors.textPrimary
+                  : AeroColors.textMuted,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return '刚刚';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} 分钟前';
+    if (diff.inHours < 24) return '${diff.inHours} 小时前';
+    if (diff.inDays < 7) return '${diff.inDays} 天前';
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
 
   void _confirmClearAll(BuildContext context, WidgetRef ref) {

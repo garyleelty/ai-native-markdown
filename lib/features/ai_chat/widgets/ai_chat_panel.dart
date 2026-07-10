@@ -272,12 +272,12 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: isUser
-                    ? AeroColors.accentBlue.withOpacity(0.15)
+                    ? AeroColors.accentBlue.withValues(alpha: 0.15)
                     : AeroColors.bgElevated,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: isUser
-                      ? AeroColors.accentBlue.withOpacity(0.3)
+                      ? AeroColors.accentBlue.withValues(alpha: 0.3)
                       : AeroColors.border,
                   width: 0.5,
                 ),

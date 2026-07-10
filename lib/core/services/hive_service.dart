@@ -71,17 +71,19 @@ class HiveService {
   ///   2. 注册 NoteModel、EntityHighlight、EntityType 的 TypeAdapter
   ///   3. 打开 LazyBox<NoteModel> (笔记数据)
   ///   4. 打开 Box<dynamic> (元数据)
-  static Future<void> initHive() async {
+  static Future<void> initHive({String? testPath}) async {
     if (_initialized) return;
 
-    // 初始化 Hive，使用 Flutter 默认的应用文档目录
-    await Hive.initFlutter();
+    if (testPath != null) {
+      Hive.init(testPath);
+    } else {
+      try {
+        await Hive.initFlutter();
+      } catch (_) {
+        Hive.init('.');
+      }
+    }
 
-    // ── 注册 TypeAdapter ──
-    // typeId 必须全局唯一，与 .g.dart 中的 typeId 一致
-    // NoteModel: typeId = 0
-    // EntityHighlight: typeId = 1
-    // EntityType: typeId = 2
     if (!Hive.isAdapterRegistered(0)) {
       Hive.registerAdapter(NoteModelAdapter());
     }
@@ -92,12 +94,26 @@ class HiveService {
       Hive.registerAdapter(EntityTypeAdapter());
     }
 
-    // ── 打开 Box ──
-    // LazyBox: 仅在访问时加载数据到内存，适合大量笔记场景
-    _noteBox = await Hive.openLazyBox<NoteModel>(noteBoxName);
-    _metaBox = await Hive.openBox<dynamic>(metaBoxName);
-    _versionBox = await Hive.openBox<dynamic>(versionBoxName);
-    _trashBox = await Hive.openBox<NoteModel>(trashBoxName);
+    if (Hive.isBoxOpen(noteBoxName)) {
+      _noteBox = Hive.lazyBox<NoteModel>(noteBoxName);
+    } else {
+      _noteBox = await Hive.openLazyBox<NoteModel>(noteBoxName);
+    }
+    if (Hive.isBoxOpen(metaBoxName)) {
+      _metaBox = Hive.box<dynamic>(metaBoxName);
+    } else {
+      _metaBox = await Hive.openBox<dynamic>(metaBoxName);
+    }
+    if (Hive.isBoxOpen(versionBoxName)) {
+      _versionBox = Hive.box<dynamic>(versionBoxName);
+    } else {
+      _versionBox = await Hive.openBox<dynamic>(versionBoxName);
+    }
+    if (Hive.isBoxOpen(trashBoxName)) {
+      _trashBox = Hive.box<NoteModel>(trashBoxName);
+    } else {
+      _trashBox = await Hive.openBox<NoteModel>(trashBoxName);
+    }
 
     _initialized = true;
   }

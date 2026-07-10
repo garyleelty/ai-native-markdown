@@ -363,7 +363,7 @@ class _CommandPaletteOverlayState
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             color: isSelected
-                ? AeroColors.accentBlue.withOpacity(0.12)
+                ? AeroColors.accentBlue.withValues(alpha: 0.12)
                 : Colors.transparent,
             border: isSelected
                 ? Border(
@@ -406,7 +406,7 @@ class _CommandPaletteOverlayState
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: AeroColors.accentPurple.withOpacity(0.15),
+                    color: AeroColors.accentPurple.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(3),
                   ),
                   child: Text(
@@ -424,7 +424,7 @@ class _CommandPaletteOverlayState
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: AeroColors.accentCyan.withOpacity(0.15),
+                    color: AeroColors.accentCyan.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(3),
                   ),
                   child: Text(

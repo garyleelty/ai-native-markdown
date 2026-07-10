@@ -191,7 +191,7 @@ class _GraphControlsState extends ConsumerState<GraphControls> {
               activeTrackColor: AeroColors.accentBlue,
               inactiveTrackColor: AeroColors.border,
               thumbColor: AeroColors.accentBlue,
-              overlayColor: AeroColors.accentBlue.withOpacity(0.1),
+              overlayColor: AeroColors.accentBlue.withValues(alpha: 0.1),
               trackHeight: 2,
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
             ),
@@ -263,7 +263,7 @@ class _GraphControlsState extends ConsumerState<GraphControls> {
               activeTrackColor: AeroColors.accentPurple,
               inactiveTrackColor: AeroColors.border,
               thumbColor: AeroColors.accentPurple,
-              overlayColor: AeroColors.accentPurple.withOpacity(0.1),
+              overlayColor: AeroColors.accentPurple.withValues(alpha: 0.1),
               trackHeight: 2,
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
             ),
@@ -335,7 +335,7 @@ class _GraphControlsState extends ConsumerState<GraphControls> {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? AeroColors.accentBlue.withOpacity(0.2)
+                        ? AeroColors.accentBlue.withValues(alpha: 0.2)
                         : AeroColors.bgElevated,
                     borderRadius: BorderRadius.circular(3),
                     border: Border.all(
@@ -399,7 +399,7 @@ class _GraphControlsState extends ConsumerState<GraphControls> {
                       width: 10,
                       height: 10,
                       decoration: BoxDecoration(
-                        color: item.color.withOpacity(0.6),
+                        color: item.color.withValues(alpha: 0.6),
                         shape: BoxShape.circle,
                         border: Border.all(color: item.color, width: 1),
                       ),

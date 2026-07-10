@@ -4,6 +4,8 @@
 /// 显示当前笔记的标题层级结构，点击可跳转到对应位置。
 /// ──────────────────────────────────────────────────
 
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
@@ -176,7 +178,7 @@ class _HeadingTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
               decoration: BoxDecoration(
-                color: dotColor.withOpacity(0.12),
+                color: dotColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(3),
               ),
               child: Text(

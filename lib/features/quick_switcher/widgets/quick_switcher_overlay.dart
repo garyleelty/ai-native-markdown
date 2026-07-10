@@ -350,7 +350,7 @@ class _QuickSwitcherOverlayState extends ConsumerState<QuickSwitcherOverlay> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
             color: isSelected
-                ? AeroColors.accentCyan.withOpacity(0.08)
+                ? AeroColors.accentCyan.withValues(alpha: 0.08)
                 : Colors.transparent,
             border: isSelected
                 ? const Border(

@@ -108,6 +108,13 @@ class PaneStackNotifier extends Notifier<PaneStackState> {
     );
   }
 
+  void closePaneByNoteId(String noteId) {
+    final index = state.panes.indexWhere((p) => p.noteId == noteId);
+    if (index >= 0) {
+      closePane(index);
+    }
+  }
+
   // ── 激活面板 (用于从堆栈回弹) ──
   void activatePane(int index) {
     if (index < 0 || index >= state.panes.length) return;

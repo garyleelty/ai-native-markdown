@@ -10,13 +10,14 @@
 ///   - 插件面板入口
 /// ──────────────────────────────────────────────────
 
+library;
+
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../core/models/note_model.dart';
 import '../../../core/services/search_service.dart';
-import '../../../core/services/file_service.dart';
 import '../../../core/services/task_service.dart';
 import '../../../providers/sidebar_provider.dart';
 import '../../../providers/note_provider.dart';
@@ -700,7 +701,7 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
         height: 28,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         color: widget.isSelected
-            ? AeroColors.accentBlue.withOpacity(0.1)
+            ? AeroColors.accentBlue.withValues(alpha: 0.1)
             : Colors.transparent,
         child: Row(
           children: [
@@ -734,7 +735,7 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
-                  color: AeroColors.accentPurple.withOpacity(0.12),
+                  color: AeroColors.accentPurple.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(3),
                 ),
                 child: Text(
@@ -889,10 +890,20 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
     if (note == null) return;
 
     final now = DateTime.now();
+    var duplicatedMarkdown = note.rawMarkdown;
+    final h1Regex = RegExp(r'^#\s+.+$', multiLine: true);
+    final h1Match = h1Regex.firstMatch(duplicatedMarkdown);
+    if (h1Match != null) {
+      duplicatedMarkdown = duplicatedMarkdown.replaceFirst(h1Match.group(0)!, '# ${note.title} 副本');
+    } else if (duplicatedMarkdown.isNotEmpty) {
+      duplicatedMarkdown = '# ${note.title} 副本\n\n$duplicatedMarkdown';
+    } else {
+      duplicatedMarkdown = '# ${note.title} 副本\n';
+    }
     final duplicated = NoteModel(
       id: now.millisecondsSinceEpoch.toString(),
       title: '${note.title} 副本',
-      rawMarkdown: note.rawMarkdown,
+      rawMarkdown: duplicatedMarkdown,
       filePath: '',
       createdAt: now,
       updatedAt: now,
@@ -900,9 +911,6 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
       folderPath: note.folderPath,
     );
     await repo.saveNote(duplicated);
-    if (FileService.shouldSyncToFile(duplicated.filePath)) {
-      await FileService.syncToFile(duplicated.filePath, duplicated.rawMarkdown);
-    }
     await ref.read(sidebarProvider.notifier).loadNoteTree();
   }
 
@@ -1214,7 +1222,7 @@ class _SearchResultTile extends StatelessWidget {
       spans.add(TextSpan(
         text: text.substring(r[0], r[1]),
         style: style.copyWith(
-          backgroundColor: AeroColors.accentYellow.withOpacity(0.3),
+          backgroundColor: AeroColors.accentYellow.withValues(alpha: 0.3),
           color: AeroColors.textPrimary,
           fontWeight: FontWeight.w600,
         ),
@@ -1273,7 +1281,7 @@ class _TagView extends ConsumerWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AeroColors.accentPurple.withOpacity(0.15),
+                    color: AeroColors.accentPurple.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -1361,7 +1369,7 @@ class _TagView extends ConsumerWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AeroColors.accentPurple.withOpacity(0.15),
+                    color: AeroColors.accentPurple.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -1405,7 +1413,7 @@ class _TagView extends ConsumerWidget {
                     height: 28,
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     color: isSelected
-                        ? AeroColors.accentPurple.withOpacity(0.08)
+                        ? AeroColors.accentPurple.withValues(alpha: 0.08)
                         : Colors.transparent,
                     child: Row(
                       children: [
@@ -1494,6 +1502,7 @@ class _TagView extends ConsumerWidget {
         ),
       ],
     ).then((value) {
+      if (!context.mounted) return;
       if (value == 'rename') {
         _showRenameTagDialog(context, ref, tag);
       } else if (value == 'delete') {
@@ -1612,9 +1621,7 @@ class _RecentView extends ConsumerWidget {
         final noteId = state.recentNoteIds[index];
         return _NoteListItem(
           noteId: noteId,
-          onTap: () {
-            onNoteSelected?.call(noteId, noteId);
-          },
+          onTap: onNoteSelected ?? (_, __) {},
         );
       },
     );
@@ -1624,7 +1631,7 @@ class _RecentView extends ConsumerWidget {
 /// 简单的笔记列表项（最近编辑等视图使用）
 class _NoteListItem extends ConsumerWidget {
   final String noteId;
-  final VoidCallback onTap;
+  final void Function(String noteId, String title) onTap;
 
   const _NoteListItem({required this.noteId, required this.onTap});
 
@@ -1637,7 +1644,7 @@ class _NoteListItem extends ConsumerWidget {
       data: (note) {
         if (note == null) return const SizedBox.shrink();
         return InkWell(
-          onTap: onTap,
+          onTap: () => onTap(note.id, note.title),
           child: Container(
             height: 32,
             padding: const EdgeInsets.symmetric(horizontal: 12),

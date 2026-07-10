@@ -122,3 +122,75 @@
   - 修复 daily_note_panel.dart 新建日记后日历标记不刷新的问题
 - **Acceptance Criteria Addressed**: AC-1 (extended), AC-4 (extended), 新增同类问题全覆盖
 - **Notes**: 所有 22 个 saveNote 调用点已审计完毕
+
+---
+
+## [x] Task 9: Round 17 REVIEW 深度审计发现的同类问题修复
+- **Priority**: critical
+- **Depends On**: Task 8
+- **Completed In**: Round 17 (Review Phase)
+- **Description**:
+  - 修复 sliding_panes_container.dart _finishEditing: 无H1时prepend新标题（原只替换不插入，标题丢失）
+  - 修复 sidebar_provider.dart renameNote: 同上H1缺失prepend逻辑
+  - 修复 calendar_view.dart: _loadMonthData添加版本计数器解决月份快速切换竞态条件
+  - 修复 calendar_view.dart: _CalendarFooter仅在当前月份显示"今天已记录 ✓"
+  - 修复 calendar_view.dart: _loadMonthData首次setState添加mounted防御检查
+  - 修复 calendar_view.dart: isFuture判断统一使用today参数（而非DateTime.now()）
+  - 修复 calendar_view.dart: _openNoteForDay返回类型从void改为Future<void>
+  - 修复 sidebar_container.dart duplicateNote: 移除filePath=''后的死代码syncToFile调用
+  - 修复 sidebar_container.dart duplicateNote: 更新rawMarkdown中H1为"XXX 副本"
+  - 修复 note_panel.dart _doSave: 从markdown提取标题更新note.title（关键bug：编辑标题不更新侧边栏/面板标题）
+  - 修复 note_panel.dart _doSave: 标题变更时更新面板标题和刷新侧边栏树
+  - 修复 note_panel.dart _doSave: syncToFile使用updatedNote.filePath而非note.filePath
+  - 修复 app.dart note.new: rawMarkdown初始化为'# 新笔记\n'（之前为空字符串）
+  - 修复 app.dart note.duplicate: 更新rawMarkdown中H1为"XXX 副本"
+  - 修复 daily_note_panel.dart _openDailyNote: 返回类型从void改为Future<void>
+  - 修复 template_gallery.dart _applyTemplate: 使用FileService.extractTitle获取实际渲染标题
+  - 修复 template_gallery.dart _applyTemplate: 返回类型从void改为Future<void>
+  - 修复 sliding_panes_container.dart _createNewNote: rawMarkdown初始化为'# 新笔记\n'
+- **Acceptance Criteria Addressed**: AC-1~AC-5全部加强覆盖，同类数据一致性/H1标题问题全覆盖
+- **Notes**: 共修复18个额外问题，其中note_panel _doSave标题同步为最高优先级核心bug
+
+---
+
+## [ ] Issue 1: DailyNoteService 读取已有日记时标题硬编码
+- **Discovered During**: Round 17 Review
+- **Blocks Release**: No
+- **Severity**: Medium
+- **Description**:
+  - daily_note_service.dart 读取已有日记时，title使用硬编码日期（如_buildTitle(date)），不从文件内容提取H1
+  - 如果用户手动在文件系统中修改了日记标题，应用不会反映更改
+- **Evidence / Signals**:
+  - 代码位置: lib/features/daily_notes/services/daily_note_service.dart:71-78
+- **Suggested Remediation**:
+  - 使用FileService.extractTitle(content, filePath)从内容提取标题，fallback到日期标题
+- **Notes**: 日记场景下日期标题通常就是用户期望的标题，影响较小
+
+## [ ] Issue 2: 多个async void方法可改进为Future<void>
+- **Discovered During**: Round 17 Review
+- **Blocks Release**: No
+- **Severity**: Low
+- **Description**:
+  - app.dart _openTodayDailyNote, _showRenameDialog, _showDeleteConfirmDialog, _buildGraphData
+  - sliding_panes_container.dart _openTodayNote, _openLocalFile
+  - wiki_link_preview.dart _show
+  - 这些方法使用void async，异常无法被捕获
+- **Evidence / Signals**:
+  - 代码审计发现共7处
+- **Suggested Remediation**:
+  - 批量改为Future<void>，不影响功能但提升健壮性
+- **Notes**: 低优先级代码质量改进
+
+## [ ] Issue 3: widget_test.dart 因Hive未初始化失败（pre-existing）
+- **Discovered During**: Round 17 Review
+- **Blocks Release**: No
+- **Severity**: Low
+- **Description**:
+  - widget_test.dart 集成测试因测试环境未初始化Hive而失败
+  - 88个单元测试全部通过，仅1个widget测试失败
+- **Evidence / Signals**:
+  - flutter test 输出: 88 passed, 1 failed (widget_test.dart)
+  - 此问题在Round 4 progress.md中已记录为已知环境限制
+- **Suggested Remediation**:
+  - 在widget_test.dart中添加Hive初始化setUpAll或使用mock
+- **Notes**: NFR中已记录"不修复macOS Flutter测试shell环境问题"

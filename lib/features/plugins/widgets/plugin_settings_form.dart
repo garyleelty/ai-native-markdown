@@ -5,6 +5,8 @@
 /// 修改即时持久化到隔离的 PluginStorage。
 /// ──────────────────────────────────────────────────
 
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
@@ -310,7 +312,7 @@ class _BooleanSettingTileState extends State<_BooleanSettingTile> {
             setState(() => _value = value);
             widget.storage.putBool(widget.setting.key, value);
           },
-          activeColor: AeroColors.accentCyan,
+          activeThumbColor: AeroColors.accentCyan,
         ),
       ],
     );

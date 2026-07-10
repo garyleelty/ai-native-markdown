@@ -4,6 +4,8 @@
 /// 侧边栏包含: 笔记树、全局搜索、标签浏览、大纲、插件面板。
 /// ──────────────────────────────────────────────────
 
+library;
+
 import '../../../features/editor/services/editor_service.dart';
 import '../../../core/services/search_service.dart';
 import '../../../core/services/task_service.dart';

@@ -97,8 +97,21 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   }
 
   @override
+  void didUpdateWidget(covariant NotePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.noteId != widget.noteId) {
+      if (_hasUnsavedChanges) {
+        _autoSaveTimer?.cancel();
+        _doSave(_rawMarkdown);
+      }
+      _undoStack.clear();
+      _redoStack.clear();
+      _loadNote();
+    }
+  }
+
+  @override
   void dispose() {
-    // 如果有待保存的内容，立即执行最后一次保存 (fire-and-forget)
     if (_hasUnsavedChanges) {
       _autoSaveTimer?.cancel();
       _doSave(_rawMarkdown);
@@ -348,15 +361,28 @@ class _NotePanelState extends ConsumerState<NotePanel> {
           .map((l) => l.text)
           .toList();
 
+      final newTitle = FileService.extractTitle(text, note.filePath);
+      final titleChanged = newTitle != note.title;
+
       final updatedNote = note.copyWith(
+        title: newTitle,
         rawMarkdown: text,
         updatedAt: DateTime.now(),
         outgoingLinks: wikiLinks,
       );
       repo.saveNote(updatedNote);
 
-      if (FileService.shouldSyncToFile(note.filePath)) {
-        FileService.syncToFile(note.filePath, text);
+      if (FileService.shouldSyncToFile(updatedNote.filePath)) {
+        FileService.syncToFile(updatedNote.filePath, text);
+      }
+
+      if (titleChanged) {
+        final paneState = ref.read(paneStackProvider);
+        final index = paneState.panes.indexWhere((p) => p.noteId == noteId);
+        if (index >= 0) {
+          ref.read(paneStackProvider.notifier).updatePaneTitle(index, newTitle);
+        }
+        ref.read(sidebarProvider.notifier).loadNoteTree();
       }
 
       VersionService.saveSnapshot(noteId, text);
@@ -1647,7 +1673,7 @@ class _EntityCountBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AeroColors.accentPurple.withOpacity(0.15),
+        color: AeroColors.accentPurple.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Builder(
@@ -1770,9 +1796,9 @@ class _TypeChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Builder(
         builder: (context) => Text(
@@ -1840,7 +1866,7 @@ class _PredictiveLinkChip extends StatelessWidget {
       child: ActionChip(
         onPressed: onTap,
         backgroundColor: AeroColors.bgSurface,
-        side: BorderSide(color: AeroColors.accentGreen.withOpacity(0.3)),
+        side: BorderSide(color: AeroColors.accentGreen.withValues(alpha: 0.3)),
         avatar: Icon(Icons.link, size: 14, color: AeroColors.accentGreen),
         label: Builder(
           builder: (context) => Column(

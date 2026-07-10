@@ -60,7 +60,7 @@ class WelcomePage extends StatelessWidget {
                             width: 48,
                             height: 48,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
+                              color: Colors.white.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Center(
@@ -208,7 +208,7 @@ class _FeatureItem extends StatelessWidget {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: AeroColors.accentBlue.withOpacity(0.1),
+              color: AeroColors.accentBlue.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, size: 16, color: AeroColors.accentBlue),

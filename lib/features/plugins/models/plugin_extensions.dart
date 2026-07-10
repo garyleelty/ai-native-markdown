@@ -5,6 +5,8 @@
 /// 插件通过声明 extensionTypes 来表明它实现了哪些扩展点。
 /// ──────────────────────────────────────────────────
 
+library;
+
 import 'package:flutter/material.dart';
 
 /// 扩展点类型枚举

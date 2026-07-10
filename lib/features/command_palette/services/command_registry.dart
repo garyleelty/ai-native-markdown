@@ -519,6 +519,27 @@ class CommandRegistry {
         category: CommandCategory.settings,
         description: '打开插件管理面板',
       ),
+      CommandDef(
+        id: 'git.backup',
+        name: 'Git: 立即备份',
+        icon: Icons.cloud_upload_outlined,
+        category: CommandCategory.settings,
+        description: '将笔记提交并推送到远程 Git 仓库',
+      ),
+      CommandDef(
+        id: 'git.restore',
+        name: 'Git: 从远程恢复',
+        icon: Icons.cloud_download_outlined,
+        category: CommandCategory.settings,
+        description: '从远程 Git 仓库拉取最新笔记',
+      ),
+      CommandDef(
+        id: 'git.settings',
+        name: 'Git: 备份设置',
+        icon: Icons.settings_outlined,
+        category: CommandCategory.settings,
+        description: '配置 Git 远程备份',
+      ),
 
       // ── AI 功能 ──
       CommandDef(

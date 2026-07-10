@@ -93,3 +93,52 @@
   - JSON import: imported notes default filePath to ''
   These are all correct by design.
 - **Risks/issues**: None. Audit is complete for the similar-pattern issues tracked in this spec.
+
+## Round 17 (Review + Similar-Pattern Fixes)
+
+**Verdict**: PASS WITH ISSUES (all critical/high bugs fixed; 3 low-severity issues deferred)
+
+- **Scope reviewed**: 全量审计所有AC/TR + 同类模式深度扫描（H1标题一致性、文件同步、竞态条件、边界条件）
+- **Verification results**:
+  - Build/Runtime: PASS — Flutter 3.44.4/Dart 3.12.2, flutter analyze 0 errors, 0 warnings, 240 info (pre-existing)
+  - Static/Security: PASS — 无硬编码密钥, 无TODO/FIXME, 1个有意UnimplementedError（PluginStorage防护）
+  - Tests/Coverage: PASS — 88/88 unit tests pass; widget_test.dart failure is pre-existing Hive init issue (documented)
+  - Type-specific checks: 深度审查note_panel、calendar_view、pane_provider、sidebar_provider、sidebar_container、sliding_panes_container、app.dart、plugin_api_impl、daily_note_panel、file_service、template_gallery共11个文件
+  - Adversarial probes: 
+    1. 月份快速切换竞态 → 发现并修复（版本计数器）
+    2. 非当前月份"今天已记录"误显示 → 发现并修复
+    3. 空内容/无H1笔记重命名标题丢失 → 发现并修复（2处）
+    4. 编辑器修改H1后标题不同步 → **发现关键bug**并修复
+    5. 新建笔记/复制笔记H1不一致 → 发现并修复（4处）
+    6. async void反模式 → 修复关键数据路径的3处，记录7处低优先级
+  - AC audit: 5/5 fully satisfied (all ACs pass with extended coverage beyond original spec)
+  - TR audit: 8/8 tasks fully satisfied + 1 new Task 9 added for review-phase fixes
+- **Bugs found and fixed in this round (18 fixes across 8 files)**:
+  - **CRITICAL**: note_panel _doSave不更新note.title（编辑器修改H1后标题永久不同步）— 修复：添加FileService.extractTitle + updatePaneTitle + loadNoteTree
+  - **HIGH**: sliding_panes_container _finishEditing / sidebar_provider renameNote 无H1时不插入新标题 → 修复：prepend逻辑
+  - **HIGH**: calendar_view月份快速切换竞态条件 → 修复：版本计数器
+  - **MEDIUM**: calendar_view底部"今天已记录"在非当前月份误显示 → 修复：isCurrentMonth参数
+  - **MEDIUM**: app.dart note.duplicate / sidebar_container duplicateNote 复制笔记H1不更新 → 修复：正则替换
+  - **MEDIUM**: app.dart note.new / sliding_panes _createNewNote 新建笔记rawMarkdown为空 → 修复：初始化为'# 新笔记\n'
+  - **MEDIUM**: template_gallery _applyTemplate使用template.name而非实际渲染标题 → 修复：FileService.extractTitle
+  - **LOW**: _loadMonthData首次setState缺少mounted检查 → 修复
+  - **LOW**: isFuture判断不一致、async void返回类型、duplicateNote死代码 → 修复
+- **Files modified in this round**:
+  - lib/features/editor/widgets/note_panel.dart (_doSave标题同步)
+  - lib/features/calendar/widgets/calendar_view.dart (竞态+底部栏+mounted+isFuture+返回类型)
+  - lib/features/sliding_panes/widgets/sliding_panes_container.dart (_finishEditing H1 + _createNewNote)
+  - lib/providers/sidebar_provider.dart (renameNote H1 prepend)
+  - lib/features/sidebar/widgets/sidebar_container.dart (duplicateNote H1 + 死代码移除)
+  - lib/app.dart (note.new H1 + note.duplicate H1)
+  - lib/features/daily_notes/widgets/daily_note_panel.dart (返回类型)
+  - lib/features/templates/widgets/template_gallery.dart (标题提取+返回类型)
+- **Remaining issues (deferred, documented in tasks.md)**:
+  - Issue 1 (Medium): DailyNoteService读取日记时标题硬编码，建议使用extractTitle
+  - Issue 2 (Low): 7处async void可改为Future<void>
+  - Issue 3 (Low): widget_test.dart Hive初始化失败（pre-existing，NFR已排除）
+- **Strengths**: 原始4轮修复质量高，核心功能（文件同步、笔记未找到UI、activePaneId nullable、日历刷新）均正确实现。FileService.syncToFile公共方法设计合理。
+- **Risks and issues**: _doSave频繁调用loadNoteTree可能在笔记树很大时有性能影响，但已通过titleChanged守卫最小化调用频率。
+- **Artifacts updated**:
+  - checkpoints.md: 35个检查点全部通过
+  - tasks.md: 追加Task 9（18项修复）+ Issue 1/2/3（延期项）
+- **Recommended next session**: 处理Issue 1（DailyNoteService标题提取）+ 批量修复async void方法，可考虑dart fix --apply批量清理info级lint。

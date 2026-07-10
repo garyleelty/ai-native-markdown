@@ -40,6 +40,7 @@ import 'providers/plugin_provider.dart';
 import 'providers/quick_switcher_provider.dart';
 import 'providers/note_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/git_backup_provider.dart';
 import 'features/editor/widgets/version_history_panel.dart';
 import 'features/sidebar/models/sidebar_state.dart';
 
@@ -254,7 +255,7 @@ class _AppShellState extends ConsumerState<_AppShell>
         final note = NoteModel(
           id: now.millisecondsSinceEpoch.toString(),
           title: '新笔记',
-          rawMarkdown: '',
+          rawMarkdown: '# 新笔记\n',
           filePath: '',
           createdAt: now,
           updatedAt: now,
@@ -292,10 +293,20 @@ class _AppShellState extends ConsumerState<_AppShell>
         final note = await repo.getNote(noteId);
         if (note == null) return;
         final now = DateTime.now();
+        var duplicatedMarkdown = note.rawMarkdown;
+        final h1Regex = RegExp(r'^#\s+.+$', multiLine: true);
+        final h1Match = h1Regex.firstMatch(duplicatedMarkdown);
+        if (h1Match != null) {
+          duplicatedMarkdown = duplicatedMarkdown.replaceFirst(h1Match.group(0)!, '# ${note.title} 副本');
+        } else if (duplicatedMarkdown.isNotEmpty) {
+          duplicatedMarkdown = '# ${note.title} 副本\n\n$duplicatedMarkdown';
+        } else {
+          duplicatedMarkdown = '# ${note.title} 副本\n';
+        }
         final duplicated = NoteModel(
           id: now.millisecondsSinceEpoch.toString(),
           title: '${note.title} 副本',
-          rawMarkdown: note.rawMarkdown,
+          rawMarkdown: duplicatedMarkdown,
           filePath: "",
           createdAt: now,
           updatedAt: now,
@@ -353,6 +364,33 @@ class _AppShellState extends ConsumerState<_AppShell>
       // 导入导出面板
       'note.importExport': () {
         setState(() => _isImportExportVisible = true);
+      },
+
+      // Git 备份
+      'git.backup': () async {
+        final ok = await ref.read(gitBackupProvider.notifier).backup();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(ok ? 'Git 备份成功' : 'Git 备份失败'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      'git.restore': () async {
+        final ok = await ref.read(gitBackupProvider.notifier).restore();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(ok ? 'Git 恢复成功' : 'Git 恢复失败'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      'git.settings': () {
+        setState(() => _isSettingsVisible = true);
       },
     });
   }
@@ -791,7 +829,7 @@ class _AppShellState extends ConsumerState<_AppShell>
                         Expanded(
                           child: SlidingPanesContainer(
                             paneBuilder: (context, noteId, index) {
-                              return NotePanel(noteId: noteId);
+                              return NotePanel(key: ValueKey(noteId), noteId: noteId);
                             },
                           ),
                         ),

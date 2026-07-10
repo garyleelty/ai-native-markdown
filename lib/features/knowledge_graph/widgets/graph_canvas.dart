@@ -338,7 +338,7 @@ class _GraphPainter extends CustomPainter {
       final opacity = isHighlighted ? 0.6 * edge.strength : 0.08;
 
       // 边的颜色：使用源节点的颜色
-      final edgeColor = source.color.withOpacity(opacity.clamp(0.0, 1.0));
+      final edgeColor = source.color.withValues(alpha: opacity.clamp(0.0, 1.0));
 
       // 边的粗细：根据强度和缩放调整
       final strokeWidth = (1.0 + edge.strength * 2.0) * zoom;
@@ -416,12 +416,12 @@ class _GraphPainter extends CustomPainter {
 
       // ── 绘制节点圆形 ──
       final fillPaint = Paint()
-        ..color = node.color.withOpacity(opacity * 0.3)
+        ..color = node.color.withValues(alpha: opacity * 0.3)
         ..style = PaintingStyle.fill;
       canvas.drawCircle(screenPos, radius, fillPaint);
 
       final borderPaint = Paint()
-        ..color = node.color.withOpacity(opacity)
+        ..color = node.color.withValues(alpha: opacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5 * zoom;
       canvas.drawCircle(screenPos, radius, borderPaint);
@@ -429,7 +429,7 @@ class _GraphPainter extends CustomPainter {
       // ── 绘制标签文字 ──
       if (isHighlighted || radius > 8) {
         final textStyle = TextStyle(
-          color: AeroColors.textPrimary.withOpacity(opacity),
+          color: AeroColors.textPrimary.withValues(alpha: opacity),
           fontSize: (11.0 * zoom).clamp(8.0, 16.0),
           fontWeight: FontWeight.w500,
         );
@@ -459,7 +459,7 @@ class _GraphPainter extends CustomPainter {
           textPainter.height + 2,
         );
         final bgPaint = Paint()
-          ..color = AeroColors.bgDeep.withOpacity(0.8)
+          ..color = AeroColors.bgDeep.withValues(alpha: 0.8)
           ..style = PaintingStyle.fill;
         canvas.drawRRect(
           RRect.fromRectAndRadius(bgRect, const Radius.circular(3)),
@@ -481,7 +481,7 @@ class _GraphPainter extends CustomPainter {
     for (int i = 3; i >= 1; i--) {
       final glowRadius = radius + i * 8.0 * zoom;
       final glowPaint = Paint()
-        ..color = node.color.withOpacity(0.08 / i)
+        ..color = node.color.withValues(alpha: 0.08 / i)
         ..style = PaintingStyle.fill;
       canvas.drawCircle(screenPos, glowRadius, glowPaint);
     }
@@ -494,7 +494,7 @@ class _GraphPainter extends CustomPainter {
     final radius = node.size * zoom;
 
     final highlightPaint = Paint()
-      ..color = AeroColors.accentBlue.withOpacity(0.5)
+      ..color = AeroColors.accentBlue.withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0 * zoom;
     canvas.drawCircle(screenPos, radius + 3 * zoom, highlightPaint);

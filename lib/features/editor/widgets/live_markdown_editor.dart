@@ -398,7 +398,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: AeroColors.accentCyan.withOpacity(0.15),
+                    color: AeroColors.accentCyan.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(3),
                   ),
                   child: Text(
@@ -789,7 +789,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
             style: TextStyle(
               color: AeroColors.accentGreen,
               decoration: TextDecoration.underline,
-              decorationColor: AeroColors.accentGreen.withOpacity(0.3),
+              decorationColor: AeroColors.accentGreen.withValues(alpha: 0.3),
             ),
           ));
           break;

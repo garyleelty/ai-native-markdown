@@ -105,7 +105,7 @@ class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
             decoration: BoxDecoration(
-              color: AeroColors.accentPurple.withOpacity(0.15),
+              color: AeroColors.accentPurple.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(
