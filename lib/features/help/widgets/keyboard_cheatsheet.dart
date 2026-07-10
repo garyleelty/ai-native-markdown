@@ -7,6 +7,8 @@ library;
 
 import 'package:flutter/material.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/dialog_header.dart';
+import '../../../core/widgets/modal_overlay.dart';
 
 /// 单条快捷键记录
 class ShortcutItem {
@@ -47,13 +49,25 @@ const List<ShortcutItem> kAllShortcuts = [
 
 /// 快捷键速查表覆盖层
 class KeyboardCheatsheetOverlay extends StatelessWidget {
+  final bool isOpen;
   final VoidCallback onClose;
 
-  const KeyboardCheatsheetOverlay({super.key, required this.onClose});
+  const KeyboardCheatsheetOverlay({
+    super.key,
+    required this.isOpen,
+    required this.onClose,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // 按 category 分组
+    return ModalOverlay(
+      isOpen: isOpen,
+      onClose: onClose,
+      child: _buildContent(),
+    );
+  }
+
+  Widget _buildContent() {
     final groups = <String, List<ShortcutItem>>{};
     for (final item in kAllShortcuts) {
       final cat = item.category ?? '其他';
@@ -62,100 +76,48 @@ class KeyboardCheatsheetOverlay extends StatelessWidget {
     }
     final categories = groups.keys.toList();
 
-    return Positioned.fill(
-      child: Material(
-        color: Colors.black54,
-        child: GestureDetector(
-          onTap: onClose,
-          behavior: HitTestBehavior.opaque,
-          child: Center(
-            child: GestureDetector(
-              onTap: () {},
-              child: Container(
-            width: 600,
-            constraints: const BoxConstraints(maxHeight: 600),
-            decoration: BoxDecoration(
-              color: AeroColors.bgSurface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AeroColors.border, width: 0.5),
-              boxShadow: const [
-                BoxShadow(color: AeroColors.shadow, blurRadius: 24),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ── 标题栏 ──
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: const BoxDecoration(
-                    color: AeroColors.bgElevated,
-                    border: Border(
-                      bottom: BorderSide(color: AeroColors.divider, width: 0.5),
-                    ),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.keyboard_outlined,
-                          size: 18, color: AeroColors.accentBlue),
-                      const SizedBox(width: 8),
-                      const Text(
-                        '快捷键速查表',
-                        style: TextStyle(
-                          color: AeroColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+    return DialogContainer(
+      width: 600,
+      height: 500,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DialogHeader(
+            icon: Icons.keyboard_outlined,
+            iconColor: AeroColors.accentBlue,
+            title: '快捷键速查表',
+            badgeText: '${kAllShortcuts.length} 个快捷键',
+            onClose: onClose,
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: categories.length,
+              itemBuilder: (context, index) {
+                final cat = categories[index];
+                final items = groups[cat]!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (index > 0) const SizedBox(height: 16),
+                    Text(
+                      cat,
+                      style: const TextStyle(
+                        color: AeroColors.accentBlue,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
                       ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close,
-                            size: 16, color: AeroColors.textSecondary),
-                        onPressed: onClose,
-                        splashRadius: 14,
-                      ),
-                    ],
-                  ),
-                ),
-                // ── 内容 ──
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: categories.length,
-                    itemBuilder: (context, index) {
-                      final cat = categories[index];
-                      final items = groups[cat]!;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (index > 0) const SizedBox(height: 16),
-                          Text(
-                            cat,
-                            style: const TextStyle(
-                              color: AeroColors.accentBlue,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          ...items.map((item) => _ShortcutRow(item: item)),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-              ),
+                    ),
+                    const SizedBox(height: 6),
+                    ...items.map((item) => _ShortcutRow(item: item)),
+                  ],
+                );
+              },
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -172,12 +134,11 @@ class _ShortcutRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          // 快捷键
           Container(
             padding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: AeroColors.bgElevated,
+              color: AeroColors.bgDeep,
               borderRadius: BorderRadius.circular(4),
               border: Border.all(color: AeroColors.border, width: 0.5),
             ),
@@ -191,7 +152,6 @@ class _ShortcutRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          // 描述
           Expanded(
             child: Text(
               item.description,

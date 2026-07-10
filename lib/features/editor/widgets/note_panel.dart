@@ -816,6 +816,26 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                 ),
               ],
             ),
+          if (_editorMode != EditorMode.preview)
+            _ToolbarGroup(
+              children: [
+                _ToolbarButton(
+                  icon: Icons.horizontal_rule,
+                  tooltip: '分割线',
+                  onTap: _applyHorizontalRule,
+                ),
+                _ToolbarButton(
+                  icon: Icons.image,
+                  tooltip: '图片',
+                  onTap: _insertImage,
+                ),
+                _ToolbarButton(
+                  icon: Icons.add_link,
+                  tooltip: 'Wiki 链接',
+                  onTap: _insertWikiLink,
+                ),
+              ],
+            ),
           const SizedBox(width: 4),
           _ToolbarButton(
             icon: Icons.search,

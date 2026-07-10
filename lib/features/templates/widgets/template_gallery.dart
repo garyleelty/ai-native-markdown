@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/note_model.dart';
 import '../../../core/services/file_service.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/dialog_header.dart';
+import '../../../core/widgets/search_input.dart';
+import '../../../core/widgets/modal_overlay.dart';
 import '../../../providers/template_provider.dart';
 import '../../../providers/pane_provider.dart';
 import '../../../providers/note_provider.dart';
@@ -28,50 +31,31 @@ class TemplateGalleryOverlay extends ConsumerStatefulWidget {
 }
 
 class _TemplateGalleryOverlayState
-    extends ConsumerState<TemplateGalleryOverlay>
-    with SingleTickerProviderStateMixin {
+    extends ConsumerState<TemplateGalleryOverlay> {
   late final TextEditingController _searchController;
   late final FocusNode _searchFocusNode;
-  late final AnimationController _animController;
-  late final Animation<double> _fadeAnimation;
-  late final Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
     _searchFocusNode = FocusNode();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    _fadeAnimation = CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeOutCubic,
-    );
-    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
-    );
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
-    _animController.dispose();
     super.dispose();
   }
 
   void _handleOpenChange(bool isOpen) {
     if (isOpen) {
       _searchController.clear();
-      _animController.forward();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _searchFocusNode.requestFocus();
       });
-    } else {
-      _animController.reverse();
     }
   }
 
@@ -110,30 +94,10 @@ class _TemplateGalleryOverlayState
       (prev, next) => _handleOpenChange(next),
     );
 
-    if (!state.isOpen) return const SizedBox.shrink();
-
-    return _buildOverlay(state);
-  }
-
-  Widget _buildOverlay(TemplateGalleryState state) {
-    return Material(
-      color: Colors.black54,
-      child: GestureDetector(
-        onTap: () => ref.read(templateGalleryProvider.notifier).close(),
-        behavior: HitTestBehavior.opaque,
-        child: Center(
-          child: GestureDetector(
-            onTap: () {},
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: _buildPanel(state),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return ModalOverlay(
+      isOpen: state.isOpen,
+      onClose: () => ref.read(templateGalleryProvider.notifier).close(),
+      child: _buildPanel(state),
     );
   }
 
@@ -143,65 +107,25 @@ class _TemplateGalleryOverlayState
     final panelWidth = screenWidth > 800 ? 720.0 : screenWidth - 48.0;
     final panelHeight = screenHeight > 600 ? 520.0 : screenHeight - 80.0;
 
-    return Container(
+    return DialogContainer(
       width: panelWidth,
       height: panelHeight,
-      decoration: BoxDecoration(
-        color: AeroColors.bgElevated,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AeroColors.border, width: 0.5),
-        boxShadow: const [
-          BoxShadow(
-            color: AeroColors.shadow,
-            blurRadius: 24,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
       child: Column(
         children: [
           // ── 标题栏 ──
-          _buildTitleBar(),
-          const Divider(height: 1, thickness: 0.5),
+          DialogHeader(
+            icon: Icons.dashboard_customize_outlined,
+            iconColor: AeroColors.accentBlue,
+            title: '模板画廊',
+            badgeText: '${state.templates.length} 个模板',
+            onClose: () => ref.read(templateGalleryProvider.notifier).close(),
+          ),
           // ── 搜索栏 + 分类过滤 ──
           _buildSearchAndFilter(state),
-          const Divider(height: 1, thickness: 0.5),
+          const Divider(height: 1, thickness: 0.5, color: AeroColors.divider),
           // ── 模板卡片网格 ──
-          Expanded(child: _buildTemplateGrid(state)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTitleBar() {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          const Icon(Icons.dashboard_customize_outlined,
-              size: 18, color: AeroColors.accentBlue),
-          const SizedBox(width: 8),
-          const Text(
-            '模板画廊',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AeroColors.textPrimary,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            '${ref.read(templateGalleryProvider).templates.length} 个模板',
-            style: const TextStyle(
-              fontSize: 11,
-              color: AeroColors.textMuted,
-            ),
-          ),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: () => ref.read(templateGalleryProvider.notifier).close(),
-            child: const Icon(Icons.close, size: 16, color: AeroColors.textMuted),
+          Expanded(
+            child: _buildTemplateGrid(state),
           ),
         ],
       ),
@@ -210,46 +134,18 @@ class _TemplateGalleryOverlayState
 
   Widget _buildSearchAndFilter(TemplateGalleryState state) {
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Column(
         children: [
           // 搜索框
-          Container(
+          SearchInput(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            hintText: '搜索模板...',
             height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: AeroColors.bgSurface,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AeroColors.border, width: 0.5),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.search, size: 14, color: AeroColors.textMuted),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    focusNode: _searchFocusNode,
-                    onChanged: (q) {
-                      ref
-                          .read(templateGalleryProvider.notifier)
-                          .updateSearch(q);
-                    },
-                    style: const TextStyle(
-                      color: AeroColors.textPrimary,
-                      fontSize: 13,
-                    ),
-                    decoration: const InputDecoration(
-                      hintText: '搜索模板...',
-                      hintStyle: TextStyle(color: AeroColors.textMuted),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            onChanged: (q) {
+              ref.read(templateGalleryProvider.notifier).updateSearch(q);
+            },
           ),
           const SizedBox(height: 8),
           // 分类标签行

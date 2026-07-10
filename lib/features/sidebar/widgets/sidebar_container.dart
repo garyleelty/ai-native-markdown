@@ -16,6 +16,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/search_input.dart';
 import '../../../core/models/note_model.dart';
 import '../../../core/services/search_service.dart';
 import '../../../core/services/task_service.dart';
@@ -84,13 +85,158 @@ class _SidebarContainerState extends ConsumerState<SidebarContainer> {
 }
 
 /// 侧边栏内容区
-class _SidebarContent extends ConsumerWidget {
+class _SidebarContent extends ConsumerStatefulWidget {
   final void Function(String noteId, String title)? onNoteSelected;
 
   const _SidebarContent({this.onNoteSelected});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SidebarContent> createState() => _SidebarContentState();
+}
+
+class _SidebarContentState extends ConsumerState<_SidebarContent> {
+  bool _isNewNoteHovered = false;
+
+  IconData _getViewIcon(SidebarView view) {
+    switch (view) {
+      case SidebarView.noteTree: return Icons.article_outlined;
+      case SidebarView.calendar: return Icons.calendar_today;
+      case SidebarView.search: return Icons.search;
+      case SidebarView.tags: return Icons.sell_outlined;
+      case SidebarView.recent: return Icons.schedule;
+      case SidebarView.plugins: return Icons.extension_outlined;
+      case SidebarView.outline: return Icons.list_alt;
+      case SidebarView.backlinks: return Icons.link;
+      case SidebarView.tasks: return Icons.check_box_outlined;
+      case SidebarView.trash: return Icons.delete_outline;
+    }
+  }
+
+  String _getViewName(SidebarView view) {
+    switch (view) {
+      case SidebarView.noteTree: return '笔记';
+      case SidebarView.calendar: return '日历';
+      case SidebarView.search: return '搜索';
+      case SidebarView.tags: return '标签';
+      case SidebarView.recent: return '最近编辑';
+      case SidebarView.plugins: return '插件';
+      case SidebarView.outline: return '大纲';
+      case SidebarView.backlinks: return '反向链接';
+      case SidebarView.tasks: return '任务';
+      case SidebarView.trash: return '回收站';
+    }
+  }
+
+  Widget _buildSidebarHeader(SidebarView currentView) {
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: const BoxDecoration(
+        color: AeroColors.bgElevated,
+        border: Border(
+          bottom: BorderSide(color: AeroColors.divider, width: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _getViewIcon(currentView),
+            size: 14,
+            color: AeroColors.textSecondary,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            _getViewName(currentView),
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AeroColors.textPrimary,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const Spacer(),
+          if (currentView == SidebarView.noteTree)
+            MouseRegion(
+              onEnter: (_) => setState(() => _isNewNoteHovered = true),
+              onExit: (_) => setState(() => _isNewNoteHovered = false),
+              child: GestureDetector(
+                onTap: () => _showNewNoteFromHeader(context),
+                child: Tooltip(
+                  message: '新建笔记',
+                  preferBelow: false,
+                  waitDuration: const Duration(milliseconds: 600),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 120),
+                    curve: Curves.easeOutCubic,
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: _isNewNoteHovered
+                          ? AeroColors.accentBlue
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Icon(
+                      Icons.add,
+                      size: 16,
+                      color: _isNewNoteHovered
+                          ? Colors.white
+                          : AeroColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showNewNoteFromHeader(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => _NewNoteDialog(
+        onSubmit: (title) => _createNote(ctx, title),
+      ),
+    );
+  }
+
+  Future<void> _createNote(BuildContext ctx, String title) async {
+    if (title.trim().isEmpty) {
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        const SnackBar(content: Text('标题不能为空'), duration: Duration(seconds: 2)),
+      );
+      return;
+    }
+    try {
+      final repo = ref.read(noteRepositoryProvider);
+      final now = DateTime.now();
+      final trimmedTitle = title.trim();
+      final note = NoteModel(
+        id: repo.generateId(),
+        title: trimmedTitle,
+        rawMarkdown: '# $trimmedTitle\n\n',
+        filePath: '',
+        createdAt: now,
+        updatedAt: now,
+      );
+      final saved = await repo.saveNote(note);
+      await ref.read(sidebarProvider.notifier).loadNoteTree();
+      if (ctx.mounted) {
+        Navigator.pop(ctx);
+        ref.read(paneStackProvider.notifier).openPane(saved.id, saved.title);
+      }
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text('创建笔记失败: $e'), duration: const Duration(seconds: 2)),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(sidebarProvider);
 
     return Container(
@@ -102,17 +248,16 @@ class _SidebarContent extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          // ── 内容区标题（显示当前视图名称 + 折叠按钮）──
-          _SidebarContentHeader(currentView: state.currentView),
-          const Divider(height: 1, thickness: 0.5),
+          // ── 内容区头部栏（视图图标 + 标题 + 操作按钮）──
+          _buildSidebarHeader(state.currentView),
           // ── 内容区 ──
           Expanded(
             child: switch (state.currentView) {
-              SidebarView.noteTree => _NoteTreeView(onNoteSelected: onNoteSelected),
+              SidebarView.noteTree => _NoteTreeView(onNoteSelected: widget.onNoteSelected),
               SidebarView.calendar => const CalendarView(),
-              SidebarView.search => _SearchView(onNoteSelected: onNoteSelected),
-              SidebarView.tags => _TagView(onNoteSelected: onNoteSelected),
-              SidebarView.recent => _RecentView(onNoteSelected: onNoteSelected),
+              SidebarView.search => _SearchView(onNoteSelected: widget.onNoteSelected),
+              SidebarView.tags => _TagView(onNoteSelected: widget.onNoteSelected),
+              SidebarView.recent => _RecentView(onNoteSelected: widget.onNoteSelected),
               SidebarView.plugins => const _PluginPlaceholder(),
               SidebarView.outline => OutlinePanel(
                   onHeadingTap: (offset) {
@@ -127,10 +272,10 @@ class _SidebarContent extends ConsumerWidget {
                 ),
               SidebarView.backlinks => BacklinksPanel(
                   onNoteTap: (noteId, title) {
-                    onNoteSelected?.call(noteId, title);
+                    widget.onNoteSelected?.call(noteId, title);
                   },
                 ),
-              SidebarView.tasks => _TaskView(onNoteSelected: onNoteSelected),
+              SidebarView.tasks => _TaskView(onNoteSelected: widget.onNoteSelected),
               SidebarView.trash => TrashPanel(
                   onRestore: () {
                     ref.read(sidebarProvider.notifier).loadNoteTree();
@@ -167,7 +312,7 @@ class _ActivityBar extends ConsumerWidget {
     return Container(
       width: SidebarLayout.activityBarWidth,
       decoration: const BoxDecoration(
-        color: AeroColors.bgDeep,
+        color: AeroColors.bgSurface,
         border: Border(
           right: BorderSide(color: AeroColors.divider, width: 0.5),
         ),
@@ -388,13 +533,15 @@ class _ActivityIconState extends State<_ActivityIcon> {
                 if (widget.isActive)
                   Positioned(
                     left: 0,
-                    top: 10,
-                    bottom: 10,
+                    top: 9,
+                    bottom: 9,
                     child: Container(
-                      width: 2,
+                      width: 3,
                       decoration: BoxDecoration(
                         color: AeroColors.accentBlue,
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: const BorderRadius.horizontal(
+                          right: Radius.circular(2),
+                        ),
                       ),
                     ),
                   ),
@@ -468,101 +615,6 @@ class _ResizerState extends State<_Resizer> {
         ),
       ),
     );
-  }
-}
-
-/// 侧边栏内容区标题栏
-class _SidebarContentHeader extends ConsumerWidget {
-  final SidebarView currentView;
-
-  const _SidebarContentHeader({required this.currentView});
-
-  String get _viewName {
-    switch (currentView) {
-      case SidebarView.noteTree: return '笔记';
-      case SidebarView.calendar: return '日历';
-      case SidebarView.search: return '搜索';
-      case SidebarView.tags: return '标签';
-      case SidebarView.recent: return '最近编辑';
-      case SidebarView.plugins: return '插件';
-      case SidebarView.outline: return '大纲';
-      case SidebarView.backlinks: return '反向链接';
-      case SidebarView.tasks: return '任务';
-      case SidebarView.trash: return '回收站';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      height: 34,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          Text(
-            _viewName,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AeroColors.textSecondary,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const Spacer(),
-          if (currentView == SidebarView.noteTree)
-            IconButton(
-              icon: const Icon(Icons.add, size: 16, color: AeroColors.textSecondary),
-              tooltip: '新建笔记',
-              onPressed: () => _showNewNoteFromHeader(context, ref),
-              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-              padding: EdgeInsets.zero,
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _showNewNoteFromHeader(BuildContext context, WidgetRef ref) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => _NewNoteDialog(
-        onSubmit: (title) => _createNote(ctx, title, ref),
-      ),
-    );
-  }
-
-  Future<void> _createNote(BuildContext ctx, String title, WidgetRef ref) async {
-    if (title.trim().isEmpty) {
-      ScaffoldMessenger.of(ctx).showSnackBar(
-        const SnackBar(content: Text('标题不能为空'), duration: Duration(seconds: 2)),
-      );
-      return;
-    }
-    try {
-      final repo = ref.read(noteRepositoryProvider);
-      final now = DateTime.now();
-      final trimmedTitle = title.trim();
-      final note = NoteModel(
-        id: repo.generateId(),
-        title: trimmedTitle,
-        rawMarkdown: '# $trimmedTitle\n\n',
-        filePath: '',
-        createdAt: now,
-        updatedAt: now,
-      );
-      final saved = await repo.saveNote(note);
-      await ref.read(sidebarProvider.notifier).loadNoteTree();
-      if (ctx.mounted) {
-        Navigator.pop(ctx);
-        ref.read(paneStackProvider.notifier).openPane(saved.id, saved.title);
-      }
-    } catch (e) {
-      if (ctx.mounted) {
-        ScaffoldMessenger.of(ctx).showSnackBar(
-          SnackBar(content: Text('创建笔记失败: $e'), duration: const Duration(seconds: 2)),
-        );
-      }
-    }
   }
 }
 
@@ -818,62 +870,94 @@ class _NoteTreeTile extends ConsumerStatefulWidget {
 }
 
 class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
+  bool _isHovering = false;
+
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: widget.onTap,
-      onSecondaryTap: _showContextMenu,
-      onLongPress: _showContextMenu,
-      child: Container(
-        height: 28,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        color: widget.isSelected
-            ? AeroColors.accentBlue.withValues(alpha: 0.1)
-            : Colors.transparent,
-        child: Row(
-          children: [
-            Icon(
-              widget.node.isFolder
-                  ? (widget.node.isExpanded
-                      ? Icons.folder_open
-                      : Icons.folder_outlined)
-                  : Icons.description_outlined,
-              size: 14,
-              color: widget.node.isFolder
-                  ? AeroColors.accentOrange
-                  : AeroColors.textSecondary,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                widget.node.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: widget.isSelected
-                      ? AeroColors.accentBlue
-                      : AeroColors.textPrimary,
-                ),
-              ),
-            ),
-            if (widget.node.tags.isNotEmpty)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: AeroColors.accentPurple.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Text(
-                  widget.node.tags.first,
-                  style: const TextStyle(
-                    color: AeroColors.accentPurple,
-                    fontSize: 9,
+    final bgColor = widget.isSelected
+        ? AeroColors.accentBlue.withValues(alpha: 0.12)
+        : _isHovering
+            ? AeroColors.bgHover
+            : Colors.transparent;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onSecondaryTap: _showContextMenu,
+        onLongPress: _showContextMenu,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOutCubic,
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          color: bgColor,
+          child: Stack(
+            children: [
+              if (widget.isSelected)
+                Positioned(
+                  left: 0,
+                  top: 5,
+                  bottom: 5,
+                  child: Container(
+                    width: 2,
+                    decoration: BoxDecoration(
+                      color: AeroColors.accentBlue,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
+              Row(
+                children: [
+                  Icon(
+                    widget.node.isFolder
+                        ? (widget.node.isExpanded
+                            ? Icons.folder_open
+                            : Icons.folder_outlined)
+                        : Icons.description_outlined,
+                    size: 14,
+                    color: widget.node.isFolder
+                        ? AeroColors.accentYellow
+                        : AeroColors.textSecondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      widget.node.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: widget.isSelected
+                            ? AeroColors.accentBlue
+                            : AeroColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (widget.node.tags.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: AeroColors.accentPurple.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: Text(
+                        widget.node.tags.first,
+                        style: const TextStyle(
+                          color: AeroColors.accentPurple,
+                          fontSize: 9,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1181,50 +1265,16 @@ class _SearchViewState extends ConsumerState<_SearchView> {
         // 搜索输入框
         Padding(
           padding: const EdgeInsets.all(8),
-          child: TextField(
+          child: SearchInput(
             controller: _controller,
             focusNode: _focusNode,
-            style: const TextStyle(
-                color: AeroColors.textPrimary, fontSize: 12),
-            decoration: InputDecoration(
-              hintText: '搜索笔记...',
-              hintStyle: const TextStyle(color: AeroColors.textMuted),
-              prefixIcon:
-                  const Icon(Icons.search, size: 16, color: AeroColors.textMuted),
-              suffixIcon: _controller.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.close,
-                          size: 14, color: AeroColors.textMuted),
-                      onPressed: () {
-                        _controller.clear();
-                        ref.read(sidebarProvider.notifier).clearSearch();
-                      },
-                      splashRadius: 12,
-                    )
-                  : null,
-              filled: true,
-              fillColor: AeroColors.bgDeep,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
-                borderSide: const BorderSide(color: AeroColors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
-                borderSide:
-                    const BorderSide(color: AeroColors.border, width: 0.5),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
-                borderSide:
-                    const BorderSide(color: AeroColors.accentBlue, width: 1),
-              ),
-              isDense: true,
-            ),
+            hintText: '搜索笔记...',
+            height: 32,
             onChanged: (q) {
-              setState(() {});
               ref.read(sidebarProvider.notifier).search(q);
+            },
+            onClear: () {
+              ref.read(sidebarProvider.notifier).clearSearch();
             },
           ),
         ),

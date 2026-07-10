@@ -39,7 +39,8 @@ class AiChatPanel extends ConsumerStatefulWidget {
   ConsumerState<AiChatPanel> createState() => _AiChatPanelState();
 }
 
-class _AiChatPanelState extends ConsumerState<AiChatPanel> {
+class _AiChatPanelState extends ConsumerState<AiChatPanel>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
@@ -50,12 +51,38 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
   /// 是否正在等待 AI 响应
   bool _isLoading = false;
 
+  /// 输入框是否有内容（控制发送按钮显示）
+  bool _hasInputText = false;
+
+  /// 打字指示器动画控制器
+  late final AnimationController _typingController;
+
+  @override
+  void initState() {
+    super.initState();
+    _inputController.addListener(_onInputChanged);
+    _typingController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
   @override
   void dispose() {
+    _inputController.removeListener(_onInputChanged);
     _inputController.dispose();
     _scrollController.dispose();
     _inputFocusNode.dispose();
+    _typingController.dispose();
     super.dispose();
+  }
+
+  void _onInputChanged() {
+    if (mounted) {
+      setState(() {
+        _hasInputText = _inputController.text.trim().isNotEmpty;
+      });
+    }
   }
 
   /// 获取已激活的 AiChatPlugin 实例
@@ -132,6 +159,12 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
     setState(() {
       _messages.clear();
     });
+  }
+
+  /// 发送快速操作消息
+  void _sendQuickAction(String text) {
+    _inputController.text = text;
+    _sendMessage();
   }
 
   @override
@@ -358,11 +391,13 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
               _buildQuickActionChip(
                 icon: Icons.summarize,
                 label: '总结当前笔记',
+                onTap: () => _sendQuickAction('请总结当前笔记的主要内容'),
               ),
               const SizedBox(height: 6),
               _buildQuickActionChip(
                 icon: Icons.lightbulb_outline,
                 label: '生成相关想法',
+                onTap: () => _sendQuickAction('基于当前笔记内容，生成一些相关的想法和延伸思考'),
               ),
             ],
           ),
@@ -383,28 +418,15 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
     );
   }
 
-  Widget _buildQuickActionChip({required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: AeroColors.bgElevated,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AeroColors.border, width: 0.5),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: AeroColors.accentPurple),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AeroColors.textSecondary,
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
+  Widget _buildQuickActionChip({
+    required IconData icon,
+    required String label,
+    VoidCallback? onTap,
+  }) {
+    return _HoverChip(
+      icon: icon,
+      label: label,
+      onTap: onTap,
     );
   }
 
@@ -432,25 +454,49 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
               children: [
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isUser
-                        ? AeroColors.accentBlue.withValues(alpha: 0.15)
-                        : AeroColors.bgElevated,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: isUser
-                          ? AeroColors.accentBlue.withValues(alpha: 0.3)
-                          : AeroColors.border,
-                      width: 0.5,
+                    gradient: isUser
+                        ? const LinearGradient(
+                            colors: [AeroColors.accentBlue, AeroColors.accentPurple],
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                          )
+                        : null,
+                    color: isUser ? null : AeroColors.bgElevated,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(isUser ? 8 : 4),
+                      topRight: Radius.circular(isUser ? 4 : 8),
+                      bottomLeft: const Radius.circular(8),
+                      bottomRight: const Radius.circular(8),
                     ),
+                    border: isUser
+                        ? null
+                        : Border.all(color: AeroColors.border, width: 0.5),
                   ),
-                  child: SelectableText(
-                    msg.content,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AeroColors.textPrimary,
-                          height: 1.4,
-                        ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: isUser
+                          ? null
+                          : const Border(
+                              left: BorderSide(
+                                color: AeroColors.accentCyan,
+                                width: 2,
+                              ),
+                            ),
+                    ),
+                    padding: isUser
+                        ? EdgeInsets.zero
+                        : const EdgeInsets.only(left: 8),
+                    child: SelectableText(
+                      msg.content,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: isUser
+                                ? Colors.white
+                                : AeroColors.textPrimary,
+                            height: 1.6,
+                          ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -484,20 +530,28 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
               size: 14, color: AeroColors.accentCyan),
           const SizedBox(width: 4),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: AeroColors.bgElevated,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(4),
+                topRight: Radius.circular(8),
+                bottomLeft: Radius.circular(8),
+                bottomRight: Radius.circular(8),
+              ),
               border: Border.all(color: AeroColors.border, width: 0.5),
             ),
-            child: const SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.5,
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(AeroColors.accentCyan),
+            child: Container(
+              decoration: const BoxDecoration(
+                border: Border(
+                  left: BorderSide(
+                    color: AeroColors.accentCyan,
+                    width: 2,
+                  ),
+                ),
               ),
+              padding: const EdgeInsets.only(left: 8),
+              child: _TypingIndicator(controller: _typingController),
             ),
           ),
         ],
@@ -549,7 +603,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
                             ),
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 6),
+                        horizontal: 8, vertical: 8),
                     filled: true,
                     fillColor: AeroColors.bgSurface,
                     border: OutlineInputBorder(
@@ -565,21 +619,23 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(4),
                       borderSide: const BorderSide(
-                          color: AeroColors.accentBlue, width: 0.5),
+                          color: AeroColors.accentPurple, width: 0.5),
+                    ),
+                    constraints: const BoxConstraints(
+                      minHeight: 32,
+                      maxHeight: 100,
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 4),
-          IconButton(
-            icon: const Icon(Icons.send, size: 16),
-            color: AeroColors.accentBlue,
-            onPressed: _isLoading ? null : _sendMessage,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          ),
+          if (_hasInputText && !_isLoading) ...[
+            const SizedBox(width: 4),
+            _SendButton(
+              onTap: _sendMessage,
+            ),
+          ],
         ],
       ),
     );
@@ -590,13 +646,11 @@ class _IconButton extends StatefulWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
-  final double size;
 
   const _IconButton({
     required this.icon,
     required this.tooltip,
     required this.onTap,
-    this.size = 16,
   });
 
   @override
@@ -646,11 +700,171 @@ class _IconButtonState extends State<_IconButton> {
             ),
             child: Icon(
               widget.icon,
-              size: widget.size,
+              size: 16,
               color: _isHovering
                   ? AeroColors.textPrimary
                   : AeroColors.textMuted,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 可悬停可点击的快速操作芯片
+class _HoverChip extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _HoverChip({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
+
+  @override
+  State<_HoverChip> createState() => _HoverChipState();
+}
+
+class _HoverChipState extends State<_HoverChip> {
+  bool _isHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final canTap = widget.onTap != null;
+    return MouseRegion(
+      cursor: canTap ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: canTap ? (_) => setState(() => _isHovering = true) : null,
+      onExit: canTap ? (_) => setState(() => _isHovering = false) : null,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: _isHovering ? AeroColors.bgDeep : AeroColors.bgElevated,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _isHovering ? AeroColors.accentPurple : AeroColors.border,
+              width: 0.5,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.icon, size: 12, color: AeroColors.accentPurple),
+              const SizedBox(width: 6),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  color: AeroColors.textSecondary,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 打字指示器 — 三个跳动圆点
+class _TypingIndicator extends StatelessWidget {
+  final AnimationController controller;
+
+  const _TypingIndicator({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildDot(0),
+            const SizedBox(width: 3),
+            _buildDot(1),
+            const SizedBox(width: 3),
+            _buildDot(2),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDot(int index) {
+    final delay = index * 0.15;
+    final t = (controller.value + delay) % 1.0;
+    final double translateY;
+
+    if (t < 0.25) {
+      translateY = -4 * (t / 0.25);
+    } else if (t < 0.5) {
+      translateY = -4 * (1 - (t - 0.25) / 0.25);
+    } else {
+      translateY = 0;
+    }
+
+    return Transform.translate(
+      offset: Offset(0, translateY),
+      child: Container(
+        width: 6,
+        height: 6,
+        decoration: const BoxDecoration(
+          color: AeroColors.accentCyan,
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+}
+
+/// 发送按钮（带悬停效果）
+class _SendButton extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const _SendButton({required this.onTap});
+
+  @override
+  State<_SendButton> createState() => _SendButtonState();
+}
+
+class _SendButtonState extends State<_SendButton> {
+  bool _isHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            gradient: _isHovering
+                ? const LinearGradient(
+                    colors: [AeroColors.accentBlue, AeroColors.accentPurple],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  )
+                : null,
+            color: _isHovering ? null : AeroColors.accentPurple.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Icon(
+            Icons.send,
+            size: 14,
+            color: _isHovering ? Colors.white : AeroColors.accentPurple,
           ),
         ),
       ),

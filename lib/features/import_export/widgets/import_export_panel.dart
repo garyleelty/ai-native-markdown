@@ -17,15 +17,19 @@ import 'package:uuid/uuid.dart';
 import '../../../core/builtin_plugins/export_plugin.dart';
 import '../../../core/models/note_model.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/dialog_header.dart';
+import '../../../core/widgets/modal_overlay.dart';
 import '../../../providers/note_provider.dart';
 
 class ImportExportPanel extends ConsumerStatefulWidget {
   final String? activeNoteId;
+  final bool isOpen;
   final VoidCallback onClose;
 
   const ImportExportPanel({
     super.key,
     this.activeNoteId,
+    required this.isOpen,
     required this.onClose,
   });
 
@@ -39,167 +43,113 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: Material(
-        color: Colors.black54,
-        child: Center(
-          child: Container(
-            width: 480,
-            constraints: const BoxConstraints(maxHeight: 560),
-            decoration: BoxDecoration(
-              color: AeroColors.bgSurface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AeroColors.border, width: 0.5),
-              boxShadow: const [
-                BoxShadow(color: AeroColors.shadow, blurRadius: 24),
-              ],
+    return ModalOverlay(
+      isOpen: widget.isOpen,
+      onClose: widget.onClose,
+      child: DialogContainer(
+        width: 480,
+        height: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DialogHeader(
+              icon: Icons.import_export,
+              iconColor: AeroColors.accentBlue,
+              title: '导入 / 导出',
+              badgeText: _busy ? '处理中...' : null,
+              badgeColor: AeroColors.accentBlue,
+              onClose: widget.onClose,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildHeader(),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.all(20),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  _Section(
+                    title: '导出当前笔记',
+                    subtitle: widget.activeNoteId == null
+                        ? '当前没有打开的笔记'
+                        : '将当前笔记导出到文件',
+                    enabled: widget.activeNoteId != null,
                     children: [
-                      _Section(
-                        title: '导出当前笔记',
-                        subtitle: widget.activeNoteId == null
-                            ? '当前没有打开的笔记'
-                            : '将当前笔记导出到文件',
-                        enabled: widget.activeNoteId != null,
-                        children: [
-                          _ActionRow(
-                            icon: Icons.text_snippet_outlined,
-                            label: '纯文本 (.txt)',
-                            onTap: () => _exportCurrent('txt'),
-                          ),
-                          _ActionRow(
-                            icon: Icons.html_outlined,
-                            label: 'HTML (.html)',
-                            onTap: () => _exportCurrent('html'),
-                          ),
-                          _ActionRow(
-                            icon: Icons.data_object,
-                            label: 'JSON (.json)',
-                            onTap: () => _exportCurrent('json'),
-                          ),
-                        ],
+                      _ActionRow(
+                        icon: Icons.text_snippet_outlined,
+                        label: '纯文本 (.txt)',
+                        onTap: () => _exportCurrent('txt'),
                       ),
-                      const SizedBox(height: 16),
-                      _Section(
-                        title: '导出全部笔记',
-                        subtitle: '将所有笔记打包为 JSON 文件',
-                        children: [
-                          _ActionRow(
-                            icon: Icons.archive_outlined,
-                            label: '导出全部为 JSON',
-                            onTap: _exportAll,
-                          ),
-                          _ActionRow(
-                            icon: Icons.content_copy,
-                            label: '复制全部 JSON 到剪贴板',
-                            onTap: _copyAllToClipboard,
-                          ),
-                        ],
+                      _ActionRow(
+                        icon: Icons.html_outlined,
+                        label: 'HTML (.html)',
+                        onTap: () => _exportCurrent('html'),
                       ),
-                      const SizedBox(height: 16),
-                      _Section(
-                        title: '从 JSON 导入',
-                        subtitle: '从导出的 JSON 文件中恢复笔记（合并模式）',
-                        children: [
-                          _ActionRow(
-                            icon: Icons.file_upload_outlined,
-                            label: '选择 JSON 文件导入',
-                            onTap: _importFromJson,
-                          ),
-                        ],
+                      _ActionRow(
+                        icon: Icons.data_object,
+                        label: 'JSON (.json)',
+                        onTap: () => _exportCurrent('json'),
                       ),
-                      if (_status != null) ...[
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AeroColors.bgElevated,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AeroColors.border, width: 0.5),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.info_outline,
-                                  size: 14, color: AeroColors.accentCyan),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _status!,
-                                  style: const TextStyle(
-                                    color: AeroColors.textSecondary,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
                     ],
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: AeroColors.bgElevated,
-        border: Border(
-          bottom: BorderSide(color: AeroColors.divider, width: 0.5),
-        ),
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(8),
-          topRight: Radius.circular(8),
-        ),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.import_export,
-              size: 18, color: AeroColors.accentBlue),
-          const SizedBox(width: 8),
-          const Text(
-            '导入 / 导出',
-            style: TextStyle(
-              color: AeroColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const Spacer(),
-          if (_busy)
-            const Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.5,
-                  color: AeroColors.accentBlue,
-                ),
+                  const SizedBox(height: 16),
+                  _Section(
+                    title: '导出全部笔记',
+                    subtitle: '将所有笔记打包为 JSON 文件',
+                    children: [
+                      _ActionRow(
+                        icon: Icons.archive_outlined,
+                        label: '导出全部为 JSON',
+                        onTap: _exportAll,
+                      ),
+                      _ActionRow(
+                        icon: Icons.content_copy,
+                        label: '复制全部 JSON 到剪贴板',
+                        onTap: _copyAllToClipboard,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _Section(
+                    title: '从 JSON 导入',
+                    subtitle: '从导出的 JSON 文件中恢复笔记（合并模式）',
+                    children: [
+                      _ActionRow(
+                        icon: Icons.file_upload_outlined,
+                        label: '选择 JSON 文件导入',
+                        onTap: _importFromJson,
+                      ),
+                    ],
+                  ),
+                  if (_status != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AeroColors.bgSurface,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AeroColors.border, width: 0.5),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline,
+                              size: 14, color: AeroColors.accentCyan),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _status!,
+                              style: const TextStyle(
+                                color: AeroColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-          IconButton(
-            icon: const Icon(Icons.close,
-                size: 16, color: AeroColors.textSecondary),
-            onPressed: widget.onClose,
-            splashRadius: 14,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -458,7 +408,7 @@ class _Section extends StatelessWidget {
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
-              color: AeroColors.bgElevated,
+              color: AeroColors.bgSurface,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: AeroColors.border, width: 0.5),
             ),

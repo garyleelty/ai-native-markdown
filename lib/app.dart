@@ -102,10 +102,6 @@ class _AppShellState extends ConsumerState<_AppShell>
   late AnimationController _graphAnimController;
   late Animation<double> _graphAnimation;
 
-  /// 模态覆盖层淡入动画控制器
-  late AnimationController _overlayAnimController;
-  late Animation<double> _overlayAnimation;
-
   /// 图谱按钮的位置（用于圆形展开动画起点）
   Offset _graphButtonPosition = Offset.zero;
   /// 命令快捷键 FocusNode
@@ -148,14 +144,6 @@ class _AppShellState extends ConsumerState<_AppShell>
     );
     _graphAnimation = CurvedAnimation(
       parent: _graphAnimController,
-      curve: Curves.easeOutCubic,
-    );
-    _overlayAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    _overlayAnimation = CurvedAnimation(
-      parent: _overlayAnimController,
       curve: Curves.easeOutCubic,
     );
     _shortcutFocusNode = FocusNode();
@@ -499,7 +487,6 @@ class _AppShellState extends ConsumerState<_AppShell>
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKeyEvent);
     _graphAnimController.dispose();
-    _overlayAnimController.dispose();
     _shortcutFocusNode.dispose();
     _pluginApi?.dispose();
     PluginRegistry.instance.disposeAll();
@@ -512,8 +499,6 @@ class _AppShellState extends ConsumerState<_AppShell>
     _closeAllProviderOverlays();
     if (type == OverlayType.knowledgeGraph) {
       _graphAnimController.forward(from: 0.0);
-    } else {
-      _overlayAnimController.forward(from: 0.0);
     }
     setState(() => _activeOverlay = type);
   }
@@ -525,9 +510,7 @@ class _AppShellState extends ConsumerState<_AppShell>
         if (mounted) setState(() => _activeOverlay = null);
       });
     } else {
-      _overlayAnimController.reverse().then((_) {
-        if (mounted) setState(() => _activeOverlay = null);
-      });
+      setState(() => _activeOverlay = null);
     }
   }
 
@@ -568,8 +551,6 @@ class _AppShellState extends ConsumerState<_AppShell>
     if (_activeOverlay != null) {
       if (_activeOverlay == OverlayType.knowledgeGraph) {
         _graphAnimController.value = 0.0;
-      } else {
-        _overlayAnimController.value = 0.0;
       }
       setState(() => _activeOverlay = null);
     }
@@ -844,9 +825,6 @@ class _AppShellState extends ConsumerState<_AppShell>
       _hideOverlay();
     } else {
       _closeAllProviderOverlays();
-      if (_activeOverlay != null) {
-        _overlayAnimController.value = 0.0;
-      }
       setState(() {
         _graphButtonPosition = buttonPosition;
         _activeOverlay = OverlayType.knowledgeGraph;
@@ -1062,38 +1040,27 @@ class _AppShellState extends ConsumerState<_AppShell>
                 },
               ),
 
-              // ── 模态覆盖层（设置/快捷键/欢迎/导入导出，统一动画）──
-              if (_activeOverlay == OverlayType.settings)
-                Positioned.fill(
-                  child: FadeTransition(
-                    opacity: _overlayAnimation,
-                    child: SettingsPage(onClose: _hideOverlay),
-                  ),
-                ),
-              if (_activeOverlay == OverlayType.cheatsheet)
-                FadeTransition(
-                  opacity: _overlayAnimation,
-                  child: KeyboardCheatsheetOverlay(onClose: _hideOverlay),
-                ),
-              if (_activeOverlay == OverlayType.welcome)
-                FadeTransition(
-                  opacity: _overlayAnimation,
-                  child: WelcomePage(
-                    onClose: _hideOverlay,
-                    onShowShortcuts: () {
-                      setState(() => _activeOverlay = OverlayType.cheatsheet);
-                      _overlayAnimController.forward(from: 0.0);
-                    },
-                  ),
-                ),
-              if (_activeOverlay == OverlayType.importExport)
-                FadeTransition(
-                  opacity: _overlayAnimation,
-                  child: ImportExportPanel(
-                    activeNoteId: ref.watch(paneStackProvider).activeNoteId,
-                    onClose: _hideOverlay,
-                  ),
-                ),
+              // ── 模态覆盖层（设置/快捷键/导入导出/欢迎页，使用 ModalOverlay 统一动画）──
+              SettingsPage(
+                isOpen: _activeOverlay == OverlayType.settings,
+                onClose: _hideOverlay,
+              ),
+              KeyboardCheatsheetOverlay(
+                isOpen: _activeOverlay == OverlayType.cheatsheet,
+                onClose: _hideOverlay,
+              ),
+              ImportExportPanel(
+                isOpen: _activeOverlay == OverlayType.importExport,
+                activeNoteId: ref.watch(paneStackProvider).activeNoteId,
+                onClose: _hideOverlay,
+              ),
+              WelcomePage(
+                isOpen: _activeOverlay == OverlayType.welcome,
+                onClose: _hideOverlay,
+                onShowShortcuts: () {
+                  setState(() => _activeOverlay = OverlayType.cheatsheet);
+                },
+              ),
                 ],
               );
             },

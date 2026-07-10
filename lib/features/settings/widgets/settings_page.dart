@@ -9,16 +9,23 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/dialog_header.dart';
+import '../../../core/widgets/modal_overlay.dart';
 import '../../../core/plugin/plugin_registry.dart';
 import '../../../features/ai_engine/services/entity_recognizer.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/git_backup_provider.dart';
 
-/// 设置页面 (全屏覆盖层)
+/// 设置页面
 class SettingsPage extends ConsumerStatefulWidget {
+  final bool isOpen;
   final VoidCallback? onClose;
 
-  const SettingsPage({super.key, this.onClose});
+  const SettingsPage({
+    super.key,
+    required this.isOpen,
+    this.onClose,
+  });
 
   @override
   ConsumerState<SettingsPage> createState() => _SettingsPageState();
@@ -37,127 +44,76 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black54,
-      child: GestureDetector(
-        onTap: widget.onClose,
-        behavior: HitTestBehavior.opaque,
-        child: Center(
-          child: GestureDetector(
-            onTap: () {},
-            child: Container(
-              width: 800,
-              height: 600,
-              decoration: BoxDecoration(
-                color: AeroColors.bgDeep,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AeroColors.border, width: 0.5),
-                boxShadow: const [
-                  BoxShadow(color: AeroColors.shadow, blurRadius: 24),
+    return ModalOverlay(
+      isOpen: widget.isOpen,
+      onClose: widget.onClose ?? () {},
+      child: DialogContainer(
+        width: 800,
+        height: 600,
+        child: Column(
+          children: [
+            DialogHeader(
+              icon: Icons.settings_outlined,
+              iconColor: AeroColors.accentBlue,
+              title: '设置',
+              onClose: widget.onClose,
+            ),
+            Expanded(
+              child: Row(
+                children: [
+                  Container(
+                    width: 160,
+                    decoration: const BoxDecoration(
+                      color: AeroColors.bgSurface,
+                      border: Border(
+                        right: BorderSide(color: AeroColors.divider, width: 0.5),
+                      ),
+                    ),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: _sections.length,
+                      itemBuilder: (context, index) {
+                        final section = _sections[index];
+                        final isSelected = index == _selectedSection;
+                        return InkWell(
+                          onTap: () => setState(() => _selectedSection = index),
+                          child: Container(
+                            height: 36,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            color: isSelected
+                                ? AeroColors.accentBlue.withValues(alpha: 0.08)
+                                : Colors.transparent,
+                            child: Row(
+                              children: [
+                                Icon(section.icon,
+                                    size: 16,
+                                    color: isSelected
+                                        ? AeroColors.accentBlue
+                                        : AeroColors.textSecondary),
+                                const SizedBox(width: 10),
+                                Text(
+                                  section.label,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: isSelected
+                                        ? AeroColors.accentBlue
+                                        : AeroColors.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildSectionContent(),
+                  ),
                 ],
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Column(
-                  children: [
-                    // ── 标题栏 ──
-                    Container(
-                      height: 44,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: const BoxDecoration(
-                        color: AeroColors.bgElevated,
-                        border: Border(
-                          bottom: BorderSide(color: AeroColors.divider, width: 0.5),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.settings_outlined,
-                              size: 18, color: AeroColors.accentBlue),
-                          const SizedBox(width: 8),
-                          const Text(
-                            '设置',
-                            style: TextStyle(
-                              color: AeroColors.textPrimary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.close,
-                                size: 18, color: AeroColors.textSecondary),
-                            onPressed: widget.onClose,
-                            splashRadius: 16,
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // ── 内容区 ──
-                    Expanded(
-                      child: Row(
-                        children: [
-                          // 左侧导航
-                          Container(
-                            width: 160,
-                            decoration: const BoxDecoration(
-                              color: AeroColors.bgSurface,
-                              border: Border(
-                                right: BorderSide(color: AeroColors.divider, width: 0.5),
-                              ),
-                            ),
-                            child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              itemCount: _sections.length,
-                              itemBuilder: (context, index) {
-                                final section = _sections[index];
-                                final isSelected = index == _selectedSection;
-                                return InkWell(
-                                  onTap: () => setState(() => _selectedSection = index),
-                                  child: Container(
-                                    height: 36,
-                                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                                    color: isSelected
-                                        ? AeroColors.accentBlue.withValues(alpha: 0.08)
-                                        : Colors.transparent,
-                                    child: Row(
-                                      children: [
-                                        Icon(section.icon,
-                                            size: 16,
-                                            color: isSelected
-                                                ? AeroColors.accentBlue
-                                                : AeroColors.textSecondary),
-                                        const SizedBox(width: 10),
-                                        Text(
-                                          section.label,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: isSelected
-                                                ? AeroColors.accentBlue
-                                                : AeroColors.textPrimary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-
-                          // 右侧内容
-                          Expanded(
-                            child: _buildSectionContent(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -350,120 +306,36 @@ class _AISectionState extends ConsumerState<_AISection> {
         _SettingsGroup(
           title: '远程 LLM (OpenAI 兼容)',
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('API 端点',
-                      style: TextStyle(
-                          color: AeroColors.textPrimary, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _endpointCtrl,
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      hintText: 'https://api.openai.com/v1',
-                      hintStyle: const TextStyle(
-                          color: AeroColors.textMuted, fontSize: 11),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 8),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide:
-                            const BorderSide(color: AeroColors.divider),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: const BorderSide(color: AeroColors.accentBlue),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    onSubmitted: notifier.setLlmApiEndpoint,
-                  ),
-                ],
+            _buildTextField(
+              controller: _endpointCtrl,
+              label: 'API 端点',
+              hint: 'https://api.openai.com/v1',
+              onSubmitted: notifier.setLlmApiEndpoint,
+            ),
+            _buildTextField(
+              controller: _apiKeyCtrl,
+              label: 'API Key',
+              hint: 'sk-...',
+              obscureText: _obscureKey,
+              onSubmitted: notifier.setLlmApiKey,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscureKey
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 14,
+                  color: AeroColors.textMuted,
+                ),
+                splashRadius: 12,
+                onPressed: () =>
+                    setState(() => _obscureKey = !_obscureKey),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('API Key',
-                      style: TextStyle(
-                          color: AeroColors.textPrimary, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _apiKeyCtrl,
-                    style: const TextStyle(fontSize: 12),
-                    obscureText: _obscureKey,
-                    decoration: InputDecoration(
-                      hintText: 'sk-...',
-                      hintStyle: const TextStyle(
-                          color: AeroColors.textMuted, fontSize: 11),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 8),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureKey
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          size: 14,
-                          color: AeroColors.textMuted,
-                        ),
-                        splashRadius: 12,
-                        onPressed: () => setState(
-                            () => _obscureKey = !_obscureKey),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide:
-                            const BorderSide(color: AeroColors.divider),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: const BorderSide(color: AeroColors.accentBlue),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    onSubmitted: notifier.setLlmApiKey,
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('模型',
-                      style: TextStyle(
-                          color: AeroColors.textPrimary, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _modelCtrl,
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      hintText: 'gpt-3.5-turbo',
-                      hintStyle: const TextStyle(
-                          color: AeroColors.textMuted, fontSize: 11),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 8),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide:
-                            const BorderSide(color: AeroColors.divider),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: const BorderSide(color: AeroColors.accentBlue),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    onSubmitted: notifier.setLlmModel,
-                  ),
-                ],
-              ),
+            _buildTextField(
+              controller: _modelCtrl,
+              label: '模型',
+              hint: 'gpt-3.5-turbo',
+              onSubmitted: notifier.setLlmModel,
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -506,6 +378,66 @@ class _AISectionState extends ConsumerState<_AISection> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    ValueChanged<String>? onSubmitted,
+    Widget? suffixIcon,
+    bool obscureText = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: AeroColors.textPrimary,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 4),
+          TextField(
+            controller: controller,
+            onSubmitted: onSubmitted,
+            obscureText: obscureText,
+            style: const TextStyle(
+              color: AeroColors.textPrimary,
+              fontSize: 12,
+            ),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(
+                color: AeroColors.textMuted,
+                fontSize: 12,
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              isDense: true,
+              filled: true,
+              fillColor: AeroColors.bgSurface,
+              suffixIcon: suffixIcon,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AeroColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AeroColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AeroColors.accentBlue),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

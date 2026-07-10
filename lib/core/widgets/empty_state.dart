@@ -7,6 +7,7 @@ class EmptyState extends StatelessWidget {
   final String? subtitle;
   final Widget? action;
   final double iconSize;
+  final Color? iconColor;
 
   const EmptyState({
     super.key,
@@ -14,34 +15,44 @@ class EmptyState extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.action,
-    this.iconSize = 48,
+    this.iconSize = 28,
+    this.iconColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final color = iconColor ?? AeroColors.textMuted;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: iconSize,
-              color: AeroColors.textMuted,
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                icon,
+                size: iconSize,
+                color: color,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: AeroColors.textSecondary,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AeroColors.textSecondary.withValues(alpha: 0.9),
               ),
               textAlign: TextAlign.center,
             ),
             if (subtitle != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 subtitle!,
                 style: const TextStyle(
@@ -53,7 +64,7 @@ class EmptyState extends StatelessWidget {
               ),
             ],
             if (action != null) ...[
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               action!,
             ],
           ],

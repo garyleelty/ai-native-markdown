@@ -146,15 +146,19 @@ class _ModalOverlayState extends State<ModalOverlay>
 class DialogContainer extends StatelessWidget {
   final Widget child;
   final double width;
-  final double height;
+  final double? height;
   final BorderRadius? borderRadius;
+  final Color? backgroundColor;
+  final List<BoxShadow>? shadows;
 
   const DialogContainer({
     super.key,
     required this.child,
     this.width = 640,
-    this.height = 520,
+    this.height,
     this.borderRadius,
+    this.backgroundColor,
+    this.shadows,
   });
 
   @override
@@ -163,15 +167,26 @@ class DialogContainer extends StatelessWidget {
     return Container(
       width: width,
       height: height,
+      constraints: height == null
+          ? const BoxConstraints(maxHeight: 600)
+          : null,
       decoration: BoxDecoration(
-        color: AeroColors.bgSurface,
+        color: backgroundColor ?? AeroColors.bgElevated,
         borderRadius: radius,
         border: Border.all(color: AeroColors.border, width: 0.5),
-        boxShadow: const [
-          BoxShadow(color: AeroColors.shadow, blurRadius: 24),
-        ],
+        boxShadow: shadows ??
+            const [
+              BoxShadow(
+                color: AeroColors.shadow,
+                blurRadius: 24,
+                offset: Offset(0, 8),
+              ),
+            ],
       ),
-      child: child,
+      child: ClipRRect(
+        borderRadius: radius,
+        child: child,
+      ),
     );
   }
 }

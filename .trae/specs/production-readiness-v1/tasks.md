@@ -710,3 +710,43 @@ Task 5 (插件系统) ──────┼── Task 7 (Git备份) ───�
   - `human-judgment` TR-16.3: 删除确认文案正确
 - **Notes**: 多项小的 UI polish
 
+---
+
+## [x] Task 17: UI 设计系统统一化 - 通用组件抽取
+- **Priority**: high
+- **Depends On**: Task 12
+- **Description**:
+  - 新增 `DialogHeader` 通用组件（图标+标题+计数+关闭按钮，44px 高度，bgElevated 背景）
+  - 新增 `SearchInput` 通用组件（前缀搜索图标+后缀清除按钮，bgDeep 背景，聚焦色 accentBlue）
+  - 增强 `ModalOverlay` 组件，支持更多配置选项
+  - 所有 Overlay 统一使用 bgElevated 背景色
+  - 选中项高亮统一为 accentBlue
+- **Acceptance Criteria Addressed**: 设计系统一致性
+- **Test Requirements**:
+  - `human-judgment` TR-17.1: 所有对话框标题栏样式一致
+  - `human-judgment` TR-17.2: 所有搜索框样式一致
+  - `human-judgment` TR-17.3: 所有对话框背景色一致
+  - `human-judgment` TR-17.4: 选中项颜色一致
+  - `programmatic` TR-17.5: 通用组件被正确复用（代码审查）
+- **Notes**: 关键文件：lib/core/widgets/modal_overlay.dart、lib/core/widgets/dialog_header.dart（新）、lib/core/widgets/search_input.dart（新）
+
+---
+
+## [x] Task 18: Overlay 面板统一应用新设计系统
+- **Priority**: high
+- **Depends On**: Task 17
+- **Description**:
+  - 命令面板重构：添加标题栏，使用 DialogHeader + SearchInput
+  - 快速跳转重构：统一选中色为 accentBlue，使用 SearchInput
+  - 插件管理重构：使用 DialogHeader + SearchInput
+  - 模板画廊重构：使用 DialogHeader + SearchInput，背景改为 bgElevated
+  - 设置页重构：标题栏统一，外层背景改为 bgElevated
+  - 快捷键速查重构：添加 DialogHeader
+  - 欢迎页保持渐变 Hero 设计（特殊页面例外）
+- **Acceptance Criteria Addressed**: 设计系统一致性
+- **Test Requirements**:
+  - `human-judgment` TR-18.1: 所有 7 个 Overlay 视觉风格统一
+  - `human-judgment` TR-18.2: 功能不受影响
+  - `programmatic` TR-18.3: 所有 89 个测试通过
+- **Notes**: 关键文件：各 overlay widget 文件
+

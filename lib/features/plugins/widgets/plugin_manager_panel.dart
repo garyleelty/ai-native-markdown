@@ -10,6 +10,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/dialog_header.dart';
+import '../../../core/widgets/modal_overlay.dart';
+import '../../../core/widgets/search_input.dart';
 import '../../../core/plugin/plugin_manifest.dart';
 import '../../../core/plugin/base_plugin.dart';
 import '../../../core/plugin/plugin_registry.dart';
@@ -17,149 +20,93 @@ import '../../../core/plugin/plugin_storage.dart';
 import '../../../providers/plugin_provider.dart';
 import 'plugin_settings_form.dart';
 
+IconData _pluginIcon(int codePoint) =>
+    IconData(codePoint, fontFamily: 'MaterialIcons');
+
 /// 插件管理面板覆盖层
-class PluginManagerOverlay extends ConsumerWidget {
+class PluginManagerOverlay extends ConsumerStatefulWidget {
   const PluginManagerOverlay({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PluginManagerOverlay> createState() =>
+      _PluginManagerOverlayState();
+}
+
+class _PluginManagerOverlayState extends ConsumerState<PluginManagerOverlay> {
+  late final TextEditingController _searchController;
+  late final FocusNode _searchFocusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+    _searchFocusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(pluginManagerProvider);
 
-    if (!state.isOpen) return const SizedBox.shrink();
-
-    return Material(
-      color: Colors.black54,
-      child: GestureDetector(
-        onTap: () => ref.read(pluginManagerProvider.notifier).close(),
-        behavior: HitTestBehavior.opaque,
-        child: Center(
-          child: GestureDetector(
-            onTap: () {},
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.95, end: 1.0),
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              builder: (context, scale, child) {
-                return Transform.scale(
-                  scale: scale,
-                  child: Opacity(
-                    opacity: (scale - 0.95) * 20,
-                    child: child,
-                  ),
-                );
-              },
-              child: _PluginManagerDialog(),
-            ),
-          ),
-        ),
+    return ModalOverlay(
+      isOpen: state.isOpen,
+      onClose: () => ref.read(pluginManagerProvider.notifier).close(),
+      child: _PluginManagerDialog(
+        searchController: _searchController,
+        searchFocusNode: _searchFocusNode,
       ),
     );
   }
 }
 
 class _PluginManagerDialog extends ConsumerWidget {
+  final TextEditingController searchController;
+  final FocusNode searchFocusNode;
+
+  const _PluginManagerDialog({
+    required this.searchController,
+    required this.searchFocusNode,
+  });
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(pluginManagerProvider);
 
-    return Container(
+    return DialogContainer(
       width: 640,
       height: 520,
-      decoration: BoxDecoration(
-        color: AeroColors.bgSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AeroColors.border, width: 0.5),
-        boxShadow: const [
-          BoxShadow(color: AeroColors.shadow, blurRadius: 24),
-        ],
-      ),
       child: Column(
         children: [
-          // ── 标题栏 ──
-          Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: const BoxDecoration(
-              color: AeroColors.bgElevated,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-              border: Border(
-                bottom: BorderSide(color: AeroColors.divider, width: 0.5),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.extension, size: 18, color: AeroColors.accentCyan),
-                const SizedBox(width: 8),
-                Text(
-                  state.selectedPluginId == null
-                      ? '插件管理'
-                      : (PluginRegistry.instance
-                              .getPlugin(state.selectedPluginId!)
-                              ?.manifest
-                              .name ??
-                          '插件设置'),
-                  style: const TextStyle(
-                    color: AeroColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                // 计数徽章仅在列表视图显示
-                if (state.selectedPluginId == null) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AeroColors.accentCyan.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '${state.activeCount}/${state.totalCount}',
-                      style: const TextStyle(
-                        color: AeroColors.accentCyan,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-                ],
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18, color: AeroColors.textSecondary),
-                  onPressed: () {
-                    ref.read(pluginManagerProvider.notifier).close();
-                  },
-                  splashRadius: 16,
-                ),
-              ],
-            ),
-          ),
+          // ── 标题栏（列表视图）/ 返回行（详情视图）──
+          if (state.selectedPluginId == null)
+            DialogHeader(
+              icon: Icons.extension,
+              iconColor: AeroColors.accentCyan,
+              title: '插件管理',
+              badgeText: '${state.activeCount}/${state.totalCount}',
+              badgeColor: AeroColors.accentCyan,
+              onClose: () {
+                ref.read(pluginManagerProvider.notifier).close();
+              },
+            )
+          else
+            _buildDetailHeader(context, ref, state.selectedPluginId!),
 
           // ── 搜索栏（仅列表视图显示）──
           if (state.selectedPluginId == null)
             Padding(
-              padding: const EdgeInsets.all(12),
-              child: TextField(
-                style: const TextStyle(color: AeroColors.textPrimary, fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: '搜索插件...',
-                  hintStyle: const TextStyle(color: AeroColors.textMuted),
-                  prefixIcon: const Icon(Icons.search, size: 18, color: AeroColors.textMuted),
-                  filled: true,
-                  fillColor: AeroColors.bgDeep,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    borderSide: const BorderSide(color: AeroColors.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    borderSide: const BorderSide(color: AeroColors.border, width: 0.5),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    borderSide: const BorderSide(color: AeroColors.accentBlue, width: 1),
-                  ),
-                ),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              child: SearchInput(
+                controller: searchController,
+                focusNode: searchFocusNode,
+                hintText: '搜索插件...',
+                height: 36,
                 onChanged: (q) {
                   ref.read(pluginManagerProvider.notifier).updateSearch(q);
                 },
@@ -173,7 +120,8 @@ class _PluginManagerDialog extends ConsumerWidget {
                     ? const Center(
                         child: Text(
                           '暂无插件',
-                          style: TextStyle(color: AeroColors.textMuted, fontSize: 13),
+                          style:
+                              TextStyle(color: AeroColors.textMuted, fontSize: 13),
                         ),
                       )
                     : ListView.builder(
@@ -185,11 +133,13 @@ class _PluginManagerDialog extends ConsumerWidget {
                             manifest: plugin.manifest,
                             state: plugin.state,
                             onToggle: () {
-                              ref.read(pluginManagerProvider.notifier)
+                              ref
+                                  .read(pluginManagerProvider.notifier)
                                   .togglePlugin(plugin.manifest.id);
                             },
                             onOpenSettings: () {
-                              ref.read(pluginManagerProvider.notifier)
+                              ref
+                                  .read(pluginManagerProvider.notifier)
                                   .openSettings(plugin.manifest.id);
                             },
                           );
@@ -204,14 +154,15 @@ class _PluginManagerDialog extends ConsumerWidget {
               height: 36,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: const BoxDecoration(
-                color: AeroColors.bgElevated,
+                color: AeroColors.bgSurface,
                 border: Border(
                   top: BorderSide(color: AeroColors.divider, width: 0.5),
                 ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline, size: 14, color: AeroColors.textMuted),
+                  const Icon(Icons.info_outline,
+                      size: 14, color: AeroColors.textMuted),
                   const SizedBox(width: 6),
                   Text(
                     '插件系统 v1.0 · ${state.totalCount} 个插件已注册',
@@ -223,6 +174,56 @@ class _PluginManagerDialog extends ConsumerWidget {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailHeader(
+      BuildContext context, WidgetRef ref, String pluginId) {
+    final plugin = PluginRegistry.instance.getPlugin(pluginId);
+    final manifest = plugin?.manifest;
+
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: const BoxDecoration(
+        color: AeroColors.bgSurface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        border: Border(
+          bottom: BorderSide(color: AeroColors.divider, width: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back,
+                size: 18, color: AeroColors.textSecondary),
+            onPressed: () {
+              ref.read(pluginManagerProvider.notifier).closeSettings();
+            },
+            tooltip: '返回',
+            splashRadius: 16,
+            padding: const EdgeInsets.all(4),
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          ),
+          const SizedBox(width: 8),
+          if (manifest != null) ...[
+            Icon(
+              _pluginIcon(manifest.iconCodePoint),
+              size: 18,
+              color: AeroColors.accentCyan,
+            ),
+            const SizedBox(width: 8),
+          ],
+          Text(
+            manifest?.name ?? '插件设置',
+            style: const TextStyle(
+              color: AeroColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -254,7 +255,7 @@ class _PluginTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: hasError
             ? AeroColors.accentOrange.withValues(alpha: 0.05)
-            : AeroColors.bgElevated,
+            : AeroColors.bgSurface,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: hasError
@@ -276,7 +277,7 @@ class _PluginTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              IconData(manifest.iconCodePoint, fontFamily: 'MaterialIcons'), // ignore: non_const_argument_for_const_parameter
+              _pluginIcon(manifest.iconCodePoint),
               size: 18,
               color: isActive ? AeroColors.accentCyan : AeroColors.textMuted,
             ),
@@ -379,7 +380,8 @@ class _PluginTile extends StatelessWidget {
           if (hasError)
             const Tooltip(
               message: '加载失败',
-              child: Icon(Icons.error_outline, size: 16, color: AeroColors.accentOrange),
+              child: Icon(Icons.error_outline,
+                  size: 16, color: AeroColors.accentOrange),
             )
           else
             SizedBox(
@@ -439,7 +441,7 @@ class _PluginSettingsDetail extends ConsumerWidget {
 
         return Column(
           children: [
-            // 顶部返回按钮 + 插件信息
+            // 插件信息行
             Container(
               padding: const EdgeInsets.all(12),
               decoration: const BoxDecoration(
@@ -449,18 +451,8 @@ class _PluginSettingsDetail extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back,
-                        size: 18, color: AeroColors.textSecondary),
-                    onPressed: () {
-                      ref.read(pluginManagerProvider.notifier).closeSettings();
-                    },
-                    tooltip: '返回',
-                    splashRadius: 16,
-                  ),
-                  const SizedBox(width: 8),
                   Icon(
-                    IconData(manifest.iconCodePoint, fontFamily: 'MaterialIcons'), // ignore: non_const_argument_for_const_parameter
+                    _pluginIcon(manifest.iconCodePoint),
                     size: 18,
                     color: AeroColors.accentCyan,
                   ),

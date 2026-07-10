@@ -102,6 +102,55 @@ class AeroTheme {
           thickness: 1,
           space: 0,
         ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: AeroColors.bgElevated,
+          foregroundColor: AeroColors.textPrimary,
+          shape: Border(
+            bottom: BorderSide(color: AeroColors.divider, width: 1),
+          ),
+        ),
+        iconTheme: const IconThemeData(
+          color: AeroColors.textSecondary,
+          size: 16,
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: AeroColors.accentBlue,
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AeroColors.textPrimary,
+            side: const BorderSide(color: AeroColors.border),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: AeroColors.accentBlue,
+            foregroundColor: AeroColors.textOnAccent,
+          ),
+        ),
+        textSelectionTheme: const TextSelectionThemeData(
+          cursorColor: AeroColors.accentBlue,
+          selectionColor: Color(0x33569CD6),
+          selectionHandleColor: AeroColors.accentBlue,
+        ),
+        scrollbarTheme: ScrollbarThemeData(
+          thumbColor: WidgetStateProperty.all(AeroColors.bgHover),
+          thickness: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered)) {
+              return 8;
+            }
+            return 6;
+          }),
+          radius: const Radius.circular(3),
+        ),
+        splashFactory: InkRipple.splashFactory,
+        snackBarTheme: const SnackBarThemeData(
+          backgroundColor: AeroColors.bgElevated,
+          contentTextStyle: TextStyle(color: AeroColors.textPrimary),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
 
   /// 面板卡片装饰 (含精细边框 + 阴影)
