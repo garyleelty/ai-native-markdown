@@ -61,16 +61,30 @@ abstract class PluginApi {
   /// 监听笔记打开事件
   void onNoteOpened(void Function(String noteId) callback);
 
+  /// 取消监听笔记打开事件
+  void offNoteOpened(void Function(String noteId) callback);
+
   /// 监听笔记保存事件
   void onNoteSaved(void Function(String noteId) callback);
+
+  /// 取消监听笔记保存事件
+  void offNoteSaved(void Function(String noteId) callback);
 
   /// 监听实体识别完成事件
   void onEntitiesRecognized(
     void Function(String noteId, List<EntityHighlight> entities) callback,
   );
 
+  /// 取消监听实体识别完成事件
+  void offEntitiesRecognized(
+    void Function(String noteId, List<EntityHighlight> entities) callback,
+  );
+
   /// 监听面板栈变化事件
   void onPaneStackChanged(void Function(List<String> openNoteIds) callback);
+
+  /// 取消监听面板栈变化事件
+  void offPaneStackChanged(void Function(List<String> openNoteIds) callback);
 
   // ── AI ──
 

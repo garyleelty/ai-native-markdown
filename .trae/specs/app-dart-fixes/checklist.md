@@ -1,0 +1,26 @@
+# Checklist
+
+- [x] 第170行（欢迎笔记）使用 repo.generateId() 生成ID
+- [x] 第323行（新建笔记）使用 repo.generateId() 生成ID
+- [x] 第374行（复制笔记）使用 repo.generateId() 生成ID
+- [x] _openTodayDailyNote 返回类型为 Future<void>
+- [x] _showRenameDialog 返回类型为 Future<void>
+- [x] _showDeleteConfirmDialog 返回类型为 Future<void>
+- [x] _buildGraphData 返回类型为 Future<void>
+- [x] _openTodayDailyNote 的 catch 块中有 debugPrint 记录错误
+- [x] dispose() 方法中调用了 HiveService.closeHive()
+- [x] _showRenameDialog 的 TextEditingController 在对话框关闭后被 dispose（使用 then 回调）
+- [x] _buildGraphData 有 try-catch 包裹，异常时调用 _buildDemoGraph() 并 debugPrint
+- [x] _closeAllOverlays 重命名为 _closeTopOverlay，ESC 键调用它
+- [x] 新增 _closeAllOverlays() 方法，关闭所有 overlay
+- [x] 打开命令面板前调用 _closeAllOverlays()
+- [x] 打开 QuickSwitcher 前调用 _closeAllOverlays()
+- [x] 打开模板画廊前调用 _closeAllOverlays()
+- [x] 打开插件管理前调用 _closeAllOverlays()
+- [x] 打开设置前调用 _closeAllOverlays()
+- [x] 打开图谱前调用 _closeAllOverlays()
+- [x] 打开快捷键速查表前调用 _closeAllOverlays()
+- [x] 打开欢迎页面前调用 _closeAllOverlays()
+- [x] 打开导入导出面板前调用 _closeAllOverlays()
+- [x] 打开今天日记前不影响（不是overlay）
+- [x] 代码能通过静态分析 (dart analyze)

@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 // ──────────────────────────────────────────────
 // 模板引擎 (Template Service)
@@ -173,12 +174,12 @@ class TemplateService {
     required String category,
     required String content,
   }) {
-    final id = 'custom_${DateTime.now().millisecondsSinceEpoch}';
+    final id = 'custom_${const Uuid().v4()}';
     final template = TemplateDef(
       id: id,
       name: name,
       category: category,
-      iconCodePoint: 0xe8b7, // Icons.custom_toggle 的 codePoint
+      iconCodePoint: 0xe8b7,
       content: content,
       description: '用户自定义模板',
       isCustom: true,

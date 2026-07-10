@@ -37,13 +37,19 @@ class _QuickSwitcherOverlayState extends ConsumerState<QuickSwitcherOverlay> {
   /// FuzzyMatchResult 仅携带 noteId，渲染标题/路径/更新时间需要查表
   Map<String, NoteModel> _notesCache = const <String, NoteModel>{};
   bool _loading = false;
+  bool _loadError = false;
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
     _searchFocusNode = FocusNode();
+    _searchController.addListener(_onSearchChanged);
     _loadNotes();
+  }
+
+  void _onSearchChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -61,6 +67,7 @@ class _QuickSwitcherOverlayState extends ConsumerState<QuickSwitcherOverlay> {
   Future<void> _loadNotes() async {
     if (_loading) return;
     _loading = true;
+    _loadError = false;
     try {
       final notes = await ref.read(noteRepositoryProvider).getAllNotes();
       if (!mounted) return;
@@ -74,7 +81,10 @@ class _QuickSwitcherOverlayState extends ConsumerState<QuickSwitcherOverlay> {
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _loadError = true;
+      });
     }
   }
 
@@ -254,6 +264,17 @@ class _QuickSwitcherOverlayState extends ConsumerState<QuickSwitcherOverlay> {
           hintStyle: const TextStyle(color: AeroColors.textMuted),
           prefixIcon:
               const Icon(Icons.search, size: 18, color: AeroColors.textMuted),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close,
+                      size: 16, color: AeroColors.textMuted),
+                  onPressed: () {
+                    _searchController.clear();
+                    ref.read(quickSwitcherProvider.notifier).setQuery('');
+                  },
+                  splashRadius: 14,
+                )
+              : null,
           filled: true,
           fillColor: AeroColors.bgDeep,
           contentPadding:
@@ -283,6 +304,28 @@ class _QuickSwitcherOverlayState extends ConsumerState<QuickSwitcherOverlay> {
 
   /// 结果列表 / 空状态
   Widget _buildBody(QuickSwitcherState state) {
+    // 加载错误状态
+    if (_loadError) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline,
+                size: 32, color: AeroColors.textMuted),
+            const SizedBox(height: 8),
+            const Text(
+              '加载笔记失败，请重试',
+              style: TextStyle(color: AeroColors.textMuted, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _loadNotes,
+              child: const Text('重试'),
+            ),
+          ],
+        ),
+      );
+    }
     // 空查询：提示用户开始输入
     if (state.query.isEmpty) {
       return const Center(

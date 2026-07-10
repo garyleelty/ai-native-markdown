@@ -74,36 +74,29 @@ class _TemplateGalleryOverlayState
     }
   }
 
-  /// 应用模板并创建新面板
   Future<void> _applyTemplate(TemplateDef template) async {
     final paneNotifier = ref.read(paneStackProvider.notifier);
     final templateNotifier = ref.read(templateGalleryProvider.notifier);
     final noteRepo = ref.read(noteRepositoryProvider);
 
-    // 替换模板变量
     final content = templateNotifier.applyTemplate(template.id, {});
     final title = FileService.extractTitle(content, '');
 
-    // 创建新笔记
     final now = DateTime.now();
-    final id = now.millisecondsSinceEpoch.toString();
     final note = NoteModel(
-      id: id,
+      id: noteRepo.generateId(),
       title: title,
       rawMarkdown: content,
       filePath: '',
       createdAt: now,
       updatedAt: now,
     );
-    await noteRepo.saveNote(note);
+    final saved = await noteRepo.saveNote(note);
 
-    // 打开新面板
-    paneNotifier.openPane(id, title);
+    paneNotifier.openPane(saved.id, title);
 
-    // 刷新侧边栏
     await ref.read(sidebarProvider.notifier).loadNoteTree();
 
-    // 关闭画廊
     templateNotifier.close();
   }
 

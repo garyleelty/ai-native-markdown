@@ -6,6 +6,7 @@
 
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/note_model.dart';
 import '../core/models/backlink_info.dart';
@@ -171,7 +172,9 @@ class SidebarNotifier extends Notifier<SidebarState> {
           unlinkedMentions: unlinkedMentions,
         ),
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error loading backlinks: $e');
+    }
   }
 
   /// 提取匹配位置的上下文
@@ -200,7 +203,9 @@ class SidebarNotifier extends Notifier<SidebarState> {
       final allNotes = await repo.getAllNotes();
       final tasks = TaskService.extractAllTasks(allNotes);
       state = state.copyWith(allTasks: tasks);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error loading tasks: $e');
+    }
   }
 
   /// 切换任务过滤（仅显示未完成/显示全部）
@@ -210,26 +215,30 @@ class SidebarNotifier extends Notifier<SidebarState> {
 
   /// 切换任务完成状态
   Future<void> toggleTask(TaskItem task) async {
-    final repo = ref.read(noteRepositoryProvider);
-    final note = await repo.getNote(task.noteId);
-    if (note == null) return;
+    try {
+      final repo = ref.read(noteRepositoryProvider);
+      final note = await repo.getNote(task.noteId);
+      if (note == null) return;
 
-    final newMarkdown = TaskService.toggleTaskInMarkdown(
-      note.rawMarkdown,
-      task.startOffset,
-    );
+      final newMarkdown = TaskService.toggleTaskInMarkdown(
+        note.rawMarkdown,
+        task.startOffset,
+      );
 
-    final updatedNote = note.copyWith(
-      rawMarkdown: newMarkdown,
-      updatedAt: DateTime.now(),
-    );
-    await repo.saveNote(updatedNote);
-    if (FileService.shouldSyncToFile(updatedNote.filePath)) {
-      await FileService.syncToFile(updatedNote.filePath, updatedNote.rawMarkdown);
+      final updatedNote = note.copyWith(
+        rawMarkdown: newMarkdown,
+        updatedAt: DateTime.now(),
+      );
+      await repo.saveNote(updatedNote);
+      if (FileService.shouldSyncToFile(updatedNote.filePath)) {
+        await FileService.syncToFile(updatedNote.filePath, updatedNote.rawMarkdown);
+      }
+
+      await loadAllTasks();
+    } catch (e) {
+      debugPrint('Error toggling task: $e');
+      rethrow;
     }
-
-    // 刷新任务列表
-    await loadAllTasks();
   }
 
   /// 加载指定笔记的大纲并切换到大纲视图
@@ -279,12 +288,14 @@ class SidebarNotifier extends Notifier<SidebarState> {
     state = state.copyWith(
       searchQuery: query,
       isSearching: true,
+      clearSearchMessage: true,
     );
 
     if (query.trim().isEmpty) {
       state = state.copyWith(
         searchResults: const [],
         isSearching: false,
+        clearSearchMessage: true,
       );
       return;
     }
@@ -292,15 +303,18 @@ class SidebarNotifier extends Notifier<SidebarState> {
     try {
       final repo = ref.read(noteRepositoryProvider);
       final allNotes = await repo.getAllNotes();
-      final results = SearchService.searchNotes(allNotes, query);
+      final response = SearchService.searchNotes(allNotes, query);
       state = state.copyWith(
-        searchResults: results,
+        searchResults: response.results,
         isSearching: false,
+        searchMessage: response.message,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error searching notes: $e');
       state = state.copyWith(
         searchResults: const [],
         isSearching: false,
+        clearSearchMessage: true,
       );
     }
   }
@@ -311,6 +325,7 @@ class SidebarNotifier extends Notifier<SidebarState> {
       searchQuery: '',
       searchResults: [],
       isSearching: false,
+      clearSearchMessage: true,
     );
   }
 
@@ -335,92 +350,93 @@ class SidebarNotifier extends Notifier<SidebarState> {
 
   /// 重命名标签：遍历所有笔记，更新 tags 字段和正文中的 #tag
   Future<void> renameTag(String oldTag, String newTag) async {
-    if (oldTag == newTag || newTag.isEmpty) return;
-    final repo = ref.read(noteRepositoryProvider);
-    final allNotes = await repo.getAllNotes();
-    final oldTagPattern = RegExp('#${RegExp.escape(oldTag)}(?![A-Za-z0-9_])');
+    try {
+      if (oldTag == newTag || newTag.isEmpty) return;
+      final repo = ref.read(noteRepositoryProvider);
+      final allNotes = await repo.getAllNotes();
+      final oldTagPattern = RegExp('#${RegExp.escape(oldTag)}(?![A-Za-z0-9_])');
 
-    for (final note in allNotes) {
-      var changed = false;
-      // 更新 tags 字段
-      final newTags = note.tags.map((t) {
-        if (t == oldTag) {
+      for (final note in allNotes) {
+        var changed = false;
+        final newTags = note.tags.map((t) {
+          if (t == oldTag) {
+            changed = true;
+            return newTag;
+          }
+          return t;
+        }).toList();
+        var newMarkdown = note.rawMarkdown;
+        if (oldTagPattern.hasMatch(newMarkdown)) {
+          newMarkdown = newMarkdown.replaceAll(oldTagPattern, '#$newTag');
           changed = true;
-          return newTag;
         }
-        return t;
-      }).toList();
-      // 更新正文中的 #oldTag
-      var newMarkdown = note.rawMarkdown;
-      if (oldTagPattern.hasMatch(newMarkdown)) {
-        newMarkdown = newMarkdown.replaceAll(oldTagPattern, '#$newTag');
-        changed = true;
-      }
-      if (changed) {
-        final updatedNote = note.copyWith(
-          rawMarkdown: newMarkdown,
-          tags: newTags,
-          updatedAt: DateTime.now(),
-        );
-        await repo.saveNote(updatedNote);
-        if (FileService.shouldSyncToFile(updatedNote.filePath)) {
-          await FileService.syncToFile(updatedNote.filePath, updatedNote.rawMarkdown);
+        if (changed) {
+          final updatedNote = note.copyWith(
+            rawMarkdown: newMarkdown,
+            tags: newTags,
+            updatedAt: DateTime.now(),
+          );
+          await repo.saveNote(updatedNote);
+          if (FileService.shouldSyncToFile(updatedNote.filePath)) {
+            await FileService.syncToFile(updatedNote.filePath, updatedNote.rawMarkdown);
+          }
         }
       }
-    }
-    // 刷新标签统计
-    await _buildTagCounts();
-    // 如果当前选中的是被重命名的标签，更新选中状态
-    if (state.selectedTag == oldTag) {
-      await selectTag(newTag);
+      await _buildTagCounts();
+      if (state.selectedTag == oldTag) {
+        await selectTag(newTag);
+      }
+    } catch (e) {
+      debugPrint('Error renaming tag: $e');
+      rethrow;
     }
   }
 
   /// 删除标签：从所有笔记的 tags 字段和正文中移除该标签
   Future<void> deleteTag(String tag) async {
-    final repo = ref.read(noteRepositoryProvider);
-    final allNotes = await repo.getAllNotes();
-    final tagPattern = RegExp('#${RegExp.escape(tag)}(?![A-Za-z0-9_])');
+    try {
+      final repo = ref.read(noteRepositoryProvider);
+      final allNotes = await repo.getAllNotes();
+      final tagPattern = RegExp('#${RegExp.escape(tag)}(?![A-Za-z0-9_])');
 
-    for (final note in allNotes) {
-      var changed = false;
-      // 从 tags 字段移除
-      final newTags = note.tags.where((t) {
-        if (t == tag) {
+      for (final note in allNotes) {
+        var changed = false;
+        final newTags = note.tags.where((t) {
+          if (t == tag) {
+            changed = true;
+            return false;
+          }
+          return true;
+        }).toList();
+        var newMarkdown = note.rawMarkdown;
+        if (tagPattern.hasMatch(newMarkdown)) {
+          newMarkdown = newMarkdown.replaceAll(
+            RegExp(r'^[ \t]*#' + RegExp.escape(tag) + r'[ \t]*$\n?', multiLine: true),
+            '',
+          );
+          newMarkdown = newMarkdown.replaceAll(tagPattern, '');
           changed = true;
-          return false;
         }
-        return true;
-      }).toList();
-      // 从正文移除 #tag（保留行中其余内容；若整行只有该标签则清空整行）
-      var newMarkdown = note.rawMarkdown;
-      if (tagPattern.hasMatch(newMarkdown)) {
-        // 先处理整行只有标签（#tag 或 #tag 后仅空白）的情况
-        newMarkdown = newMarkdown.replaceAll(
-          RegExp(r'^[ \t]*#' + RegExp.escape(tag) + r'[ \t]*$\n?', multiLine: true),
-          '',
-        );
-        // 再处理行内剩余的 #tag
-        newMarkdown = newMarkdown.replaceAll(tagPattern, '');
-        changed = true;
-      }
-      if (changed) {
-        final updatedNote = note.copyWith(
-          rawMarkdown: newMarkdown,
-          tags: newTags,
-          updatedAt: DateTime.now(),
-        );
-        await repo.saveNote(updatedNote);
-        if (FileService.shouldSyncToFile(updatedNote.filePath)) {
-          await FileService.syncToFile(updatedNote.filePath, updatedNote.rawMarkdown);
+        if (changed) {
+          final updatedNote = note.copyWith(
+            rawMarkdown: newMarkdown,
+            tags: newTags,
+            updatedAt: DateTime.now(),
+          );
+          await repo.saveNote(updatedNote);
+          if (FileService.shouldSyncToFile(updatedNote.filePath)) {
+            await FileService.syncToFile(updatedNote.filePath, updatedNote.rawMarkdown);
+          }
         }
       }
+      if (state.selectedTag == tag) {
+        clearTagSelection();
+      }
+      await _buildTagCounts();
+    } catch (e) {
+      debugPrint('Error deleting tag: $e');
+      rethrow;
     }
-    // 清除选中状态并刷新统计
-    if (state.selectedTag == tag) {
-      clearTagSelection();
-    }
-    await _buildTagCounts();
   }
 
   /// 加载带有指定标签的笔记
@@ -489,7 +505,9 @@ class SidebarNotifier extends Notifier<SidebarState> {
       }
 
       state = state.copyWith(tagCounts: counts);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error building tag counts: $e');
+    }
   }
 
   // ── 最近编辑 ──
@@ -502,7 +520,9 @@ class SidebarNotifier extends Notifier<SidebarState> {
       // notes 已按 updatedAt 降序排列
       final recentIds = notes.take(20).map((n) => n.id).toList();
       state = state.copyWith(recentNoteIds: recentIds);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error loading recent notes: $e');
+    }
   }
 
   // ── 笔记树 ──
@@ -514,7 +534,9 @@ class SidebarNotifier extends Notifier<SidebarState> {
       final notes = await repo.getAllNotes();
       final tree = _buildTree(notes);
       state = state.copyWith(noteTree: tree);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error loading note tree: $e');
+    }
   }
 
   /// 从笔记列表构建树结构
@@ -615,47 +637,57 @@ class SidebarNotifier extends Notifier<SidebarState> {
 
   /// 删除笔记（移入回收站）
   Future<void> deleteNote(String noteId) async {
-    final repo = ref.read(noteRepositoryProvider);
-    final note = await repo.getNote(noteId);
-    if (note != null) {
-      await TrashService.moveToTrash(note);
-    }
-    await repo.deleteNote(noteId);
-    ref.read(paneStackProvider.notifier).closePaneByNoteId(noteId);
-    await loadNoteTree();
-    if (state.selectedNoteId == noteId) {
-      clearSelection();
+    try {
+      final repo = ref.read(noteRepositoryProvider);
+      final note = await repo.getNote(noteId);
+      if (note != null) {
+        await TrashService.moveToTrash(note);
+      }
+      await repo.deleteNote(noteId);
+      ref.read(paneStackProvider.notifier).closePaneByNoteId(noteId);
+      await loadNoteTree();
+      if (state.selectedNoteId == noteId) {
+        clearSelection();
+      }
+    } catch (e) {
+      debugPrint('Error deleting note: $e');
+      rethrow;
     }
   }
 
   /// 重命名笔记
   Future<void> renameNote(String noteId, String newTitle) async {
-    final repo = ref.read(noteRepositoryProvider);
-    final note = await repo.getNote(noteId);
-    if (note == null) return;
+    try {
+      final repo = ref.read(noteRepositoryProvider);
+      final note = await repo.getNote(noteId);
+      if (note == null) return;
 
-    var newMarkdown = note.rawMarkdown;
-    final h1Regex = RegExp(r'^#\s+.+$', multiLine: true);
-    final h1Match = h1Regex.firstMatch(newMarkdown);
-    if (h1Match != null) {
-      newMarkdown = newMarkdown.replaceFirst(h1Match.group(0)!, '# $newTitle');
-    } else if (newMarkdown.isNotEmpty) {
-      newMarkdown = '# $newTitle\n\n$newMarkdown';
-    } else {
-      newMarkdown = '# $newTitle\n';
+      var newMarkdown = note.rawMarkdown;
+      final h1Regex = RegExp(r'^#\s+.+$', multiLine: true);
+      final h1Match = h1Regex.firstMatch(newMarkdown);
+      if (h1Match != null) {
+        newMarkdown = newMarkdown.replaceFirst(h1Match.group(0)!, '# $newTitle');
+      } else if (newMarkdown.isNotEmpty) {
+        newMarkdown = '# $newTitle\n\n$newMarkdown';
+      } else {
+        newMarkdown = '# $newTitle\n';
+      }
+
+      final updatedNote = note.copyWith(
+        title: newTitle,
+        rawMarkdown: newMarkdown,
+        updatedAt: DateTime.now(),
+      );
+      await repo.saveNote(updatedNote);
+      if (FileService.shouldSyncToFile(updatedNote.filePath)) {
+        await FileService.syncToFile(updatedNote.filePath, updatedNote.rawMarkdown);
+      }
+
+      await loadNoteTree();
+    } catch (e) {
+      debugPrint('Error renaming note: $e');
+      rethrow;
     }
-
-    final updatedNote = note.copyWith(
-      title: newTitle,
-      rawMarkdown: newMarkdown,
-      updatedAt: DateTime.now(),
-    );
-    await repo.saveNote(updatedNote);
-    if (FileService.shouldSyncToFile(updatedNote.filePath)) {
-      await FileService.syncToFile(updatedNote.filePath, updatedNote.rawMarkdown);
-    }
-
-    await loadNoteTree();
   }
 }
 

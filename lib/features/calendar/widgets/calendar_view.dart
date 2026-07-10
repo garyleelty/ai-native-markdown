@@ -104,7 +104,9 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
           _loadMonthData();
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error in calendar view: $e');
+    }
   }
 
   @override

@@ -154,10 +154,11 @@ class _AppShellState extends ConsumerState<_AppShell>
       } else {
         await _openLastNoteOrFirst();
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error in initialization: $e');
+    }
   }
 
-  /// 如果没有笔记，创建第一篇欢迎笔记
   Future<void> _createFirstNoteIfNeeded() async {
     final repo = ref.read(noteRepositoryProvider);
     final count = await repo.getNoteCount();
@@ -165,7 +166,7 @@ class _AppShellState extends ConsumerState<_AppShell>
 
     final now = DateTime.now();
     final welcomeNote = NoteModel(
-      id: now.millisecondsSinceEpoch.toString(),
+      id: repo.generateId(),
       title: '欢迎使用 AeroMind',
       rawMarkdown: '''# 欢迎使用 AeroMind 👋
 
@@ -287,11 +288,13 @@ class _AppShellState extends ConsumerState<_AppShell>
     notifier.bindActions({
       // Quick Switcher（复用既有 note.open 命令，避免重复注册）
       'note.open': () {
+        _closeAllOverlays();
         ref.read(quickSwitcherProvider.notifier).open();
       },
 
       // Quick Switcher（命令面板入口，快捷键由 note.open 提供）
       'nav.quickSwitcher': () {
+        _closeAllOverlays();
         ref.read(quickSwitcherProvider.notifier).open();
       },
 
@@ -318,7 +321,7 @@ class _AppShellState extends ConsumerState<_AppShell>
         final repo = ref.read(noteRepositoryProvider);
         final now = DateTime.now();
         final note = NoteModel(
-          id: now.millisecondsSinceEpoch.toString(),
+          id: repo.generateId(),
           title: '新笔记',
           rawMarkdown: '# 新笔记\n',
           filePath: '',
@@ -369,7 +372,7 @@ class _AppShellState extends ConsumerState<_AppShell>
           duplicatedMarkdown = '# ${note.title} 副本\n';
         }
         final duplicated = NoteModel(
-          id: now.millisecondsSinceEpoch.toString(),
+          id: repo.generateId(),
           title: '${note.title} 副本',
           rawMarkdown: duplicatedMarkdown,
           filePath: '',
@@ -398,6 +401,7 @@ class _AppShellState extends ConsumerState<_AppShell>
 
       // 打开设置
       'settings.open': () {
+        _closeAllOverlays();
         setState(() => _isSettingsVisible = true);
       },
 
@@ -418,16 +422,19 @@ class _AppShellState extends ConsumerState<_AppShell>
 
       // 快捷键速查表
       'help.shortcuts': () {
+        _closeAllOverlays();
         setState(() => _isCheatsheetVisible = true);
       },
 
       // 欢迎页面
       'help.welcome': () {
+        _closeAllOverlays();
         setState(() => _isWelcomeVisible = true);
       },
 
       // 导入导出面板
       'note.importExport': () {
+        _closeAllOverlays();
         setState(() => _isImportExportVisible = true);
       },
 
@@ -455,6 +462,7 @@ class _AppShellState extends ConsumerState<_AppShell>
         }
       },
       'git.settings': () {
+        _closeAllOverlays();
         setState(() => _isSettingsVisible = true);
       },
     });
@@ -467,6 +475,7 @@ class _AppShellState extends ConsumerState<_AppShell>
     _shortcutFocusNode.dispose();
     _pluginApi?.dispose();
     PluginRegistry.instance.disposeAll();
+    HiveService.closeHive();
     super.dispose();
   }
 
@@ -480,7 +489,13 @@ class _AppShellState extends ConsumerState<_AppShell>
 
     // Cmd+K / Ctrl+K: 命令面板
     if (isMeta && event.logicalKey == LogicalKeyboardKey.keyK) {
-      ref.read(commandPaletteProvider.notifier).toggle();
+      final cmdState = ref.read(commandPaletteProvider);
+      if (cmdState.isOpen) {
+        ref.read(commandPaletteProvider.notifier).close();
+      } else {
+        _closeAllOverlays();
+        ref.read(commandPaletteProvider.notifier).open();
+      }
       return true;
     }
 
@@ -490,6 +505,7 @@ class _AppShellState extends ConsumerState<_AppShell>
       if (templateState.isOpen) {
         ref.read(templateGalleryProvider.notifier).close();
       } else {
+        _closeAllOverlays();
         ref.read(templateGalleryProvider.notifier).open();
       }
       return true;
@@ -513,6 +529,7 @@ class _AppShellState extends ConsumerState<_AppShell>
       if (qsState.isOpen) {
         ref.read(quickSwitcherProvider.notifier).close();
       } else {
+        _closeAllOverlays();
         ref.read(quickSwitcherProvider.notifier).open();
       }
       return true;
@@ -526,6 +543,7 @@ class _AppShellState extends ConsumerState<_AppShell>
       if (pluginState.isOpen) {
         ref.read(pluginManagerProvider.notifier).close();
       } else {
+        _closeAllOverlays();
         ref.read(pluginManagerProvider.notifier).open();
       }
       return true;
@@ -534,21 +552,26 @@ class _AppShellState extends ConsumerState<_AppShell>
     // ?: 快捷键速查表 (Shift+/)
     if (event.logicalKey == LogicalKeyboardKey.slash &&
         HardwareKeyboard.instance.isShiftPressed) {
-      setState(() => _isCheatsheetVisible = !_isCheatsheetVisible);
+      if (_isCheatsheetVisible) {
+        setState(() => _isCheatsheetVisible = false);
+      } else {
+        _closeAllOverlays();
+        setState(() => _isCheatsheetVisible = true);
+      }
       return true;
     }
 
-    // Escape: 关闭所有覆盖层
+    // Escape: 关闭最上层覆盖层
     if (event.logicalKey == LogicalKeyboardKey.escape) {
-      _closeAllOverlays();
+      _closeTopOverlay();
       return true;
     }
 
     return false;
   }
 
-  /// 关闭所有覆盖层
-  void _closeAllOverlays() {
+  /// 关闭最上层覆盖层（ESC键使用，一次只关一个）
+  void _closeTopOverlay() {
     final cmdState = ref.read(commandPaletteProvider);
     final tplState = ref.read(templateGalleryProvider);
     final pluginState = ref.read(pluginManagerProvider);
@@ -575,8 +598,40 @@ class _AppShellState extends ConsumerState<_AppShell>
     }
   }
 
+  /// 关闭所有覆盖层（打开新overlay前使用，确保互斥）
+  void _closeAllOverlays() {
+    final cmdState = ref.read(commandPaletteProvider);
+    final tplState = ref.read(templateGalleryProvider);
+    final pluginState = ref.read(pluginManagerProvider);
+    final qsState = ref.read(quickSwitcherProvider);
+
+    if (cmdState.isOpen) {
+      ref.read(commandPaletteProvider.notifier).close();
+    }
+    if (qsState.isOpen) {
+      ref.read(quickSwitcherProvider.notifier).close();
+    }
+    if (tplState.isOpen) {
+      ref.read(templateGalleryProvider.notifier).close();
+    }
+    if (pluginState.isOpen) {
+      ref.read(pluginManagerProvider.notifier).close();
+    }
+    if (_isSettingsVisible || _isCheatsheetVisible || _isWelcomeVisible ||
+        _isImportExportVisible || _isGraphVisible) {
+      _graphAnimController.value = 0.0;
+      setState(() {
+        _isSettingsVisible = false;
+        _isCheatsheetVisible = false;
+        _isWelcomeVisible = false;
+        _isImportExportVisible = false;
+        _isGraphVisible = false;
+      });
+    }
+  }
+
   /// 打开今天的日记
-  void _openTodayDailyNote() async {
+  Future<void> _openTodayDailyNote() async {
     try {
       final service = ref.read(dailyNoteServiceProvider);
       final repo = ref.read(noteRepositoryProvider);
@@ -589,7 +644,7 @@ class _AppShellState extends ConsumerState<_AppShell>
         ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
       }
     } catch (e) {
-      // 静默处理
+      debugPrint('Error opening daily note: $e');
     }
   }
 
@@ -620,7 +675,7 @@ class _AppShellState extends ConsumerState<_AppShell>
                   await FileService.syncToFile(updated.filePath, updated.rawMarkdown);
                 }
               }
-              if (mounted) Navigator.pop(ctx);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
           ),
         ),
@@ -663,7 +718,7 @@ class _AppShellState extends ConsumerState<_AppShell>
     }
   }
 
-  void _showRenameDialog(String noteId) async {
+  Future<void> _showRenameDialog(String noteId) async {
     final repo = ref.read(noteRepositoryProvider);
     final note = await repo.getNote(noteId);
     if (note == null || !mounted) return;
@@ -697,7 +752,7 @@ class _AppShellState extends ConsumerState<_AppShell>
           ),
         ],
       ),
-    );
+    ).then((_) => controller.dispose());
   }
 
   Future<void> _doRename(BuildContext ctx, String noteId, String newTitle) async {
@@ -710,7 +765,7 @@ class _AppShellState extends ConsumerState<_AppShell>
   }
 
   /// 显示删除确认对话框
-  void _showDeleteConfirmDialog(String noteId) async {
+  Future<void> _showDeleteConfirmDialog(String noteId) async {
     final repo = ref.read(noteRepositoryProvider);
     final note = await repo.getNote(noteId);
     if (note == null || !mounted) return;
@@ -735,7 +790,7 @@ class _AppShellState extends ConsumerState<_AppShell>
               await ref.read(sidebarProvider.notifier).deleteNote(noteId);
               if (ctx.mounted) Navigator.pop(ctx);
             },
-            child: const Text('删除', style: TextStyle(color: Colors.red)),
+            child: const Text('删除', style: TextStyle(color: AeroColors.error)),
           ),
         ],
       ),
@@ -749,6 +804,7 @@ class _AppShellState extends ConsumerState<_AppShell>
         if (mounted) setState(() => _isGraphVisible = false);
       });
     } else {
+      _closeAllOverlays();
       setState(() {
         _graphButtonPosition = buttonPosition;
         _isGraphVisible = true;
@@ -759,57 +815,62 @@ class _AppShellState extends ConsumerState<_AppShell>
   }
 
   /// 从当前面板栈构建知识图谱数据
-  void _buildGraphData() async {
-    final paneState = ref.read(paneStackProvider);
-    final repo = ref.read(noteRepositoryProvider);
-    final graphNotifier = ref.read(graphProvider.notifier);
+  Future<void> _buildGraphData() async {
+    try {
+      final paneState = ref.read(paneStackProvider);
+      final repo = ref.read(noteRepositoryProvider);
+      final graphNotifier = ref.read(graphProvider.notifier);
 
-    // 收集面板中所有笔记 + 它们的链接笔记
-    final noteIds = <String>{};
-    for (final pane in paneState.panes) {
-      noteIds.add(pane.noteId);
-    }
+      // 收集面板中所有笔记 + 它们的链接笔记
+      final noteIds = <String>{};
+      for (final pane in paneState.panes) {
+        noteIds.add(pane.noteId);
+      }
 
-    // 获取所有笔记
-    final allNotes = await repo.getAllNotes();
-    if (allNotes.isEmpty) {
-      _buildDemoGraph();
-      return;
-    }
+      // 获取所有笔记
+      final allNotes = await repo.getAllNotes();
+      if (allNotes.isEmpty) {
+        _buildDemoGraph();
+        return;
+      }
 
-    // 如果打开的笔记太少，加入所有笔记到图谱
-    if (noteIds.length < 3) {
+      // 如果打开的笔记太少，加入所有笔记到图谱
+      if (noteIds.length < 3) {
+        for (final note in allNotes) {
+          noteIds.add(note.id);
+        }
+      }
+
+      // 收集链接的笔记
       for (final note in allNotes) {
-        noteIds.add(note.id);
-      }
-    }
-
-    // 收集链接的笔记
-    for (final note in allNotes) {
-      if (noteIds.contains(note.id)) {
-        for (final link in note.outgoingLinks) {
-          noteIds.add(link);
-        }
-        for (final link in note.backlinks) {
-          noteIds.add(link);
+        if (noteIds.contains(note.id)) {
+          for (final link in note.outgoingLinks) {
+            noteIds.add(link);
+          }
+          for (final link in note.backlinks) {
+            noteIds.add(link);
+          }
         }
       }
-    }
 
-    // 限制节点数量避免性能问题
-    const maxNodes = 50;
-    final selectedNotes = allNotes
-        .where((n) => noteIds.contains(n.id))
-        .take(maxNodes)
-        .map((n) => n.asNoteData)
-        .toList();
+      // 限制节点数量避免性能问题
+      const maxNodes = 50;
+      final selectedNotes = allNotes
+          .where((n) => noteIds.contains(n.id))
+          .take(maxNodes)
+          .map((n) => n.asNoteData)
+          .toList();
 
-    if (selectedNotes.length < 2) {
+      if (selectedNotes.length < 2) {
+        _buildDemoGraph();
+        return;
+      }
+
+      graphNotifier.buildFromNotes(selectedNotes);
+    } catch (e) {
+      debugPrint('Error building graph data: $e');
       _buildDemoGraph();
-      return;
     }
-
-    graphNotifier.buildFromNotes(selectedNotes);
   }
 
   void _buildDemoGraph() {

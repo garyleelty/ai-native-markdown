@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:uuid/uuid.dart';
 import '../../../core/builtin_plugins/export_plugin.dart';
 import '../../../core/models/note_model.dart';
 import '../../../core/theme/aeromind_theme.dart';
@@ -204,6 +205,7 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
 
   Future<void> _exportCurrent(String format) async {
     if (widget.activeNoteId == null) return;
+    if (!mounted) return;
     setState(() {
       _busy = true;
       _status = null;
@@ -211,6 +213,7 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
     try {
       final repo = ref.read(noteRepositoryProvider);
       final note = await repo.getNote(widget.activeNoteId!);
+      if (!mounted) return;
       if (note == null) {
         setState(() => _status = '未找到当前笔记');
         return;
@@ -234,21 +237,26 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
       final outputPath = await FilePicker.platform.saveFile(
         fileName: '$safeTitle.$ext',
       );
+      if (!mounted) return;
       if (outputPath == null) {
         setState(() => _status = '已取消导出');
         return;
       }
-      // 复制到剪贴板作为兜底（移动端可能无法写文件）
       await Clipboard.setData(ClipboardData(text: content));
+      if (!mounted) return;
       setState(() => _status = '已导出「${note.title}.$ext」到剪贴板（${content.length} 字符）');
     } catch (e) {
+      if (!mounted) return;
       setState(() => _status = '导出失败：$e');
     } finally {
-      setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
   Future<void> _exportAll() async {
+    if (!mounted) return;
     setState(() {
       _busy = true;
       _status = null;
@@ -256,6 +264,7 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
     try {
       final repo = ref.read(noteRepositoryProvider);
       final notes = await repo.getAllNotes();
+      if (!mounted) return;
       if (notes.isEmpty) {
         setState(() => _status = '没有可导出的笔记');
         return;
@@ -266,16 +275,21 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
         fileName: 'aeromind-export-${DateTime.now().millisecondsSinceEpoch}.json',
       );
       await Clipboard.setData(ClipboardData(text: jsonStr));
+      if (!mounted) return;
       setState(() => _status =
           '已导出 ${notes.length} 篇笔记到剪贴板（${jsonStr.length} 字符）');
     } catch (e) {
+      if (!mounted) return;
       setState(() => _status = '导出失败：$e');
     } finally {
-      setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
   Future<void> _copyAllToClipboard() async {
+    if (!mounted) return;
     setState(() {
       _busy = true;
       _status = null;
@@ -283,6 +297,7 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
     try {
       final repo = ref.read(noteRepositoryProvider);
       final notes = await repo.getAllNotes();
+      if (!mounted) return;
       if (notes.isEmpty) {
         setState(() => _status = '没有可导出的笔记');
         return;
@@ -290,15 +305,20 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
       final jsonList = notes.map(_noteToJson).toList();
       final jsonStr = const JsonEncoder.withIndent('  ').convert(jsonList);
       await Clipboard.setData(ClipboardData(text: jsonStr));
+      if (!mounted) return;
       setState(() => _status = '已复制 ${notes.length} 篇笔记到剪贴板');
     } catch (e) {
+      if (!mounted) return;
       setState(() => _status = '失败：$e');
     } finally {
-      setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
   Future<void> _importFromJson() async {
+    if (!mounted) return;
     setState(() {
       _busy = true;
       _status = null;
@@ -310,6 +330,7 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
         allowedExtensions: ['json'],
         withData: true,
       );
+      if (!mounted) return;
       if (result == null || result.files.isEmpty) {
         setState(() => _status = '未选择文件');
         return;
@@ -338,12 +359,16 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
           skipped++;
         }
       }
+      if (!mounted) return;
       setState(() => _status = '已导入 $imported 篇笔记'
           '${skipped > 0 ? '（跳过 $skipped 条无效记录）' : ''}');
     } catch (e) {
+      if (!mounted) return;
       setState(() => _status = '导入失败：$e');
     } finally {
-      setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -363,7 +388,7 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
   NoteModel _noteFromJson(Map<dynamic, dynamic> map) {
     final now = DateTime.now();
     return NoteModel(
-      id: (map['id'] as String?) ?? 'imported_${now.millisecondsSinceEpoch}',
+      id: (map['id'] as String?) ?? 'imported_${const Uuid().v4()}',
       title: (map['title'] as String?) ?? '未命名笔记',
       rawMarkdown: (map['rawMarkdown'] as String?) ??
           (map['content'] as String?) ??

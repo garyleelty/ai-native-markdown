@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' show WidgetRef;
 import '../plugin/plugin_api.dart';
 import '../plugin/plugin_storage.dart';
+import '../plugin/plugin_registry.dart';
 import '../models/note_model.dart';
 import 'file_service.dart';
 import '../../providers/note_provider.dart';
@@ -120,7 +121,11 @@ class PluginApiImpl implements PluginApi {
 
   @override
   PluginStorage getStorage(String pluginId) {
-    throw UnimplementedError('请通过 PluginRegistry 获取存储');
+    final storage = PluginRegistry.instance.getStorage(pluginId);
+    if (storage == null) {
+      throw StateError('插件 $pluginId 的存储未初始化，请确保插件已激活');
+    }
+    return storage;
   }
 
   // ── 事件 ──
@@ -131,8 +136,18 @@ class PluginApiImpl implements PluginApi {
   }
 
   @override
+  void offNoteOpened(void Function(String noteId) callback) {
+    _onNoteOpened.remove(callback);
+  }
+
+  @override
   void onNoteSaved(void Function(String noteId) callback) {
     _onNoteSaved.add(callback);
+  }
+
+  @override
+  void offNoteSaved(void Function(String noteId) callback) {
+    _onNoteSaved.remove(callback);
   }
 
   @override
@@ -143,9 +158,22 @@ class PluginApiImpl implements PluginApi {
   }
 
   @override
+  void offEntitiesRecognized(
+    void Function(String noteId, List<EntityHighlight> entities) callback,
+  ) {
+    _onEntitiesRecognized.remove(callback);
+  }
+
+  @override
   void onPaneStackChanged(
       void Function(List<String> openNoteIds) callback) {
     _onPaneStackChanged.add(callback);
+  }
+
+  @override
+  void offPaneStackChanged(
+      void Function(List<String> openNoteIds) callback) {
+    _onPaneStackChanged.remove(callback);
   }
 
   // ── AI ──
@@ -169,7 +197,9 @@ class PluginApiImpl implements PluginApi {
     for (final cb in _onNoteOpened) {
       try {
         cb(noteId);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Error in note opened callback: $e');
+      }
     }
   }
 
@@ -177,7 +207,9 @@ class PluginApiImpl implements PluginApi {
     for (final cb in _onNoteSaved) {
       try {
         cb(noteId);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Error in note saved callback: $e');
+      }
     }
   }
 
@@ -186,7 +218,9 @@ class PluginApiImpl implements PluginApi {
     for (final cb in _onEntitiesRecognized) {
       try {
         cb(noteId, entities);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Error in entities recognized callback: $e');
+      }
     }
   }
 
@@ -194,7 +228,9 @@ class PluginApiImpl implements PluginApi {
     for (final cb in _onPaneStackChanged) {
       try {
         cb(openNoteIds);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Error in pane stack changed callback: $e');
+      }
     }
   }
 

@@ -55,14 +55,27 @@ class _MockPluginApi implements PluginApi {
   void onNoteOpened(void Function(String noteId) callback) {}
 
   @override
+  void offNoteOpened(void Function(String noteId) callback) {}
+
+  @override
   void onNoteSaved(void Function(String noteId) callback) {}
+
+  @override
+  void offNoteSaved(void Function(String noteId) callback) {}
 
   @override
   void onEntitiesRecognized(
       void Function(String noteId, List<EntityHighlight> entities) callback) {}
 
   @override
+  void offEntitiesRecognized(
+      void Function(String noteId, List<EntityHighlight> entities) callback) {}
+
+  @override
   void onPaneStackChanged(void Function(List<String> openNoteIds) callback) {}
+
+  @override
+  void offPaneStackChanged(void Function(List<String> openNoteIds) callback) {}
 
   @override
   String get aiContextPrompt => '';

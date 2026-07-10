@@ -105,7 +105,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
       _undoStack.clear();
       _redoStack.clear();
       if (prevHasUnsaved) {
-        _doSave(prevText).then((_) {
+        _doSave(prevText).whenComplete(() {
           if (mounted) _loadNote();
         });
       } else {
@@ -118,7 +118,8 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   void dispose() {
     _autoSaveTimer?.cancel();
     if (_hasUnsavedChanges) {
-      _doSave(_rawMarkdown);
+      final textToSave = _rawMarkdown;
+      _saveSilently(textToSave);
     }
     _wikiLinkVisible = false;
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
@@ -130,6 +131,42 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     _replaceController.dispose();
     _wikiLinkHover?.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveSilently(String text) async {
+    try {
+      final repo = ref.read(noteRepositoryProvider);
+      final noteId = widget.noteId;
+      final note = await repo.getNote(noteId);
+      if (note == null) return;
+
+      final links = EditorService.extractLinks(text);
+      final wikiLinks = links
+          .where((l) => l.isWikiLink)
+          .map((l) => l.text)
+          .toList();
+
+      final newTitle = FileService.extractTitle(text, note.filePath);
+
+      final updatedNote = note.copyWith(
+        title: newTitle,
+        rawMarkdown: text,
+        updatedAt: DateTime.now(),
+        outgoingLinks: wikiLinks,
+      );
+      await repo.saveNote(updatedNote);
+
+      if (FileService.shouldSyncToFile(updatedNote.filePath)) {
+        await FileService.syncToFile(updatedNote.filePath, text);
+      }
+
+      _lastSavedText = text;
+      _hasUnsavedChanges = false;
+
+      VersionService.saveSnapshot(noteId, text);
+    } catch (e) {
+      debugPrint('dispose 静默保存失败: $e');
+    }
   }
 
   @override
@@ -237,25 +274,39 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   }
 
   Future<void> _loadNote() async {
-    final repo = ref.read(noteRepositoryProvider);
-    final note = await repo.getNote(widget.noteId);
-    if (!mounted) return;
-    if (note == null) {
+    try {
+      final repo = ref.read(noteRepositoryProvider);
+      final note = await repo.getNote(widget.noteId);
+      if (!mounted) return;
+      if (note == null) {
+        setState(() {
+          _noteNotFound = true;
+        });
+        return;
+      }
+      setState(() {
+        _noteNotFound = false;
+        _rawMarkdown = note.rawMarkdown;
+        _lastSavedText = note.rawMarkdown;
+        _hasUnsavedChanges = false;
+        _textController.text = note.rawMarkdown;
+      });
+      _triggerEntityRecognition(note.rawMarkdown);
+      ref.read(sidebarProvider.notifier).updateOutline(widget.noteId, note.rawMarkdown);
+      ref.read(sidebarProvider.notifier).loadBacklinks(widget.noteId);
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
         _noteNotFound = true;
       });
-      return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text('加载笔记失败: $e'),
+          backgroundColor: AeroColors.bgElevated,
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
-    setState(() {
-      _noteNotFound = false;
-      _rawMarkdown = note.rawMarkdown;
-      _lastSavedText = note.rawMarkdown;
-      _hasUnsavedChanges = false;
-      _textController.text = note.rawMarkdown;
-    });
-    _triggerEntityRecognition(note.rawMarkdown);
-    ref.read(sidebarProvider.notifier).updateOutline(widget.noteId, note.rawMarkdown);
-    ref.read(sidebarProvider.notifier).loadBacklinks(widget.noteId);
   }
 
   /// 文本变化时防抖触发 AI 实体识别
@@ -346,52 +397,70 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   void _autoSave(String text) {
     _hasUnsavedChanges = text != _lastSavedText;
     _autoSaveTimer?.cancel();
-    _autoSaveTimer = Timer(const Duration(seconds: 1), () {
-      _doSave(text);
+    final delay = ref.read(settingsProvider).autoSaveDelay;
+    _autoSaveTimer = Timer(delay, () {
+      try {
+        _doSave(text);
+      } catch (e) {
+        debugPrint('Error in auto-save: $e');
+      }
     });
   }
 
   /// 执行实际保存逻辑，返回 Future 以便等待保存完成
   Future<void> _doSave(String text) async {
-    final repo = ref.read(noteRepositoryProvider);
-    final noteId = widget.noteId;
-    final note = await repo.getNote(noteId);
-    if (note == null) return;
+    try {
+      final repo = ref.read(noteRepositoryProvider);
+      final noteId = widget.noteId;
+      final note = await repo.getNote(noteId);
+      if (note == null) return;
 
-    final links = EditorService.extractLinks(text);
-    final wikiLinks = links
-        .where((l) => l.isWikiLink)
-        .map((l) => l.text)
-        .toList();
+      final links = EditorService.extractLinks(text);
+      final wikiLinks = links
+          .where((l) => l.isWikiLink)
+          .map((l) => l.text)
+          .toList();
 
-    final newTitle = FileService.extractTitle(text, note.filePath);
-    final titleChanged = newTitle != note.title;
+      final newTitle = FileService.extractTitle(text, note.filePath);
+      final titleChanged = newTitle != note.title;
 
-    final updatedNote = note.copyWith(
-      title: newTitle,
-      rawMarkdown: text,
-      updatedAt: DateTime.now(),
-      outgoingLinks: wikiLinks,
-    );
-    await repo.saveNote(updatedNote);
+      final updatedNote = note.copyWith(
+        title: newTitle,
+        rawMarkdown: text,
+        updatedAt: DateTime.now(),
+        outgoingLinks: wikiLinks,
+      );
+      await repo.saveNote(updatedNote);
 
-    if (FileService.shouldSyncToFile(updatedNote.filePath)) {
-      await FileService.syncToFile(updatedNote.filePath, text);
-    }
-
-    _lastSavedText = text;
-    _hasUnsavedChanges = false;
-
-    if (titleChanged) {
-      final paneState = ref.read(paneStackProvider);
-      final index = paneState.panes.indexWhere((p) => p.noteId == noteId);
-      if (index >= 0) {
-        ref.read(paneStackProvider.notifier).updatePaneTitle(index, newTitle);
+      if (FileService.shouldSyncToFile(updatedNote.filePath)) {
+        await FileService.syncToFile(updatedNote.filePath, text);
       }
-      ref.read(sidebarProvider.notifier).loadNoteTree();
-    }
 
-    VersionService.saveSnapshot(noteId, text);
+      _lastSavedText = text;
+      _hasUnsavedChanges = false;
+
+      if (titleChanged) {
+        final paneState = ref.read(paneStackProvider);
+        final index = paneState.panes.indexWhere((p) => p.noteId == noteId);
+        if (index >= 0) {
+          ref.read(paneStackProvider.notifier).updatePaneTitle(index, newTitle);
+        }
+        ref.read(sidebarProvider.notifier).loadNoteTree();
+      }
+
+      VersionService.saveSnapshot(noteId, text);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text('保存失败: $e'),
+            backgroundColor: AeroColors.bgElevated,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      rethrow;
+    }
   }
 
 
@@ -757,129 +826,92 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   }
 
   // ──────────────────────────────────────────────
-  // 模式切换按钮 (三态循环)
+  // 模式切换按钮 (点击循环切换，下拉菜单选择)
   // ──────────────────────────────────────────────
   Widget _buildModeSwitchButton() {
-    IconData icon;
-    String tooltip;
-    switch (_editorMode) {
-      case EditorMode.source:
-        icon = Icons.edit_note;
-        tooltip = '源码模式（点击切换到实时预览）';
-        break;
-      case EditorMode.livePreview:
-        icon = Icons.visibility_outlined;
-        tooltip = '实时预览（点击切换到阅读模式）';
-        break;
-      case EditorMode.preview:
-        icon = Icons.visibility;
-        tooltip = '阅读模式（点击切换到源码模式）';
-        break;
-    }
+    final modeLabels = {
+      EditorMode.source: '源码',
+      EditorMode.livePreview: '预览',
+      EditorMode.preview: '阅读',
+    };
+    final modeIcons = {
+      EditorMode.source: Icons.edit_note,
+      EditorMode.livePreview: Icons.visibility_outlined,
+      EditorMode.preview: Icons.visibility,
+    };
 
     return PopupMenuButton<EditorMode>(
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: EditorMode.source,
+      tooltip: '切换编辑模式',
+      position: PopupMenuPosition.under,
+      color: AeroColors.bgElevated,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: const BorderSide(color: AeroColors.border, width: 0.5),
+      ),
+      itemBuilder: (context) => EditorMode.values.map((mode) {
+        final isSelected = mode == _editorMode;
+        return PopupMenuItem<EditorMode>(
+          value: mode,
+          height: 32,
           child: Row(
             children: [
-              Icon(Icons.edit_note, size: 16,
-                  color: _editorMode == EditorMode.source
-                      ? AeroColors.accentBlue
-                      : AeroColors.textSecondary),
+              Icon(modeIcons[mode], size: 16,
+                  color: isSelected ? AeroColors.primary : AeroColors.textSecondary),
               const SizedBox(width: 8),
-              Text('源码模式',
+              Text(modeLabels[mode]!,
                   style: TextStyle(
-                    fontSize: 12,
-                    color: _editorMode == EditorMode.source
-                        ? AeroColors.accentBlue
-                        : AeroColors.textPrimary,
-                    fontWeight: _editorMode == EditorMode.source
-                        ? FontWeight.w600
-                        : FontWeight.w400,
+                    fontSize: 13,
+                    color: isSelected ? AeroColors.primary : AeroColors.textPrimary,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   )),
+              if (isSelected) ...[
+                const Spacer(),
+                const Icon(Icons.check, size: 14, color: AeroColors.primary),
+              ],
             ],
           ),
+        );
+      }).toList(),
+      onSelected: _switchToMode,
+      child: Container(
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: AeroColors.bgHover,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: AeroColors.border, width: 0.5),
         ),
-        PopupMenuItem(
-          value: EditorMode.livePreview,
-          child: Row(
-            children: [
-              Icon(Icons.visibility_outlined, size: 16,
-                  color: _editorMode == EditorMode.livePreview
-                      ? AeroColors.accentBlue
-                      : AeroColors.textSecondary),
-              const SizedBox(width: 8),
-              Text('实时预览',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _editorMode == EditorMode.livePreview
-                        ? AeroColors.accentBlue
-                        : AeroColors.textPrimary,
-                    fontWeight: _editorMode == EditorMode.livePreview
-                        ? FontWeight.w600
-                        : FontWeight.w400,
-                  )),
-            ],
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(modeIcons[_editorMode], size: 15, color: AeroColors.primary),
+            const SizedBox(width: 4),
+            Text(
+              modeLabels[_editorMode]!,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AeroColors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 2),
+            const Icon(Icons.arrow_drop_down, size: 14, color: AeroColors.textMuted),
+          ],
         ),
-        PopupMenuItem(
-          value: EditorMode.preview,
-          child: Row(
-            children: [
-              Icon(Icons.visibility, size: 16,
-                  color: _editorMode == EditorMode.preview
-                      ? AeroColors.accentBlue
-                      : AeroColors.textSecondary),
-              const SizedBox(width: 8),
-              Text('阅读模式',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _editorMode == EditorMode.preview
-                        ? AeroColors.accentBlue
-                        : AeroColors.textPrimary,
-                    fontWeight: _editorMode == EditorMode.preview
-                        ? FontWeight.w600
-                        : FontWeight.w400,
-                  )),
-            ],
-          ),
-        ),
-      ],
-      onSelected: (mode) {
-        setState(() {
-          _editorMode = mode;
-          if (mode == EditorMode.preview) {
-            _focusNode.unfocus();
-          }
-          if (mode != EditorMode.source && _wikiLinkVisible) {
-            _dismissWikiLinkCompleter();
-          }
-        });
-      },
-      child: _ToolbarButton(
-        icon: icon,
-        tooltip: tooltip,
-        onTap: () {
-          setState(() {
-            switch (_editorMode) {
-              case EditorMode.source:
-                _editorMode = EditorMode.livePreview;
-                if (_wikiLinkVisible) _dismissWikiLinkCompleter();
-                break;
-              case EditorMode.livePreview:
-                _editorMode = EditorMode.preview;
-                _focusNode.unfocus();
-                if (_wikiLinkVisible) _dismissWikiLinkCompleter();
-                break;
-              case EditorMode.preview:
-                _editorMode = EditorMode.source;
-                break;
-            }
-          });
-        },
       ),
     );
+  }
+
+  void _switchToMode(EditorMode mode) {
+    setState(() {
+      _editorMode = mode;
+      if (mode == EditorMode.preview) {
+        _focusNode.unfocus();
+      }
+      if (mode != EditorMode.source && _wikiLinkVisible) {
+        _dismissWikiLinkCompleter();
+      }
+    });
   }
 
   Widget _toolbarDivider() {
@@ -1144,12 +1176,15 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                   scrollController: _scrollController,
                   maxLines: null,
                   expands: true,
+                  cursorColor: AeroColors.primary,
+                  cursorWidth: 1.5,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontSize: ref.watch(settingsProvider.select((s) => s.fontSize)),
+                        height: 1.7,
                       ),
                   decoration: InputDecoration(
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.all(16),
+                    contentPadding: const EdgeInsets.all(20),
                     hintText: '开始书写...',
                     hintStyle: Theme.of(context)
                         .textTheme
@@ -1157,13 +1192,14 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                         ?.copyWith(
                           color: AeroColors.textMuted,
                           fontSize: ref.watch(settingsProvider.select((s) => s.fontSize)),
+                          height: 1.7,
                         ),
                   ),
                   onChanged: _onTextChanged,
                 ),
                 if (_wikiLinkVisible)
                   Positioned(
-                    left: 16,
+                    left: 20,
                     top: _getCaretLocalY(),
                     child: Material(
                       color: Colors.transparent,
@@ -1259,7 +1295,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     if (create == true && mounted) {
       final now = DateTime.now();
       final newNote = NoteModel(
-        id: now.millisecondsSinceEpoch.toString(),
+        id: repo.generateId(),
         title: linkText,
         rawMarkdown: '# $linkText\n\n',
         filePath: '',
@@ -1609,14 +1645,46 @@ class _NotePanelState extends ConsumerState<NotePanel> {
 
   Widget _buildStatusBar() {
     final stats = EditorService.computeStats(_textController.text);
+    final selection = _textController.selection;
+    final cursorLine = _getCursorLine(selection);
+    final cursorCol = _getCursorColumn(selection);
 
     return Container(
-      height: 24,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      color: AeroColors.bgSurface,
+      height: 26,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: const BoxDecoration(
+        color: AeroColors.bgElevated,
+        border: Border(
+          top: BorderSide(color: AeroColors.border, width: 0.5),
+        ),
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          // 左侧：保存状态
+          _buildSaveStatus(),
+          const SizedBox(width: 12),
+          // 模式指示
+          _buildModeIndicator(),
+          const Spacer(),
+          // 右侧：光标位置
+          if (_editorMode == EditorMode.source && selection.isValid && selection.isCollapsed)
+            Text(
+              '行 $cursorLine, 列 $cursorCol',
+              style: const TextStyle(
+                color: AeroColors.textMuted,
+                fontSize: 10,
+              ),
+            ),
+          if (_editorMode == EditorMode.source && selection.isValid && !selection.isCollapsed)
+            Text(
+              '已选择 ${selection.end - selection.start} 字符',
+              style: const TextStyle(
+                color: AeroColors.textMuted,
+                fontSize: 10,
+              ),
+            ),
+          if (_editorMode == EditorMode.source) const SizedBox(width: 12),
+          // 统计信息
           Text(
             '${stats.wordCount} 字',
             style: const TextStyle(
@@ -1624,15 +1692,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
               fontSize: 10,
             ),
           ),
-          const SizedBox(width: 12),
-          Text(
-            '${stats.charCount} 字符',
-            style: const TextStyle(
-              color: AeroColors.textMuted,
-              fontSize: 10,
-            ),
-          ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Text(
             '${stats.lineCount} 行',
             style: const TextStyle(
@@ -1640,17 +1700,9 @@ class _NotePanelState extends ConsumerState<NotePanel> {
               fontSize: 10,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Text(
-            '${stats.paragraphCount} 段',
-            style: const TextStyle(
-              color: AeroColors.textMuted,
-              fontSize: 10,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            '阅读 ${stats.readingTimeMinutes} 分钟',
+            '${stats.readingTimeMinutes} 分钟',
             style: const TextStyle(
               color: AeroColors.textMuted,
               fontSize: 10,
@@ -1659,6 +1711,70 @@ class _NotePanelState extends ConsumerState<NotePanel> {
         ],
       ),
     );
+  }
+
+  Widget _buildSaveStatus() {
+    if (_hasUnsavedChanges) {
+      return const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.circle, size: 6, color: AeroColors.accentOrange),
+          SizedBox(width: 4),
+          Text('未保存',
+              style: TextStyle(color: AeroColors.accentOrange, fontSize: 10)),
+        ],
+      );
+    }
+    return const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.check_circle_outline, size: 12, color: AeroColors.accentGreen),
+        SizedBox(width: 4),
+        Text('已保存',
+            style: TextStyle(color: AeroColors.accentGreen, fontSize: 10)),
+      ],
+    );
+  }
+
+  Widget _buildModeIndicator() {
+    String label;
+    IconData icon;
+    switch (_editorMode) {
+      case EditorMode.source:
+        label = 'Markdown';
+        icon = Icons.code;
+        break;
+      case EditorMode.livePreview:
+        label = '实时预览';
+        icon = Icons.visibility_outlined;
+        break;
+      case EditorMode.preview:
+        label = '阅读';
+        icon = Icons.visibility;
+        break;
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 11, color: AeroColors.textMuted),
+        const SizedBox(width: 3),
+        Text(label, style: const TextStyle(color: AeroColors.textMuted, fontSize: 10)),
+      ],
+    );
+  }
+
+  int _getCursorLine(TextSelection selection) {
+    if (!selection.isValid || !selection.isCollapsed) return 1;
+    final textBefore = _textController.text.substring(0, selection.baseOffset);
+    return textBefore.split('\n').length;
+  }
+
+  int _getCursorColumn(TextSelection selection) {
+    if (!selection.isValid || !selection.isCollapsed) return 1;
+    final textBefore = _textController.text.substring(0, selection.baseOffset);
+    final lastNewline = textBefore.lastIndexOf('\n');
+    if (lastNewline == -1) return selection.baseOffset + 1;
+    return selection.baseOffset - lastNewline;
   }
 
   Widget _buildNoteNotFound() {

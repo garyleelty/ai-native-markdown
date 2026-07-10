@@ -41,33 +41,37 @@ class WikiLinkHoverHandler {
   }
 
   /// 显示预览卡片
-  void _show(String linkText, LayerLink layerLink) async {
+  Future<void> _show(String linkText, LayerLink layerLink) async {
     if (!_context.mounted) return;
 
-    // 查找匹配的笔记
-    final repo = _ref.read(noteRepositoryProvider);
-    final allNotes = await repo.getAllNotes();
+    try {
+      // 查找匹配的笔记
+      final repo = _ref.read(noteRepositoryProvider);
+      final allNotes = await repo.getAllNotes();
 
-    NoteModel? targetNote;
-    for (final note in allNotes) {
-      if (note.title == linkText || note.id == linkText) {
-        targetNote = note;
-        break;
+      NoteModel? targetNote;
+      for (final note in allNotes) {
+        if (note.title == linkText || note.id == linkText) {
+          targetNote = note;
+          break;
+        }
       }
+
+      if (!_context.mounted) return;
+
+      _entry = OverlayEntry(
+        builder: (context) => _PreviewCard(
+          linkText: linkText,
+          note: targetNote,
+          layerLink: layerLink,
+          onDismiss: _hide,
+        ),
+      );
+
+      Overlay.of(_context).insert(_entry!);
+    } catch (e) {
+      debugPrint('Error showing wiki link preview: $e');
     }
-
-    if (!_context.mounted) return;
-
-    _entry = OverlayEntry(
-      builder: (context) => _PreviewCard(
-        linkText: linkText,
-        note: targetNote,
-        layerLink: layerLink,
-        onDismiss: _hide,
-      ),
-    );
-
-    Overlay.of(_context).insert(_entry!);
   }
 
   void _hide() {

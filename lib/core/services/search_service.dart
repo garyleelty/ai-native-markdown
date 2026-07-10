@@ -28,6 +28,17 @@ class SearchResult {
   });
 }
 
+/// 搜索响应（包含结果和提示信息）
+class SearchResponse {
+  final List<SearchResult> results;
+  final String? message;
+
+  const SearchResponse({
+    required this.results,
+    this.message,
+  });
+}
+
 /// 高级搜索解析结果
 class ParsedSearchQuery {
   final String rawQuery;
@@ -149,12 +160,16 @@ class SearchService {
   }
 
   /// 在笔记中搜索并返回详细结果
-  static List<SearchResult> searchNotes(
+  static SearchResponse searchNotes(
     List<NoteModel> notes,
     String query,
   ) {
     final parsed = parseQuery(query);
-    if (parsed.rawQuery.isEmpty) return [];
+    if (parsed.rawQuery.isEmpty) {
+      return const SearchResponse(results: []);
+    }
+
+    String? warningMessage;
 
     // path 过滤：先收窄候选集（子串匹配 folderPath，不区分大小写）
     // 注意：空 folderPath 永远不匹配非空 pathFilter
@@ -179,6 +194,7 @@ class SearchService {
           regex = RegExp(parsed.regexPattern!);
         } on FormatException {
           // 非法正则，降级为字面量搜索（使用 regexPattern 作为字面量）
+          warningMessage = '正则语法无效，已降级为普通搜索';
           final literal = parsed.regexPattern!;
           final titleMatches = _findMatches(note.title, literal, 'title');
           matches.addAll(titleMatches);
@@ -310,7 +326,10 @@ class SearchService {
 
     // 按分数排序
     results.sort((a, b) => b.score.compareTo(a.score));
-    return results;
+    return SearchResponse(
+      results: results,
+      message: warningMessage,
+    );
   }
 
   /// 查找字符串中的所有匹配

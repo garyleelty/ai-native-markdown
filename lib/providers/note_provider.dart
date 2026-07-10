@@ -1,59 +1,50 @@
+import 'dart:async';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 import '../core/models/note_model.dart';
 import '../core/services/hive_service.dart';
 import '../core/services/file_picker_service.dart';
+import '../core/services/file_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-// ──────────────────────────────────────────────
-// 笔记数据层 Provider (Hive 持久化)
-// ──────────────────────────────────────────────
-// Local-First: 所有笔记读写均通过 Hive LazyBox 完成
-// LazyBox 仅在访问时反序列化，适合笔记数量较大的场景
-// ──────────────────────────────────────────────
+enum NoteChangeType { saved, deleted }
 
-/// 笔记仓库接口
-abstract class NoteRepository {
-  /// 根据 ID 获取单篇笔记
-  Future<NoteModel?> getNote(String id);
-
-  /// 获取所有笔记列表
-  Future<List<NoteModel>> getAllNotes();
-
-  /// 保存 (新建或更新) 一篇笔记
-  Future<void> saveNote(NoteModel note);
-
-  /// 删除一篇笔记
-  Future<void> deleteNote(String id);
-
-  /// 基于关键词的简单搜索 (标题 + 正文全文匹配)
-  Future<List<NoteModel>> searchBySemantic(String query);
-
-  /// 获取笔记总数
-  Future<int> getNoteCount();
-
-  /// 检查笔记是否存在
-  Future<bool> noteExists(String id);
+class NoteChangeEvent {
+  final NoteChangeType type;
+  final String noteId;
+  const NoteChangeEvent(this.type, this.noteId);
 }
 
-/// 本地笔记仓库实现 (Hive LazyBox 持久化)
-///
-/// 数据流向:
-///   UI → Provider → LocalNoteRepository → HiveService.noteBox → 磁盘
-///
-/// 关键设计:
-///   - 使用 LazyBox 延迟加载，避免一次性将所有笔记反序列化到内存
-///   - 所有写操作后自动失效相关 Provider 缓存
-///   - searchBySemantic 实现简单的大小写不敏感关键词匹配
+abstract class NoteRepository {
+  Stream<NoteChangeEvent> get changes;
+  Future<NoteModel?> getNote(String id);
+  Future<List<NoteModel>> getAllNotes();
+  Future<NoteModel> saveNote(NoteModel note);
+  Future<void> deleteNote(String id);
+  Future<List<NoteModel>> searchBySemantic(String query);
+  Future<int> getNoteCount();
+  Future<bool> noteExists(String id);
+  String generateId();
+  void dispose();
+}
+
 class LocalNoteRepository implements NoteRepository {
-  /// 获取 Hive 笔记存储 Box
+  static const _uuid = Uuid();
+  final _changesController = StreamController<NoteChangeEvent>.broadcast();
+
   LazyBox<NoteModel> get _noteBox => HiveService.noteBox;
+
+  @override
+  Stream<NoteChangeEvent> get changes => _changesController.stream;
 
   @override
   Future<NoteModel?> getNote(String id) async {
     try {
       return await _noteBox.get(id);
     } catch (e) {
-      // 读取失败时返回 null，避免因单条数据损坏导致整个列表崩溃
       return null;
     }
   }
@@ -61,7 +52,6 @@ class LocalNoteRepository implements NoteRepository {
   @override
   Future<List<NoteModel>> getAllNotes() async {
     final notes = <NoteModel>[];
-    // LazyBox.values 会逐个延迟加载，不会一次性全部反序列化
     for (final key in _noteBox.keys) {
       try {
         final note = await _noteBox.get(key);
@@ -69,24 +59,30 @@ class LocalNoteRepository implements NoteRepository {
           notes.add(note);
         }
       } catch (_) {
-        // 跳过损坏的数据条目
         continue;
       }
     }
-    // 按更新时间倒序排列，最新的笔记排在前面
     notes.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return notes;
   }
 
   @override
-  Future<void> saveNote(NoteModel note) async {
-    // 以笔记 ID 为 key 写入 Hive
-    await _noteBox.put(note.id, note);
+  Future<NoteModel> saveNote(NoteModel note) async {
+    final now = DateTime.now();
+    final id = note.id.isEmpty ? generateId() : note.id;
+    final updated = note.copyWith(
+      id: id,
+      updatedAt: now,
+    );
+    await _noteBox.put(updated.id, updated);
+    _changesController.add(NoteChangeEvent(NoteChangeType.saved, updated.id));
+    return updated;
   }
 
   @override
   Future<void> deleteNote(String id) async {
     await _noteBox.delete(id);
+    _changesController.add(NoteChangeEvent(NoteChangeType.deleted, id));
   }
 
   @override
@@ -95,7 +91,6 @@ class LocalNoteRepository implements NoteRepository {
       return [];
     }
 
-    // 统一转小写，实现大小写不敏感搜索
     final lowerQuery = query.toLowerCase().trim();
     final results = <NoteModel>[];
 
@@ -104,7 +99,6 @@ class LocalNoteRepository implements NoteRepository {
         final note = await _noteBox.get(key);
         if (note == null) continue;
 
-        // 在标题和正文中搜索关键词
         final titleMatch = note.title.toLowerCase().contains(lowerQuery);
         final contentMatch = note.rawMarkdown.toLowerCase().contains(lowerQuery);
         final tagMatch = note.tags.any(
@@ -119,7 +113,6 @@ class LocalNoteRepository implements NoteRepository {
       }
     }
 
-    // 标题匹配优先，然后按更新时间排序
     results.sort((a, b) {
       final aTitle = a.title.toLowerCase().contains(lowerQuery);
       final bTitle = b.title.toLowerCase().contains(lowerQuery);
@@ -140,54 +133,86 @@ class LocalNoteRepository implements NoteRepository {
   Future<bool> noteExists(String id) async {
     return _noteBox.containsKey(id);
   }
+
+  @override
+  String generateId() => _uuid.v4();
+
+  @override
+  void dispose() {
+    _changesController.close();
+  }
 }
 
-// ──────────────────────────────────────────────
-// Riverpod Providers
-// ──────────────────────────────────────────────
-
-/// 笔记仓库 Provider
-/// 注入 LocalNoteRepository 实例，所有数据操作通过此 Provider 访问
 final noteRepositoryProvider = Provider<NoteRepository>((ref) {
-  return LocalNoteRepository();
+  final repo = LocalNoteRepository();
+  ref.onDispose(() => repo.dispose());
+  return repo;
 });
 
-/// 单篇笔记详情 Provider (异步, 根据 ID 自动缓存)
-///
-/// 使用方式:
-///   final note = ref.watch(noteByIdProvider('笔记ID'));
-///
-/// 缓存失效: 调用 `ref.invalidate(noteByIdProvider(id))` 即可强制刷新。
-/// 在 saveNote 完成后应主动失效，避免返回脏数据。
-final noteByIdProvider = FutureProvider.family<NoteModel?, String>((ref, id) {
-  final repo = ref.read(noteRepositoryProvider);
+final noteByIdProvider = FutureProvider.family<NoteModel?, String>((ref, id) async {
+  final repo = ref.watch(noteRepositoryProvider);
+  final sub = repo.changes.where((e) => e.noteId == id).listen((_) {
+    ref.invalidateSelf();
+  });
+  ref.onDispose(() => sub.cancel());
   return repo.getNote(id);
 });
 
-/// 所有笔记列表 Provider
-///
-/// 使用方式:
-///   final notes = ref.watch(allNotesProvider);
-///
-/// 注意: LazyBox.getAll() 会触发所有笔记的反序列化，
-/// 在笔记数量很大时应考虑分页加载。
-final allNotesProvider = FutureProvider<List<NoteModel>>((ref) {
-  final repo = ref.read(noteRepositoryProvider);
+final allNotesProvider = FutureProvider<List<NoteModel>>((ref) async {
+  final repo = ref.watch(noteRepositoryProvider);
+  final sub = repo.changes.listen((_) => ref.invalidateSelf());
+  ref.onDispose(() => sub.cancel());
   return repo.getAllNotes();
 });
 
-/// 笔记搜索 Provider
-/// 传入搜索关键词，返回匹配的笔记列表
-///
-/// 使用方式:
-///   final results = ref.watch(noteSearchProvider('关键词'));
 final noteSearchProvider =
     FutureProvider.family<List<NoteModel>, String>((ref, query) {
-  final repo = ref.read(noteRepositoryProvider);
+  final repo = ref.watch(noteRepositoryProvider);
   return repo.searchBySemantic(query);
 });
 
-/// 文件选择服务 Provider
 final filePickerServiceProvider = Provider<FilePickerService>((ref) {
   return FilePickerService();
+});
+
+String _defaultVaultRoot() {
+  if (kIsWeb) {
+    return '/aeromind';
+  }
+  final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '/tmp';
+  return p.join(home, 'Aeromind');
+}
+
+final vaultRootProvider = Provider<String>((ref) {
+  return _defaultVaultRoot();
+});
+
+final fileServiceProvider = Provider<FileService>((ref) {
+  final root = ref.watch(vaultRootProvider);
+  final service = FileService(vaultRoot: root);
+  return service;
+});
+
+class NoteNotifier extends Notifier<void> {
+  @override
+  void build() {}
+
+  Future<NoteModel> saveNote(NoteModel note) async {
+    final repo = ref.read(noteRepositoryProvider);
+    return repo.saveNote(note);
+  }
+
+  Future<void> deleteNote(String id) async {
+    final repo = ref.read(noteRepositoryProvider);
+    await repo.deleteNote(id);
+  }
+
+  String generateId() {
+    final repo = ref.read(noteRepositoryProvider);
+    return repo.generateId();
+  }
+}
+
+final noteNotifierProvider = NotifierProvider<NoteNotifier, void>(() {
+  return NoteNotifier();
 });

@@ -60,13 +60,21 @@ class TrashPanel extends ConsumerWidget {
 
   // ── 操作 ──────────────────────────────────────────
 
-  Future<void> _restoreNote(WidgetRef ref, NoteModel note) async {
-    final restored = await TrashService.restore(note.id);
-    if (restored != null) {
-      await ref.read(noteRepositoryProvider).saveNote(restored);
+  Future<void> _restoreNote(BuildContext context, WidgetRef ref, NoteModel note) async {
+    try {
+      final restored = await TrashService.restore(note.id);
+      if (restored != null) {
+        await ref.read(noteRepositoryProvider).saveNote(restored);
+      }
+      ref.read(_trashVersionProvider.notifier).state++;
+      onRestore();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('恢复笔记失败: $e'), duration: const Duration(seconds: 2)),
+        );
+      }
     }
-    ref.read(_trashVersionProvider.notifier).state++;
-    onRestore();
   }
 
   Future<void> _deletePermanently(
@@ -99,9 +107,17 @@ class TrashPanel extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await TrashService.deletePermanently(trashId);
-      ref.read(_trashVersionProvider.notifier).state++;
-      onRestore();
+      try {
+        await TrashService.deletePermanently(trashId);
+        ref.read(_trashVersionProvider.notifier).state++;
+        onRestore();
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('彻底删除失败: $e'), duration: const Duration(seconds: 2)),
+          );
+        }
+      }
     }
   }
 
@@ -131,9 +147,17 @@ class TrashPanel extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await TrashService.emptyTrash();
-      ref.read(_trashVersionProvider.notifier).state++;
-      onRestore();
+      try {
+        await TrashService.emptyTrash();
+        ref.read(_trashVersionProvider.notifier).state++;
+        onRestore();
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('清空回收站失败: $e'), duration: const Duration(seconds: 2)),
+          );
+        }
+      }
     }
   }
 
@@ -295,7 +319,7 @@ class TrashPanel extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               TextButton.icon(
-                onPressed: () => _restoreNote(ref, note),
+                onPressed: () => _restoreNote(context, ref, note),
                 icon: const Icon(Icons.restore, size: 16, color: AeroColors.accentGreen),
                 label: const Text(
                   '恢复',

@@ -8,6 +8,7 @@ library;
 
 import 'dart:developer' as dev;
 import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../models/note_model.dart';
 import 'plugin_manifest.dart';
 import 'base_plugin.dart';
@@ -60,6 +61,9 @@ class PluginRegistry {
   /// 宿主应用提供的 PluginApi 实现
   PluginApi? _api;
 
+  /// 插件状态持久化 box
+  Box<dynamic>? _statesBox;
+
   /// 是否已初始化
   bool _initialized = false;
 
@@ -73,16 +77,21 @@ class PluginRegistry {
   Future<void> initialize(PluginApi api) async {
     if (_initialized) return;
     _api = api;
+    _statesBox = await Hive.openBox<dynamic>('plugin_states');
     _initialized = true;
-
-    // 恢复上次激活的插件列表
-    await _restorePluginStates();
   }
 
-  /// 恢复之前激活的插件状态
-  Future<void> _restorePluginStates() async {
-    // 从 Hive 存储中读取上次的插件启用状态
-    // 当前版本简化处理：默认激活所有已注册的插件
+  /// 获取插件存储
+  PluginStorage? getStorage(String pluginId) => _storages[pluginId];
+
+  /// 保存插件启用状态
+  Future<void> _savePluginEnabled(String pluginId, bool enabled) async {
+    await _statesBox?.put(pluginId, enabled);
+  }
+
+  /// 获取插件是否被启用
+  bool _isPluginEnabled(String pluginId) {
+    return _statesBox?.get(pluginId, defaultValue: true) as bool? ?? true;
   }
 
   // ──────────────────────────────────────────────
@@ -129,8 +138,8 @@ class PluginRegistry {
       pluginId: manifest.id,
     ));
 
-    // 自动激活
-    if (autoActivate && manifest.enabledByDefault) {
+    // 自动激活（检查持久化的禁用状态）
+    if (autoActivate && manifest.enabledByDefault && _isPluginEnabled(manifest.id)) {
       await activatePlugin(manifest.id);
     }
 
@@ -185,6 +194,7 @@ class PluginRegistry {
         pluginId: pluginId,
       ));
 
+      await _savePluginEnabled(pluginId, true);
       _log('插件 $pluginId 已激活');
       return true;
     } catch (e) {
@@ -202,10 +212,19 @@ class PluginRegistry {
   /// 暂停指定插件
   Future<void> pausePlugin(String pluginId) async {
     final plugin = _plugins[pluginId];
-    if (plugin == null || plugin.state != PluginState.active) return;
+    if (plugin == null) return;
+    if (plugin.state != PluginState.active) return;
+
+    if (_api != null) {
+      final commands = plugin.getCommands();
+      for (final cmd in commands) {
+        _api!.unregisterCommand(cmd.id);
+      }
+    }
 
     await plugin.pause();
     _states[pluginId] = PluginState.paused;
+    await _savePluginEnabled(pluginId, false);
     _emitEvent(PluginEvent(
       type: PluginEventType.paused,
       pluginId: pluginId,
@@ -219,14 +238,24 @@ class PluginRegistry {
     if (plugin == null || manifest == null || _api == null) return;
     if (plugin.state != PluginState.paused) return;
 
+    _storages[pluginId] ??= await PluginStorage.create(pluginId);
+    final storage = _storages[pluginId]!;
+
     final ctx = PluginContext(
       manifest: manifest,
       api: _api!,
-      storage: _storages[pluginId]!,
+      storage: storage,
     );
 
     await plugin.resume(ctx);
     _states[pluginId] = PluginState.active;
+
+    final commands = plugin.getCommands();
+    for (final cmd in commands) {
+      _api!.registerCommand(cmd);
+    }
+
+    await _savePluginEnabled(pluginId, true);
     _emitEvent(PluginEvent(
       type: PluginEventType.resumed,
       pluginId: pluginId,
@@ -373,7 +402,9 @@ class PluginRegistry {
     for (final listener in _listeners) {
       try {
         listener(event);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Error in plugin event listener: $e');
+      }
     }
   }
 

@@ -81,8 +81,18 @@ class EntityRecognizer {
   }) {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(delay, () async {
-      final result = await recognize(markdown);
-      onResult(result);
+      try {
+        final result = await recognize(markdown);
+        onResult(result);
+      } catch (e) {
+        if (kDebugMode) {
+          print('[EntityRecognizer] 防抖识别异常: $e');
+        }
+        onResult(const RecognitionResult(
+          entities: [],
+          processingTime: Duration.zero,
+        ));
+      }
     });
   }
 
@@ -148,25 +158,33 @@ class EntityRecognizer {
 
     // 3. @人名 → person
     final personPattern =
-        RegExp(r'(?:^|\s)@([A-Z\u4e00-\u9fff][\w\u4e00-\u9fff]{1,20})(?!\.)');
+        RegExp(r'(?:^|\s)(@[A-Z\u4e00-\u9fff][\w\u4e00-\u9fff]{1,20})(?!\.)');
     for (final match in personPattern.allMatches(markdown)) {
+      final fullMatch = match.group(0) ?? '';
+      final atIndex = fullMatch.indexOf('@');
+      final startOffset = match.start + atIndex;
+      final endOffset = startOffset + (match.group(1)?.length ?? 0);
       entities.add(EntityHighlight(
-        startOffset: match.start,
-        endOffset: match.end,
+        startOffset: startOffset,
+        endOffset: endOffset,
         type: EntityType.person,
-        label: match.group(1) ?? '',
+        label: (match.group(1) ?? '').substring(1),
         confidence: 0.8,
       ));
     }
 
     // 4. #标签 → concept
-    final tagPattern = RegExp(r'(?:^|\s)#([\w\u4e00-\u9fff-]+)');
+    final tagPattern = RegExp(r'(?:^|\s)(#[\w\u4e00-\u9fff-]+)');
     for (final match in tagPattern.allMatches(markdown)) {
+      final fullMatch = match.group(0) ?? '';
+      final hashIndex = fullMatch.indexOf('#');
+      final startOffset = match.start + hashIndex;
+      final endOffset = startOffset + (match.group(1)?.length ?? 0);
       entities.add(EntityHighlight(
-        startOffset: match.start,
-        endOffset: match.end,
+        startOffset: startOffset,
+        endOffset: endOffset,
         type: EntityType.concept,
-        label: match.group(1) ?? '',
+        label: (match.group(1) ?? '').substring(1),
         confidence: 0.85,
       ));
     }
@@ -222,8 +240,9 @@ class EntityRecognizer {
     }
 
     try {
+      const prefixLength = 0;
       final truncated = markdown.length > 4000
-          ? markdown.substring(0, 4000)
+          ? markdown.substring(prefixLength, prefixLength + 4000)
           : markdown;
 
       final prompt = '''请识别以下 Markdown 文本中的实体。
@@ -257,8 +276,8 @@ $truncated
 
       for (final item in parsed) {
         if (item is Map) {
-          final start = item['start'] as int? ?? 0;
-          final end = item['end'] as int? ?? 0;
+          final rawStart = item['start'] as int? ?? 0;
+          final rawEnd = item['end'] as int? ?? 0;
           final typeStr = item['type'] as String? ?? 'concept';
           final label = item['label'] as String? ?? '';
           final confidence = (item['confidence'] as num?)?.toDouble() ?? 0.5;
@@ -268,14 +287,19 @@ $truncated
             orElse: () => EntityType.concept,
           );
 
-          if (start >= 0 && end > start && end <= markdown.length) {
-            entities.add(EntityHighlight(
-              startOffset: start,
-              endOffset: end,
-              type: type,
-              label: label,
-              confidence: confidence,
-            ));
+          if (rawStart >= 0 && rawEnd > rawStart && rawEnd <= truncated.length) {
+            final start = rawStart + prefixLength;
+            final end = rawEnd + prefixLength;
+
+            if (start >= 0 && end > start && end <= markdown.length) {
+              entities.add(EntityHighlight(
+                startOffset: start,
+                endOffset: end,
+                type: type,
+                label: label,
+                confidence: confidence,
+              ));
+            }
           }
         }
       }

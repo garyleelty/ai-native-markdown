@@ -105,7 +105,7 @@ class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const Center(
                     child: CircularProgressIndicator(
-                      color: AeroColors.accent,
+                      color: AeroColors.primary,
                       strokeWidth: 2,
                     ),
                   );
@@ -142,7 +142,7 @@ class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
           const Icon(
             Icons.history,
             size: 16,
-            color: AeroColors.accent,
+            color: AeroColors.primary,
           ),
           const SizedBox(width: 8),
           const Text(
@@ -254,7 +254,7 @@ class _VersionTile extends StatelessWidget {
         color: AeroColors.surfaceVariant,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: isExpanded ? AeroColors.accent : AeroColors.border,
+          color: isExpanded ? AeroColors.primary : AeroColors.border,
           width: isExpanded ? 1 : 0.5,
         ),
       ),
@@ -300,7 +300,7 @@ class _VersionTile extends StatelessWidget {
           width: 8,
           height: 8,
           decoration: BoxDecoration(
-            color: isLatest ? AeroColors.accent : AeroColors.textMuted,
+            color: isLatest ? AeroColors.primary : AeroColors.textMuted,
             shape: BoxShape.circle,
           ),
         ),
@@ -309,7 +309,7 @@ class _VersionTile extends StatelessWidget {
         Text(
           dateFormatter.format(version.savedAt),
           style: TextStyle(
-            color: isLatest ? AeroColors.accent : AeroColors.textSecondary,
+            color: isLatest ? AeroColors.primary : AeroColors.textSecondary,
             fontSize: 12,
             fontWeight: isLatest ? FontWeight.w600 : FontWeight.w500,
           ),
@@ -319,13 +319,13 @@ class _VersionTile extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
-              color: AeroColors.accent.withValues(alpha: 0.15),
+              color: AeroColors.primary.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Text(
               '最新',
               style: TextStyle(
-                color: AeroColors.accent,
+                color: AeroColors.primary,
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
               ),
@@ -409,18 +409,18 @@ class _RestoreButton extends StatelessWidget {
                 height: 12,
                 child: CircularProgressIndicator(
                   strokeWidth: 1.5,
-                  color: AeroColors.accent,
+                  color: AeroColors.primary,
                 ),
               )
             : const Icon(
                 Icons.restore,
                 size: 13,
-                color: AeroColors.accent,
+                color: AeroColors.primary,
               ),
         label: Text(
           isRestoring ? '恢复中' : '恢复',
           style: const TextStyle(
-            color: AeroColors.accent,
+            color: AeroColors.primary,
             fontSize: 11,
             fontWeight: FontWeight.w500,
           ),
@@ -432,7 +432,7 @@ class _RestoreButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),
             side: BorderSide(
-              color: AeroColors.accent.withValues(alpha: onPressed == null ? 0.3 : 0.5),
+              color: AeroColors.primary.withValues(alpha: onPressed == null ? 0.3 : 0.5),
               width: 0.5,
             ),
           ),

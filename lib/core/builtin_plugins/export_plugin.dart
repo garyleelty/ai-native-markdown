@@ -161,11 +161,45 @@ class ExportPlugin extends BasePlugin {
     return const JsonEncoder.withIndent('  ').convert(data);
   }
 
+  static const _allowedUrlSchemes = ['http:', 'https:', 'ftp:', 'ftps:', 'mailto:', 'tel:', 'file:'];
+  static const _htmlEscapeAttr = HtmlEscape(HtmlEscapeMode.attribute);
+  static const _htmlEscapeElement = HtmlEscape(HtmlEscapeMode.element);
+
+  static String _sanitizeUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return '#';
+    try {
+      final uri = Uri.parse(trimmed);
+      if (uri.hasScheme && _allowedUrlSchemes.contains(uri.scheme.toLowerCase())) {
+        return _htmlEscapeAttr.convert(trimmed);
+      }
+      if (trimmed.startsWith('#') || trimmed.startsWith('/') || trimmed.startsWith('./')) {
+        return _htmlEscapeAttr.convert(trimmed);
+      }
+      return '#';
+    } catch (_) {
+      return '#';
+    }
+  }
+
   /// 简化的 Markdown → HTML 转换
   static String _markdownToSimpleHtml(String md) {
-    String html = _escapeHtml(md);
+    final codeBlocks = <String>[];
+    String html = md.replaceAllMapped(RegExp(r'```([\s\S]*?)```'), (m) {
+      final placeholder = '\x00CODEBLOCK${codeBlocks.length}\x00';
+      codeBlocks.add(m.group(1) ?? '');
+      return placeholder;
+    });
 
-    // 标题
+    final inlineCodes = <String>[];
+    html = html.replaceAllMapped(RegExp(r'`([^`]+?)`'), (m) {
+      final placeholder = '\x00INLINECODE${inlineCodes.length}\x00';
+      inlineCodes.add(m.group(1) ?? '');
+      return placeholder;
+    });
+
+    html = _escapeHtml(html);
+
     html = html.replaceAllMapped(
         RegExp(r'^######\s+(.+)$', multiLine: true),
         (m) => '<h6>${m.group(1)}</h6>');
@@ -185,29 +219,32 @@ class ExportPlugin extends BasePlugin {
         RegExp(r'^#\s+(.+)$', multiLine: true),
         (m) => '<h1>${m.group(1)}</h1>');
 
-    // 粗体 / 斜体
     html = html.replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (m) => '<strong>${m.group(1)}</strong>');
     html = html.replaceAllMapped(RegExp(r'\*(.+?)\*'), (m) => '<em>${m.group(1)}</em>');
 
-    // 代码块
     html = html.replaceAllMapped(
-        RegExp(r'```[\s\S]*?```'), (m) => '<pre><code>${m.group(0)}</code></pre>');
+        RegExp(r'\[(.+?)\]\((.+?)\)'), (m) {
+      final text = m.group(1) ?? '';
+      final url = m.group(2) ?? '';
+      return '<a href="${_sanitizeUrl(url)}" rel="noopener noreferrer">$text</a>';
+    });
 
-    // 链接
-    html = html.replaceAllMapped(
-        RegExp(r'\[(.+?)\]\((.+?)\)'), (m) => '<a href="${m.group(2)}">${m.group(1)}</a>');
-
-    // 换行
     html = html.replaceAll('\n', '<br>\n');
+
+    for (var i = 0; i < inlineCodes.length; i++) {
+      final escapedCode = _escapeHtml(inlineCodes[i]);
+      html = html.replaceAll('\x00INLINECODE$i\x00', '<code>$escapedCode</code>');
+    }
+
+    for (var i = 0; i < codeBlocks.length; i++) {
+      final escapedCode = _escapeHtml(codeBlocks[i]);
+      html = html.replaceAll('\x00CODEBLOCK$i\x00', '<pre><code>$escapedCode</code></pre>');
+    }
 
     return html;
   }
 
   static String _escapeHtml(String text) {
-    return text
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;');
+    return _htmlEscapeElement.convert(text);
   }
 }

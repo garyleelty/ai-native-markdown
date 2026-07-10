@@ -9,6 +9,7 @@
 /// ──────────────────────────────────────────────────
 library;
 
+import 'package:flutter/foundation.dart';
 import '../plugin/base_plugin.dart';
 import '../plugin/plugin_manifest.dart';
 import '../plugin/plugin_api.dart';
@@ -67,7 +68,9 @@ class WordCountPlugin extends BasePlugin {
       // 缓存统计结果
       await ctx.storage.putString('last_note_id', noteId);
       await ctx.storage.putInt('last_word_count', stats.wordCount);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error in word count plugin: $e');
+    }
   }
 
   @override

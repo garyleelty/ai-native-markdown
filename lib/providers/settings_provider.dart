@@ -120,14 +120,18 @@ class SettingsNotifier extends Notifier<AppSettings> {
       if (raw is Map) {
         return AppSettings.fromMap(raw);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error loading settings: $e');
+    }
     return const AppSettings();
   }
 
   void _persist() {
     try {
       HiveService.metaBox.put(_kSettingsKey, state.toMap());
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error persisting settings: $e');
+    }
   }
 
   void setAutoSaveEnabled(bool value) {
@@ -174,7 +178,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
   Future<void> clearAllData() async {
     try {
       await HiveService.clearAllData();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error clearing all data: $e');
+    }
     // 重置为默认设置
     state = const AppSettings();
     _persist();

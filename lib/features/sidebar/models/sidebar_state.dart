@@ -132,6 +132,9 @@ class SidebarState {
   /// 是否正在搜索
   final bool isSearching;
 
+  /// 搜索提示/警告信息（如正则降级提示）
+  final String? searchMessage;
+
   /// 所有标签及其笔记计数
   final Map<String, int> tagCounts;
 
@@ -176,6 +179,7 @@ class SidebarState {
     this.searchQuery = '',
     this.searchResults = const [],
     this.isSearching = false,
+    this.searchMessage,
     this.tagCounts = const {},
     this.selectedTag,
     this.filteredTagNotes = const [],
@@ -198,6 +202,8 @@ class SidebarState {
     String? searchQuery,
     List<SearchResult>? searchResults,
     bool? isSearching,
+    String? searchMessage,
+    bool clearSearchMessage = false,
     Map<String, int>? tagCounts,
     String? selectedTag,
     bool clearSelectedTag = false,
@@ -223,6 +229,9 @@ class SidebarState {
       searchQuery: searchQuery ?? this.searchQuery,
       searchResults: searchResults ?? this.searchResults,
       isSearching: isSearching ?? this.isSearching,
+      searchMessage: clearSearchMessage
+          ? null
+          : (searchMessage ?? this.searchMessage),
       tagCounts: tagCounts ?? this.tagCounts,
       selectedTag: clearSelectedTag
           ? null

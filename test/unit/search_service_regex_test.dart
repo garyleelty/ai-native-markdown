@@ -78,12 +78,13 @@ void main() {
         content: 'flu content',
         folderPath: 'docs',
       );
-      final results = SearchService.searchNotes(
+      final response = SearchService.searchNotes(
         [noteA, noteB],
         'path:projects flu',
       );
       // 即使 B 也包含 'flu'，但 folderPath 不含 'projects'，被过滤掉
-      expect(results.map((r) => r.note.id).toList(), ['a']);
+      expect(response.results.map((r) => r.note.id).toList(), ['a']);
+      expect(response.message, isNull);
     });
 
     test('p: 简写等价于 path:', () {
@@ -99,11 +100,12 @@ void main() {
         content: 'hello world',
         folderPath: 'docs',
       );
-      final results = SearchService.searchNotes(
+      final response = SearchService.searchNotes(
         [noteA, noteB],
         'p:docs hello',
       );
-      expect(results.map((r) => r.note.id).toList(), ['b']);
+      expect(response.results.map((r) => r.note.id).toList(), ['b']);
+      expect(response.message, isNull);
     });
 
     test('空 folderPath 不匹配非空 pathFilter', () {
@@ -113,11 +115,12 @@ void main() {
         content: 'flu',
         folderPath: '',
       );
-      final results = SearchService.searchNotes(
+      final response = SearchService.searchNotes(
         [note],
         'path:projects flu',
       );
-      expect(results, isEmpty);
+      expect(response.results, isEmpty);
+      expect(response.message, isNull);
     });
   });
 
@@ -133,17 +136,18 @@ void main() {
         title: 'Note B',
         content: 'foobar baz',
       );
-      final results = SearchService.searchNotes(
+      final response = SearchService.searchNotes(
         [noteA, noteB],
         r'/foo\d+/',
       );
-      expect(results.map((r) => r.note.id).toList(), ['a']);
+      expect(response.results.map((r) => r.note.id).toList(), ['a']);
+      expect(response.message, isNull);
 
       // 验证 matches 字段含所有 RegExpMatch 位置
-      final aResult = results.firstWhere((r) => r.note.id == 'a');
+      final aResult = response.results.firstWhere((r) => r.note.id == 'a');
       expect(aResult.matches, isNotEmpty);
       final contentMatch = aResult.matches.firstWhere(
-        (m) => m.field == 'content',
+        (SearchMatch m) => m.field == 'content',
       );
       expect(
         noteA.rawMarkdown.substring(contentMatch.start, contentMatch.end),
@@ -151,7 +155,7 @@ void main() {
       );
     });
 
-    test('非法正则降级为字面量搜索', () {
+    test('非法正则降级为字面量搜索并返回警告信息', () {
       // 先验证 [ 确实是非法正则（会被 RegExp 拒绝）
       // ignore: valid_regexps
       expect(() => RegExp('['), throwsFormatException);
@@ -167,12 +171,14 @@ void main() {
         title: 'Note',
         content: 'array[0] element',
       );
-      final results = SearchService.searchNotes([note], '/[/');
-      expect(results, isNotEmpty);
-      expect(results.first.note.id, 'a');
+      final response = SearchService.searchNotes([note], '/[/');
+      expect(response.results, isNotEmpty);
+      expect(response.results.first.note.id, 'a');
+      expect(response.message, '正则语法无效，已降级为普通搜索');
 
       // 验证匹配位置确实对应字面量 '['
-      final match = results.first.matches.firstWhere((m) => m.field == 'content');
+      final match = response.results.first.matches
+          .firstWhere((SearchMatch m) => m.field == 'content');
       expect(note.rawMarkdown.substring(match.start, match.end), '[');
     });
 
@@ -192,11 +198,12 @@ void main() {
 
       // searchNotes 不会按正则匹配 foo123（因为是普通 keyword 子串搜索）
       // 'foo123' 不包含字面子串 '/foo\d+/'，因此不匹配
-      final results = SearchService.searchNotes(
+      final response = SearchService.searchNotes(
         [noteA],
         r'path:projects /foo\d+/',
       );
-      expect(results, isEmpty);
+      expect(response.results, isEmpty);
+      expect(response.message, isNull);
     });
   });
 
@@ -207,9 +214,10 @@ void main() {
         title: 'Flutter Guide',
         content: 'dart code',
       );
-      final results = SearchService.searchNotes([note], 'title:Flutter');
-      expect(results, isNotEmpty);
-      expect(results.first.note.id, 'a');
+      final response = SearchService.searchNotes([note], 'title:Flutter');
+      expect(response.results, isNotEmpty);
+      expect(response.results.first.note.id, 'a');
+      expect(response.message, isNull);
     });
 
     test('content: 前缀仍正常工作', () {
@@ -218,9 +226,10 @@ void main() {
         title: 'Guide',
         content: 'dart code here',
       );
-      final results = SearchService.searchNotes([note], 'content:dart');
-      expect(results, isNotEmpty);
-      expect(results.first.note.id, 'a');
+      final response = SearchService.searchNotes([note], 'content:dart');
+      expect(response.results, isNotEmpty);
+      expect(response.results.first.note.id, 'a');
+      expect(response.message, isNull);
     });
 
     test('tag: 前缀仍正常工作', () {
@@ -230,9 +239,10 @@ void main() {
         content: 'content',
         tags: ['dev'],
       );
-      final results = SearchService.searchNotes([note], 'tag:dev');
-      expect(results, isNotEmpty);
-      expect(results.first.note.id, 'a');
+      final response = SearchService.searchNotes([note], 'tag:dev');
+      expect(response.results, isNotEmpty);
+      expect(response.results.first.note.id, 'a');
+      expect(response.message, isNull);
     });
   });
 }

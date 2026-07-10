@@ -58,6 +58,11 @@ class _CommandPaletteOverlayState
     _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
     );
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  void _onSearchChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -234,12 +239,25 @@ class _CommandPaletteOverlayState
                 color: AeroColors.textPrimary,
                 fontSize: 14,
               ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: '输入命令...',
-                hintStyle: TextStyle(color: AeroColors.textMuted),
+                hintStyle: const TextStyle(color: AeroColors.textMuted),
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close,
+                            size: 16, color: AeroColors.textMuted),
+                        onPressed: () {
+                          _searchController.clear();
+                          ref
+                              .read(commandPaletteProvider.notifier)
+                              .updateSearch('');
+                        },
+                        splashRadius: 14,
+                      )
+                    : null,
               ),
             ),
           ),

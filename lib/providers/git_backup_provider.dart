@@ -22,6 +22,7 @@ class GitBackupState {
   final String? lastError;
   final DateTime? lastBackupTime;
   final List<GitCommitInfo> recentCommits;
+  final bool isLoading;
 
   const GitBackupState({
     this.enabled = false,
@@ -34,6 +35,7 @@ class GitBackupState {
     this.lastError,
     this.lastBackupTime,
     this.recentCommits = const [],
+    this.isLoading = true,
   });
 
   GitBackupState copyWith({
@@ -47,6 +49,7 @@ class GitBackupState {
     String? lastError,
     DateTime? lastBackupTime,
     List<GitCommitInfo>? recentCommits,
+    bool? isLoading,
   }) {
     return GitBackupState(
       enabled: enabled ?? this.enabled,
@@ -59,6 +62,7 @@ class GitBackupState {
       lastError: lastError ?? this.lastError,
       lastBackupTime: lastBackupTime ?? this.lastBackupTime,
       recentCommits: recentCommits ?? this.recentCommits,
+      isLoading: isLoading ?? this.isLoading,
     );
   }
 }
@@ -75,9 +79,9 @@ class GitBackupNotifier extends Notifier<GitBackupState> {
 
   GitBackupService? get service => _service;
 
-  void _loadFromStorage() {
+  Future<void> _loadFromStorage() async {
     try {
-      final saved = HiveService.metaBox.get(_boxKey);
+      final saved = await HiveService.metaBox.get(_boxKey);
       if (saved is Map) {
         final map = Map<String, dynamic>.from(saved);
         state = GitBackupState(
@@ -87,22 +91,26 @@ class GitBackupNotifier extends Notifier<GitBackupState> {
           userEmail: map['userEmail']?.toString() ?? '',
           branch: map['branch']?.toString() ?? 'main',
           autoBackup: map['autoBackup'] == true,
+          isLoading: true,
         );
       }
-      final lastBackup = HiveService.metaBox.get('git_last_backup_time');
+      final lastBackup = await HiveService.metaBox.get('git_last_backup_time');
       if (lastBackup != null && lastBackup is int) {
         state = state.copyWith(
           lastBackupTime: DateTime.fromMillisecondsSinceEpoch(lastBackup),
         );
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error loading git backup config: $e');
+    }
 
-    _initService();
+    await _initService();
+    state = state.copyWith(isLoading: false);
   }
 
-  void _saveToStorage() {
+  Future<void> _saveToStorage() async {
     try {
-      HiveService.metaBox.put(_boxKey, {
+      await HiveService.metaBox.put(_boxKey, {
         'enabled': state.enabled,
         'remoteUrl': state.remoteUrl,
         'userName': state.userName,
@@ -111,37 +119,51 @@ class GitBackupNotifier extends Notifier<GitBackupState> {
         'autoBackup': state.autoBackup,
       });
       if (state.lastBackupTime != null) {
-        HiveService.metaBox.put(
+        await HiveService.metaBox.put(
           'git_last_backup_time',
           state.lastBackupTime!.millisecondsSinceEpoch,
         );
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error saving git backup config: $e');
+    }
   }
 
-  void _initService() {
+  Future<void> _initService() async {
     if (kIsWeb) return;
-    final vaultRoot = _defaultVaultRoot();
-    _service = GitBackupService(workingDirectory: vaultRoot);
+    try {
+      final vaultRoot = _defaultVaultRoot();
+      _service = GitBackupService(workingDirectory: vaultRoot);
+    } catch (e) {
+      debugPrint('Error initializing git service: $e');
+    }
   }
 
-  void updateConfig({
+  Future<void> updateConfig({
     String? remoteUrl,
     String? userName,
     String? userEmail,
     String? branch,
     bool? enabled,
     bool? autoBackup,
-  }) {
-    state = state.copyWith(
-      remoteUrl: remoteUrl,
-      userName: userName,
-      userEmail: userEmail,
-      branch: branch,
-      enabled: enabled,
-      autoBackup: autoBackup,
-    );
-    _saveToStorage();
+  }) async {
+    try {
+      state = state.copyWith(
+        remoteUrl: remoteUrl,
+        userName: userName,
+        userEmail: userEmail,
+        branch: branch,
+        enabled: enabled,
+        autoBackup: autoBackup,
+      );
+      await _saveToStorage();
+    } catch (e) {
+      debugPrint('Error updating config: $e');
+      state = state.copyWith(
+        status: SyncStatus.error,
+        lastError: e.toString(),
+      );
+    }
   }
 
   Future<bool> initRepo() async {
@@ -162,10 +184,24 @@ class GitBackupNotifier extends Notifier<GitBackupState> {
         }
       }
       if (state.userName.isNotEmpty && state.userEmail.isNotEmpty) {
-        await svc.setUserInfo(state.userName, state.userEmail);
+        final userResult = await svc.setUserInfo(state.userName, state.userEmail);
+        if (!userResult.success) {
+          state = state.copyWith(
+            status: SyncStatus.error,
+            lastError: '设置用户信息失败: ${userResult.stderr}',
+          );
+          return false;
+        }
       }
       if (state.remoteUrl.isNotEmpty) {
-        await svc.addRemote(state.remoteUrl);
+        final remoteResult = await svc.addRemote(state.remoteUrl);
+        if (!remoteResult.success) {
+          state = state.copyWith(
+            status: SyncStatus.error,
+            lastError: '添加远程仓库失败: ${remoteResult.stderr}',
+          );
+          return false;
+        }
       }
       state = state.copyWith(status: SyncStatus.success);
       return true;
@@ -190,22 +226,27 @@ class GitBackupNotifier extends Notifier<GitBackupState> {
         if (!ok) return false;
       }
 
-      await svc.addAll();
-
-      final hasChanges = await svc.hasChanges();
-      if (hasChanges) {
-        final commitResult = await svc.commit(message);
-        if (!commitResult.success && commitResult.stderr.contains('nothing to commit')) {
-        } else if (!commitResult.success) {
-          state = state.copyWith(
-            status: SyncStatus.error,
-            lastError: '提交失败: ${commitResult.stderr}',
-          );
-          return false;
-        }
+      final addResult = await svc.addAll();
+      if (!addResult.success) {
+        state = state.copyWith(
+          status: SyncStatus.error,
+          lastError: '添加文件失败: ${addResult.stderr}',
+        );
+        return false;
       }
 
-      if (state.remoteUrl.isNotEmpty) {
+      final commitResult = await svc.commit(message);
+      if (!commitResult.success) {
+        state = state.copyWith(
+          status: SyncStatus.error,
+          lastError: '提交失败: ${commitResult.stderr}',
+        );
+        return false;
+      }
+
+      final didCommit = commitResult.stdout != '无变更需要提交';
+
+      if (state.remoteUrl.isNotEmpty && didCommit) {
         final pushResult = await svc.push(branch: state.branch);
         if (!pushResult.success) {
           state = state.copyWith(
@@ -216,13 +257,17 @@ class GitBackupNotifier extends Notifier<GitBackupState> {
         }
       }
 
-      final now = DateTime.now();
-      state = state.copyWith(
-        status: SyncStatus.success,
-        lastBackupTime: now,
-      );
-      _saveToStorage();
-      _refreshCommits();
+      if (didCommit) {
+        final now = DateTime.now();
+        state = state.copyWith(
+          status: SyncStatus.success,
+          lastBackupTime: now,
+        );
+        await _saveToStorage();
+      } else {
+        state = state.copyWith(status: SyncStatus.success);
+      }
+      await _refreshCommits();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -258,7 +303,8 @@ class GitBackupNotifier extends Notifier<GitBackupState> {
         status: SyncStatus.success,
         lastBackupTime: DateTime.now(),
       );
-      _refreshCommits();
+      await _saveToStorage();
+      await _refreshCommits();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -275,12 +321,19 @@ class GitBackupNotifier extends Notifier<GitBackupState> {
     try {
       final commits = await svc.log(limit: 20);
       state = state.copyWith(recentCommits: commits);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error refreshing git commits: $e');
+    }
   }
 
   Future<List<GitCommitInfo>> loadHistory() async {
-    await _refreshCommits();
-    return state.recentCommits;
+    try {
+      await _refreshCommits();
+      return state.recentCommits;
+    } catch (e) {
+      debugPrint('Error loading history: $e');
+      return [];
+    }
   }
 
   void clearError() {

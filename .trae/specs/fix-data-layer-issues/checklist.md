@@ -1,0 +1,26 @@
+# Checklist
+
+- [x] C1: LocalNoteRepository.saveNote 在 note.id 为空时自动生成uuid
+- [x] C2: LocalNoteRepository.saveNote 支持通过copyWith更新createdAt（已添加createdAt参数到copyWith）
+- [x] C3: LocalNoteRepository.saveNote 始终更新 updatedAt 为当前时间
+- [x] C4: TrashService.moveToTrash 使用uuid生成trashId，不包含时间戳
+- [x] C5: TrashService.moveToTrash 将note.updatedAt更新为删除时间
+- [x] C6: TrashService.getAllTrashed 使用note.updatedAt排序（而非从ID解析）
+- [x] C7: TrashService.cleanExpired 使用note.updatedAt判断过期（而非从ID解析）
+- [x] C8: TrashService._getOriginalId 仍能正确从trashId解析原始ID
+- [x] C9: TemplateService.createFromContent 使用uuid生成自定义模板ID
+- [x] C10: TemplateGallery._applyTemplate 使用repo.generateId()生成笔记ID
+- [x] C11: FilePickerService.importFromPath 使用Uuid生成ID
+- [x] C12: app.dart 中欢迎笔记、新建笔记、复制笔记均使用repo.generateId()
+- [x] C13: SlidingPanesContainer._createNewNote 使用repo.generateId()
+- [x] C14: SlidingPanesContainer._openTodayNote 返回类型为 Future<void>
+- [x] C15: SlidingPanesContainer._openLocalFile 返回类型为 Future<void> 且包含try-catch
+- [x] C16: SidebarContainer._createNote 使用repo.generateId()
+- [x] C17: SidebarContainer._duplicateNote 使用repo.generateId()
+- [x] C18: ImportExportPanel._noteFromJson 使用Uuid生成fallback ID
+- [x] C19: ImportExportPanel 中 _exportCurrent 所有await后setState前检查mounted
+- [x] C20: ImportExportPanel 中 _exportAll 所有await后setState前检查mounted
+- [x] C21: ImportExportPanel 中 _copyAllToClipboard 所有await后setState前检查mounted
+- [x] C22: ImportExportPanel 中 _importFromJson 所有await后setState前检查mounted
+- [x] C23: daily_notes 目录下服务无使用时间戳作为笔记ID的情况
+- [x] C24: 代码无语法错误，运行dart analyze无新增问题

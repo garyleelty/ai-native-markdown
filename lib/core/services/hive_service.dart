@@ -77,11 +77,7 @@ class HiveService {
     if (testPath != null) {
       Hive.init(testPath);
     } else {
-      try {
-        await Hive.initFlutter();
-      } catch (_) {
-        Hive.init('.');
-      }
+      await Hive.initFlutter();
     }
 
     if (!Hive.isAdapterRegistered(0)) {

@@ -1,93 +1,115 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 import '../models/note_model.dart';
 import 'hive_service.dart';
-
-/// ══════════════════════════════════════════════════
-/// FileService — 笔记文件 CRUD
-/// ══════════════════════════════════════════════════
-/// Web 端: 仅使用 Hive 存储 (IndexedDB)
-/// 桌面端: 文件系统 + Hive 双写
-/// ──────────────────────────────────────────────────
 
 class FileService {
   final String vaultRoot;
 
-  FileService({required this.vaultRoot});
+  static const _uuid = Uuid();
+  static String? _globalVaultRoot;
 
-  /// 从文件路径生成确定性 ID
+  static void initializeVaultRoot(String root) {
+    _globalVaultRoot = p.canonicalize(root);
+  }
+
+  static String get globalVaultRoot {
+    if (_globalVaultRoot == null) {
+      throw StateError('FileService 未初始化，请先调用 FileService.initializeVaultRoot()');
+    }
+    return _globalVaultRoot!;
+  }
+
+  FileService({required this.vaultRoot}) {
+    if (_globalVaultRoot == null) {
+      initializeVaultRoot(vaultRoot);
+    }
+  }
+
+  static String _safePath(String filePath) {
+    if (kIsWeb) return filePath;
+    final root = _globalVaultRoot;
+    if (root == null) return filePath;
+
+    final normalized = p.canonicalize(filePath);
+    if (!p.isWithin(root, normalized) && normalized != root) {
+      throw SecurityException('路径越界访问: $filePath (vault: $root)');
+    }
+    return normalized;
+  }
+
   String generateId(String filePath) {
     final relative = p.relative(filePath, from: vaultRoot);
     return relative.hashCode.toRadixString(36);
   }
 
-  /// 从 Markdown 内容提取标题
+  static String generateNewId() => _uuid.v4();
+
   static String extractTitle(String content, String filePath) {
     final h1Match = RegExp(r'^#\s+(.+)$', multiLine: true).firstMatch(content);
     if (h1Match != null) return h1Match.group(1)!.trim();
     return p.basenameWithoutExtension(filePath);
   }
 
-  /// 同步笔记内容到文件系统（桌面端）
-  ///
-  /// 如果 [filePath] 为空或在 Web 端，则不执行操作。
-  /// 父目录不存在时自动递归创建。写入失败时静默忽略。
   static Future<void> syncToFile(String filePath, String content) async {
     if (kIsWeb || filePath.isEmpty) return;
     try {
-      final file = File(filePath);
+      final safePath = _safePath(filePath);
+      final file = File(safePath);
       final parent = file.parent;
       if (!await parent.exists()) {
         await parent.create(recursive: true);
       }
       await file.writeAsString(content);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('syncToFile 失败: $e');
+    }
   }
 
-  /// 检查是否应该同步到文件
   static bool shouldSyncToFile(String filePath) {
     return !kIsWeb && filePath.isNotEmpty;
   }
 
-  /// 保存笔记到 Hive (Web + 桌面通用)
   Future<void> saveNote(NoteModel note) async {
     await HiveService.noteBox.put(note.id, note);
   }
 
-  /// 从 Hive 获取笔记
   Future<NoteModel?> getNote(String id) async {
     return HiveService.noteBox.get(id);
   }
 
-  /// 获取所有笔记
   Future<List<NoteModel>> getAllNotes() async {
     final notes = <NoteModel>[];
     for (final key in HiveService.noteBox.keys) {
       try {
         final note = await HiveService.noteBox.get(key);
         if (note != null) notes.add(note);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('读取笔记 $key 失败: $e');
+      }
     }
     notes.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return notes;
   }
 
-  /// 创建新笔记 (内存 + Hive)
   Future<NoteModel> createNote({
     String title = '新笔记',
     String content = '',
     String? filePath,
   }) async {
     final now = DateTime.now();
-    final id = now.millisecondsSinceEpoch.toString();
-    final path = filePath ?? '$vaultRoot/$id.md';
+    final id = _uuid.v4();
+    final targetPath = filePath ?? p.join(vaultRoot, '$id.md');
+    final safePath = _safePath(targetPath);
 
     final note = NoteModel(
       id: id,
       title: title,
       rawMarkdown: content,
-      filePath: path,
+      filePath: safePath,
       createdAt: now,
       updatedAt: now,
     );
@@ -96,20 +118,27 @@ class FileService {
     return note;
   }
 
-  /// 删除笔记
   Future<void> deleteNote(String id) async {
     await HiveService.noteBox.delete(id);
   }
 
-  /// 导出笔记为字符串 (Web 端可用)
   String exportAsMarkdown(NoteModel note) => note.rawMarkdown;
 
-  /// 导出为 JSON 字符串
   String exportAsJson(NoteModel note) {
-    return '{"id":"${note.id}","title":"${note.title}","content":${_escapeJson(note.rawMarkdown)},"tags":${note.tags.map((t) => '"$t"').toList()}}';
+    return jsonEncode({
+      'id': note.id,
+      'title': note.title,
+      'content': note.rawMarkdown,
+      'tags': note.tags,
+      'createdAt': note.createdAt.toIso8601String(),
+      'updatedAt': note.updatedAt.toIso8601String(),
+    });
   }
+}
 
-  String _escapeJson(String text) {
-    return '"${text.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n')}"';
-  }
+class SecurityException implements Exception {
+  final String message;
+  SecurityException(this.message);
+  @override
+  String toString() => 'SecurityException: $message';
 }

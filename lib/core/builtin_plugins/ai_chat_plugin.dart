@@ -73,27 +73,12 @@ class AiChatPlugin extends BasePlugin {
 
   @override
   Future<void> onActivate(PluginContext ctx) async {
-    // 初始化默认模型设置
     final model = ctx.storage.getString('llm_model') ?? 'gpt-3.5-turbo';
     await ctx.storage.putString('llm_model', model);
-
-    // 注册打开对话面板命令
-    ctx.api.registerCommand(PluginCommand(
-      id: 'plugin.ai-chat.open',
-      name: '打开 AI 对话',
-      description: '打开 AI 对话面板，基于当前笔记上下文进行对话',
-      iconCodePoint: 0xe0b0,
-      pluginId: manifest.id,
-      category: 'AI',
-      action: () async {
-        ctx.api.showStatusMessage('AI 对话面板已就绪');
-      },
-    ));
   }
 
   @override
   List<PluginCommand> getCommands() => [
-        // 同时在 getCommands 中声明,确保 dispose 时能正确注销
         PluginCommand(
           id: 'plugin.ai-chat.open',
           name: '打开 AI 对话',

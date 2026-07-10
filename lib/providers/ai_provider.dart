@@ -21,13 +21,25 @@ class EntityCacheState {
 }
 
 class EntityCacheNotifier extends Notifier<EntityCacheState> {
+  static const int _maxCacheSize = 200;
+
   @override
   EntityCacheState build() => const EntityCacheState();
 
   void updateEntities(String noteId, List<EntityHighlight> entities) {
-    state = EntityCacheState(
-      cache: {...state.cache, noteId: entities},
-    );
+    final newCache = Map<String, List<EntityHighlight>>.from(state.cache);
+
+    if (newCache.containsKey(noteId)) {
+      newCache.remove(noteId);
+    }
+
+    while (newCache.length >= _maxCacheSize) {
+      final firstKey = newCache.keys.first;
+      newCache.remove(firstKey);
+    }
+
+    newCache[noteId] = entities;
+    state = EntityCacheState(cache: newCache);
   }
 
   /// 清除指定笔记的缓存

@@ -345,19 +345,27 @@ class _SlidingPanesContainerState
   }
 
   Future<void> _createNewNote(BuildContext context) async {
-    final repo = ref.read(noteRepositoryProvider);
-    final now = DateTime.now();
-    final note = NoteModel(
-      id: now.millisecondsSinceEpoch.toString(),
-      title: '新笔记',
-      rawMarkdown: '# 新笔记\n',
-      filePath: '',
-      createdAt: now,
-      updatedAt: now,
-    );
-    await repo.saveNote(note);
-    if (context.mounted) {
-      ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
+    try {
+      final repo = ref.read(noteRepositoryProvider);
+      final now = DateTime.now();
+      final note = NoteModel(
+        id: repo.generateId(),
+        title: '新笔记',
+        rawMarkdown: '# 新笔记\n',
+        filePath: '',
+        createdAt: now,
+        updatedAt: now,
+      );
+      final saved = await repo.saveNote(note);
+      if (context.mounted) {
+        ref.read(paneStackProvider.notifier).openPane(saved.id, saved.title);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('创建笔记失败: $e'), duration: const Duration(seconds: 2)),
+        );
+      }
     }
   }
 
@@ -365,7 +373,7 @@ class _SlidingPanesContainerState
     ref.read(quickSwitcherProvider.notifier).open();
   }
 
-  void _openTodayNote(BuildContext context) async {
+  Future<void> _openTodayNote(BuildContext context) async {
     try {
       final service = ref.read(dailyNoteServiceProvider);
       final repo = ref.read(noteRepositoryProvider);
@@ -377,14 +385,20 @@ class _SlidingPanesContainerState
       if (context.mounted) {
         ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error opening note: $e');
+    }
   }
 
-  void _openLocalFile(BuildContext context) async {
-    final service = ref.read(filePickerServiceProvider);
-    final note = await service.pickAndOpen();
-    if (note != null && context.mounted) {
-      ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
+  Future<void> _openLocalFile(BuildContext context) async {
+    try {
+      final service = ref.read(filePickerServiceProvider);
+      final note = await service.pickAndOpen();
+      if (note != null && context.mounted) {
+        ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
+      }
+    } catch (e) {
+      debugPrint('Error opening local file: $e');
     }
   }
 
@@ -727,41 +741,58 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
     final newTitle = _controller.text.trim();
     if (newTitle.isEmpty) {
       _controller.text = widget.title;
-      setState(() => _isEditing = false);
+      if (mounted) {
+        setState(() => _isEditing = false);
+      }
       return;
     }
 
     if (newTitle != widget.title) {
-      ref.read(paneStackProvider.notifier).updatePaneTitle(widget.index, newTitle);
-      final repo = ref.read(noteRepositoryProvider);
-      final note = await repo.getNote(widget.noteId);
-      if (note != null) {
-        var newMarkdown = note.rawMarkdown;
-        final h1Regex = RegExp(r'^#\s+.+$', multiLine: true);
-        final h1Match = h1Regex.firstMatch(newMarkdown);
-        if (h1Match != null) {
-          newMarkdown = newMarkdown.replaceFirst(h1Match.group(0)!, '# $newTitle');
-        } else if (newMarkdown.isNotEmpty) {
-          newMarkdown = '# $newTitle\n\n$newMarkdown';
-        } else {
-          newMarkdown = '# $newTitle\n';
+      try {
+        ref.read(paneStackProvider.notifier).updatePaneTitle(widget.index, newTitle);
+        final repo = ref.read(noteRepositoryProvider);
+        final note = await repo.getNote(widget.noteId);
+        if (note != null) {
+          var newMarkdown = note.rawMarkdown;
+          final h1Regex = RegExp(r'^#\s+.+$', multiLine: true);
+          final h1Match = h1Regex.firstMatch(newMarkdown);
+          if (h1Match != null) {
+            newMarkdown = newMarkdown.replaceFirst(h1Match.group(0)!, '# $newTitle');
+          } else if (newMarkdown.isNotEmpty) {
+            newMarkdown = '# $newTitle\n\n$newMarkdown';
+          } else {
+            newMarkdown = '# $newTitle\n';
+          }
+          final updated = note.copyWith(
+            title: newTitle,
+            rawMarkdown: newMarkdown,
+            updatedAt: DateTime.now(),
+          );
+          await repo.saveNote(updated);
+          if (FileService.shouldSyncToFile(updated.filePath)) {
+            await FileService.syncToFile(updated.filePath, updated.rawMarkdown);
+          }
+          ref.invalidate(noteByIdProvider(widget.noteId));
+          ref.invalidate(allNotesProvider);
+          await ref.read(sidebarProvider.notifier).loadNoteTree();
         }
-        final updated = note.copyWith(
-          title: newTitle,
-          rawMarkdown: newMarkdown,
-          updatedAt: DateTime.now(),
-        );
-        await repo.saveNote(updated);
-        if (FileService.shouldSyncToFile(updated.filePath)) {
-          await FileService.syncToFile(updated.filePath, updated.rawMarkdown);
+        if (mounted) {
+          setState(() => _isEditing = false);
         }
-        ref.invalidate(noteByIdProvider(widget.noteId));
-        ref.invalidate(allNotesProvider);
-        await ref.read(sidebarProvider.notifier).loadNoteTree();
+      } catch (e) {
+        _controller.text = widget.title;
+        if (mounted) {
+          setState(() => _isEditing = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('重命名失败: $e'), duration: const Duration(seconds: 2)),
+          );
+        }
+      }
+    } else {
+      if (mounted) {
+        setState(() => _isEditing = false);
       }
     }
-
-    setState(() => _isEditing = false);
   }
 
   @override

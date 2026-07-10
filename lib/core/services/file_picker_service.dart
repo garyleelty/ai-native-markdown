@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 import '../models/note_model.dart';
 import 'hive_service.dart';
 
@@ -30,14 +31,15 @@ class FilePickerService {
     return openFromPath(filePath);
   }
 
-  /// 从文件路径读取并导入
+  static const _uuid = Uuid();
+
   Future<NoteModel?> importFromPath(String filePath) async {
     try {
       final fileContent = await File(filePath).readAsString();
       final title = _extractTitle(fileContent, filePath);
 
       final now = DateTime.now();
-      final id = now.millisecondsSinceEpoch.toString();
+      final id = _uuid.v4();
 
       final note = NoteModel(
         id: id,

@@ -7,23 +7,19 @@ class AeroColors {
   AeroColors._();
 
   // ── 基础背景层级 ──
-  static const Color bgDeep       = Color(0xFF1E1E1E); // 最底层
-  static const Color bgSurface    = Color(0xFF252526); // 面板表面
-  static const Color bgElevated   = Color(0xFF2D2D2D); // 浮起卡片
-  static const Color bgHover      = Color(0xFF333337); // 悬停态
+  static const Color bgDeep       = Color(0xFF1E1E1E);
+  static const Color bgSurface    = Color(0xFF252526);
+  static const Color bgElevated   = Color(0xFF2D2D2D);
+  static const Color bgHover      = Color(0xFF333337);
+  static const Color bgInput      = Color(0xFF1E1E1E);
 
-  // ── 通用语义化背景（用于面板/卡片/对话框等组件）──
-  static const Color surface       = Color(0xFF1E1E2E); // 面板背景
-  static const Color surfaceVariant = Color(0xFF252535); // 卡片背景
-  static const Color accent        = Color(0xFF7B68EE); // 主色（中紫）
+  // 向后兼容别名
+  static const Color surface       = bgSurface;
+  static const Color surfaceVariant = bgElevated;
 
-  // ── 边框与分割线 ──
-  static const Color border       = Color(0xFF3E3E42);
-  static const Color borderActive = Color(0xFF569CD6);
-  static const Color divider      = Color(0xFF3E3E42);
-
-  // ── 冷调蓝紫高亮 ──
-  static const Color accentBlue   = Color(0xFF569CD6);
+  // ── 主色/强调色 ──
+  static const Color primary      = Color(0xFF569CD6);
+  static const Color accentBlue   = primary;
   static const Color accentPurple = Color(0xFFC586C0);
   static const Color accentCyan   = Color(0xFF4EC9B0);
   static const Color accentOrange = Color(0xFFCE9178);
@@ -31,22 +27,33 @@ class AeroColors {
   static const Color accentRed    = Color(0xFFF48771);
   static const Color accentYellow = Color(0xFFDCDCAA);
 
+  // ── 边框与分割线 ──
+  static const Color border       = Color(0xFF3E3E42);
+  static const Color borderActive = Color(0xFF569CD6);
+  static const Color divider      = Color(0xFF3E3E42);
+
+  // ── 状态色 ──
+  static const Color success      = Color(0xFF4EC9B0);
+  static const Color warning      = Color(0xFFDCDCAA);
+  static const Color error        = Color(0xFFF48771);
+  static const Color info         = Color(0xFF569CD6);
+
   // ── AI 实体高亮色 (半透明底) ──
-  static const Color entityConcept   = Color(0x20569CD6); // 概念
-  static const Color entityPerson    = Color(0x20C586C0); // 人物
-  static const Color entityTask      = Color(0x204EC9B0); // 任务
-  static const Color entityQuote     = Color(0x20CE9178); // 引文
-  static const Color entityReference = Color(0x206A9955); // 引用
+  static const Color entityConcept   = Color(0x20569CD6);
+  static const Color entityPerson    = Color(0x20C586C0);
+  static const Color entityTask      = Color(0x204EC9B0);
+  static const Color entityQuote     = Color(0x20CE9178);
+  static const Color entityReference = Color(0x206A9955);
 
   // ── 文字 ──
   static const Color textPrimary   = Color(0xFFD4D4D4);
   static const Color textSecondary = Color(0xFF808080);
   static const Color textMuted     = Color(0xFF5A5A5A);
   static const Color textLink      = Color(0xFF569CD6);
-  static const Color textOnAccent  = Color(0xFFFFFFFF); // 渐变背景上的白字
+  static const Color textOnAccent  = Color(0xFFFFFFFF);
 
   // ── 阴影 ──
-  static const Color shadow        = Color(0x4D000000); // 0.3 不透明黑
+  static const Color shadow        = Color(0x4D000000);
 }
 
 /// AeroMind 核心主题构建
