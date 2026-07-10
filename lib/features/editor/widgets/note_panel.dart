@@ -99,23 +99,26 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   void didUpdateWidget(covariant NotePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.noteId != widget.noteId) {
-      if (_hasUnsavedChanges) {
-        _autoSaveTimer?.cancel();
-        _doSave(_rawMarkdown);
-      }
+      _autoSaveTimer?.cancel();
+      final prevText = _rawMarkdown;
+      final prevHasUnsaved = _hasUnsavedChanges;
       _undoStack.clear();
       _redoStack.clear();
-      _loadNote();
+      if (prevHasUnsaved) {
+        _doSave(prevText).then((_) {
+          if (mounted) _loadNote();
+        });
+      } else {
+        _loadNote();
+      }
     }
   }
 
   @override
   void dispose() {
+    _autoSaveTimer?.cancel();
     if (_hasUnsavedChanges) {
-      _autoSaveTimer?.cancel();
       _doSave(_rawMarkdown);
-    } else {
-      _autoSaveTimer?.cancel();
     }
     _wikiLinkVisible = false;
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
@@ -343,51 +346,52 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   void _autoSave(String text) {
     _hasUnsavedChanges = text != _lastSavedText;
     _autoSaveTimer?.cancel();
-    _autoSaveTimer = Timer(const Duration(seconds: 2), () {
+    _autoSaveTimer = Timer(const Duration(seconds: 1), () {
       _doSave(text);
     });
   }
 
-  /// 执行实际保存逻辑 (fire-and-forget, 不依赖 widget 生命周期)
-  void _doSave(String text) {
-    _hasUnsavedChanges = false;
-    _lastSavedText = text;
+  /// 执行实际保存逻辑，返回 Future 以便等待保存完成
+  Future<void> _doSave(String text) async {
     final repo = ref.read(noteRepositoryProvider);
     final noteId = widget.noteId;
-    repo.getNote(noteId).then((note) {
-      if (note == null) return;
-      final links = EditorService.extractLinks(text);
-      final wikiLinks = links
-          .where((l) => l.isWikiLink)
-          .map((l) => l.text)
-          .toList();
+    final note = await repo.getNote(noteId);
+    if (note == null) return;
 
-      final newTitle = FileService.extractTitle(text, note.filePath);
-      final titleChanged = newTitle != note.title;
+    final links = EditorService.extractLinks(text);
+    final wikiLinks = links
+        .where((l) => l.isWikiLink)
+        .map((l) => l.text)
+        .toList();
 
-      final updatedNote = note.copyWith(
-        title: newTitle,
-        rawMarkdown: text,
-        updatedAt: DateTime.now(),
-        outgoingLinks: wikiLinks,
-      );
-      repo.saveNote(updatedNote);
+    final newTitle = FileService.extractTitle(text, note.filePath);
+    final titleChanged = newTitle != note.title;
 
-      if (FileService.shouldSyncToFile(updatedNote.filePath)) {
-        FileService.syncToFile(updatedNote.filePath, text);
+    final updatedNote = note.copyWith(
+      title: newTitle,
+      rawMarkdown: text,
+      updatedAt: DateTime.now(),
+      outgoingLinks: wikiLinks,
+    );
+    await repo.saveNote(updatedNote);
+
+    if (FileService.shouldSyncToFile(updatedNote.filePath)) {
+      await FileService.syncToFile(updatedNote.filePath, text);
+    }
+
+    _lastSavedText = text;
+    _hasUnsavedChanges = false;
+
+    if (titleChanged) {
+      final paneState = ref.read(paneStackProvider);
+      final index = paneState.panes.indexWhere((p) => p.noteId == noteId);
+      if (index >= 0) {
+        ref.read(paneStackProvider.notifier).updatePaneTitle(index, newTitle);
       }
+      ref.read(sidebarProvider.notifier).loadNoteTree();
+    }
 
-      if (titleChanged) {
-        final paneState = ref.read(paneStackProvider);
-        final index = paneState.panes.indexWhere((p) => p.noteId == noteId);
-        if (index >= 0) {
-          ref.read(paneStackProvider.notifier).updatePaneTitle(index, newTitle);
-        }
-        ref.read(sidebarProvider.notifier).loadNoteTree();
-      }
-
-      VersionService.saveSnapshot(noteId, text);
-    });
+    VersionService.saveSnapshot(noteId, text);
   }
 
 
@@ -1085,9 +1089,9 @@ class _NotePanelState extends ConsumerState<NotePanel> {
               const _SearchIntent(),
           const SingleActivator(LogicalKeyboardKey.escape):
               const _CloseSearchIntent(),
-          const SingleActivator(LogicalKeyboardKey.enter, shift: true):
+          const SingleActivator(LogicalKeyboardKey.enter, shift: true, alt: true):
               const _FindPreviousIntent(),
-          const SingleActivator(LogicalKeyboardKey.enter):
+          const SingleActivator(LogicalKeyboardKey.enter, alt: true):
               const _FindNextIntent(),
         },
         child: Actions(
@@ -1190,7 +1194,13 @@ class _NotePanelState extends ConsumerState<NotePanel> {
       child: EntityTextEditor(
         text: _rawMarkdown,
         entities: entities,
-        onEntityTap: (entity) => _showEntityCard(context, entity),
+        onEntityTap: (entity) {
+          if (entity.type == EntityType.reference) {
+            _openWikiLink(entity.label);
+          } else {
+            _showEntityCard(context, entity);
+          }
+        },
         onWikiLinkHover: (linkText, layerLink) {
           _wikiLinkHover?.onEnter(linkText, layerLink);
         },
@@ -1199,6 +1209,69 @@ class _NotePanelState extends ConsumerState<NotePanel> {
         },
       ),
     );
+  }
+
+  /// 打开 wiki 链接：如果笔记存在则跳转，不存在则询问创建
+  Future<void> _openWikiLink(String linkText) async {
+    final repo = ref.read(noteRepositoryProvider);
+    final allNotes = await repo.getAllNotes();
+    final lowerQuery = linkText.toLowerCase().trim();
+    NoteModel? target;
+
+    for (final note in allNotes) {
+      if (note.title.toLowerCase() == lowerQuery) {
+        target = note;
+        break;
+      }
+    }
+
+    if (target != null) {
+      if (mounted) {
+        ref.read(paneStackProvider.notifier).openPane(target.id, target.title);
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    final create = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AeroColors.bgElevated,
+        title: Text('创建笔记「$linkText」?'),
+        content: const Text('未找到该笔记，是否创建新笔记？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AeroColors.accentBlue,
+              foregroundColor: AeroColors.bgDeep,
+            ),
+            child: const Text('创建'),
+          ),
+        ],
+      ),
+    );
+
+    if (create == true && mounted) {
+      final now = DateTime.now();
+      final newNote = NoteModel(
+        id: now.millisecondsSinceEpoch.toString(),
+        title: linkText,
+        rawMarkdown: '# $linkText\n\n',
+        filePath: '',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await repo.saveNote(newNote);
+      ref.read(sidebarProvider.notifier).loadNoteTree();
+      if (mounted) {
+        ref.read(paneStackProvider.notifier).openPane(newNote.id, newNote.title);
+      }
+    }
   }
 
   // ──────────────────────────────────────────────

@@ -143,15 +143,80 @@ class _AppShellState extends ConsumerState<_AppShell>
     });
   }
 
-  /// 首次启动时显示欢迎页
+  /// 首次启动时显示欢迎页并创建示例笔记
   Future<void> _maybeShowWelcome() async {
     try {
       final seen = HiveService.metaBox.get('welcome_shown') == true;
       if (!seen && mounted) {
         setState(() => _isWelcomeVisible = true);
         await HiveService.metaBox.put('welcome_shown', true);
+        await _createFirstNoteIfNeeded();
+      } else {
+        await _openLastNoteOrFirst();
       }
     } catch (_) {}
+  }
+
+  /// 如果没有笔记，创建第一篇欢迎笔记
+  Future<void> _createFirstNoteIfNeeded() async {
+    final repo = ref.read(noteRepositoryProvider);
+    final count = await repo.getNoteCount();
+    if (count > 0) return;
+
+    final now = DateTime.now();
+    final welcomeNote = NoteModel(
+      id: now.millisecondsSinceEpoch.toString(),
+      title: '欢迎使用 AeroMind',
+      rawMarkdown: '''# 欢迎使用 AeroMind 👋
+
+这是你的第一篇笔记。AeroMind 是一个 AI 原生的 Markdown 笔记应用。
+
+## 快速开始
+
+- **新建笔记**：点击左侧边栏的 + 按钮，或按 `Cmd/Ctrl + N`
+- **快速跳转**：按 `Cmd/Ctrl + O` 打开 Quick Switcher
+- **命令面板**：按 `Cmd/Ctrl + K` 查看所有可用命令
+- **双向链接**：使用 `[[笔记名称]]` 创建双向链接，点击可跳转
+- **AI 对话**：按 `Cmd/Ctrl + Shift + P` 打开插件管理，配置 AI 聊天插件
+
+## 核心功能
+
+| 功能 | 快捷键 |
+|---|---|
+| 命令面板 | `Cmd/Ctrl + K` |
+| Quick Switcher | `Cmd/Ctrl + O` |
+| 模板画廊 | `Cmd/Ctrl + T` |
+| 今日日记 | `Cmd/Ctrl + D` |
+| 切换侧边栏 | `Cmd/Ctrl + B` |
+| 插件管理 | `Cmd/Ctrl + Shift + P` |
+
+## 双向链接示例
+
+试试点击 [[快速技巧]] —— 它会问你是否创建新笔记。
+
+开始写作吧！ 🚀
+''',
+      filePath: '',
+      createdAt: now,
+      updatedAt: now,
+    );
+    await repo.saveNote(welcomeNote);
+    await ref.read(sidebarProvider.notifier).loadNoteTree();
+    if (mounted) {
+      ref.read(paneStackProvider.notifier).openPane(welcomeNote.id, welcomeNote.title);
+    }
+  }
+
+  /// 打开上次的笔记，或第一篇笔记
+  Future<void> _openLastNoteOrFirst() async {
+    final repo = ref.read(noteRepositoryProvider);
+    final notes = await repo.getAllNotes();
+    if (notes.isEmpty) return;
+    if (ref.read(paneStackProvider).panes.isNotEmpty) return;
+    final first = notes.first;
+    if (mounted) {
+      ref.read(paneStackProvider.notifier).openPane(first.id, first.title);
+    }
   }
 
   /// 初始化插件系统和内置插件

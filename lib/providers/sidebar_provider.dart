@@ -21,7 +21,10 @@ import 'pane_provider.dart';
 /// 侧边栏 Notifier
 class SidebarNotifier extends Notifier<SidebarState> {
   @override
-  SidebarState build() => const SidebarState();
+  SidebarState build() {
+    Future.microtask(() => loadNoteTree());
+    return const SidebarState();
+  }
 
   // ── 视图切换 ──
 
