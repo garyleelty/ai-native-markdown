@@ -34,10 +34,10 @@ class DailyNoteStorage {
   }
 
   /// 获取文件状态信息
-  Future<_FileStat> stat(String filePath) async {
+  Future<DailyNoteFileStat> stat(String filePath) async {
     final id = _pathToId(filePath);
     final note = await HiveService.noteBox.get(id);
-    return _FileStat(
+    return DailyNoteFileStat(
       changed: note?.createdAt ?? DateTime.now(),
       modified: note?.updatedAt ?? DateTime.now(),
     );
@@ -59,8 +59,7 @@ class DailyNoteStorage {
     final results = <String>[];
     for (final key in HiveService.noteBox.keys) {
       if (key is String && key.startsWith('daily_$prefix')) {
-        // 从 key 重建路径
-        final datePart = key.substring(6); // 去掉 'daily_' 前缀
+        final datePart = key.substring(6);
         final filename = '$datePart.md';
         results.add('$dirPath/$filename');
       }
@@ -71,8 +70,6 @@ class DailyNoteStorage {
 
   /// 路径 → Hive ID
   String _pathToId(String filePath) {
-    // 从路径中提取日期部分作为 key
-    // e.g. /aeromind/日记/2026-06-28-周五.md → daily_2026-06-28
     final filename = filePath.split('/').last;
     final datePart = filename
         .replaceAll('.md', '')
@@ -88,9 +85,9 @@ class DailyNoteStorage {
 }
 
 /// 文件状态信息
-class _FileStat {
+class DailyNoteFileStat {
   final DateTime changed;
   final DateTime modified;
 
-  const _FileStat({required this.changed, required this.modified});
+  const DailyNoteFileStat({required this.changed, required this.modified});
 }

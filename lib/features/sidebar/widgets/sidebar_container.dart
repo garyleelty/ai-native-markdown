@@ -310,7 +310,7 @@ class _ActivityBar extends ConsumerWidget {
 }
 
 /// 单个活动栏图标
-class _ActivityIcon extends StatelessWidget {
+class _ActivityIcon extends StatefulWidget {
   final IconData icon;
   final bool isActive;
   final String tooltip;
@@ -326,30 +326,54 @@ class _ActivityIcon extends StatelessWidget {
   });
 
   @override
+  State<_ActivityIcon> createState() => _ActivityIconState();
+}
+
+class _ActivityIconState extends State<_ActivityIcon> {
+  bool _isHovering = false;
+
+  @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: tooltip,
+      message: widget.tooltip,
       preferBelow: false,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          width: 36,
-          height: 36,
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          decoration: BoxDecoration(
-            border: isActive
-                ? const Border(
-                    left: BorderSide(color: AeroColors.accentBlue, width: 2),
-                  )
-                : null,
-          ),
-          child: Transform.rotate(
-            angle: iconRotation,
-            child: Icon(
-              icon,
-              size: 18,
-              color: isActive ? AeroColors.accentBlue : AeroColors.textSecondary,
+      waitDuration: const Duration(milliseconds: 500),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovering = true),
+        onExit: (_) => setState(() => _isHovering = false),
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            width: 36,
+            height: 36,
+            margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+            decoration: BoxDecoration(
+              color: widget.isActive
+                  ? AeroColors.accentBlue.withValues(alpha: 0.1)
+                  : _isHovering
+                      ? AeroColors.bgHover
+                      : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: widget.isActive
+                  ? const Border(
+                      left: BorderSide(color: AeroColors.accentBlue, width: 2),
+                    )
+                  : null,
+            ),
+            child: Transform.rotate(
+              angle: widget.iconRotation,
+              child: Icon(
+                widget.icon,
+                size: 18,
+                color: widget.isActive
+                    ? AeroColors.accentBlue
+                    : _isHovering
+                        ? AeroColors.textPrimary
+                        : AeroColors.textSecondary,
+              ),
             ),
           ),
         ),

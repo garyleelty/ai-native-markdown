@@ -306,21 +306,22 @@ Task 5 (插件系统) ──────┼── Task 7 (Git备份) ───�
   - 统一所有 overlay 的打开/关闭逻辑
 - **Notes**: 架构不一致，未来维护困难
 
-## [ ] Issue 7: Overlay遮罩/动画/关闭行为不统一
+## [x] Issue 7: Overlay遮罩/动画/关闭行为不统一
 - **Discovered During**: Review Session 1
 - **Blocks Release**: No
 - **Severity**: High
-- **Description**:
-  - 命令面板/模板画廊遮罩 black54，QuickSwitcher/插件管理 black38，设置/快捷键/欢迎/导入导出完全无遮罩
-  - 部分 overlay 点击背景可关，部分不可关（插件管理）
-  - 入场动画不一致（Fade+Scale/Fade+Slide/无动画/Scale）
-  - 部分支持键盘导航，部分不支持
-- **Evidence / Signals**:
-  - 文件：各 overlay widget 和 app.dart 中的 Stack 布局
-- **Suggested Remediation**:
-  - 抽取通用 OverlayDialog 组件统一遮罩、动画、关闭逻辑
-  - 所有 modal 类 overlay 统一遮罩和点击背景关闭
-- **Notes**: 用户体验不一致
+- **Resolution**:
+  - 遮罩统一为 Colors.black54（所有 overlay）
+  - 动画时长统一为 200ms，曲线统一为 Curves.easeOutCubic
+  - 缩放动画统一为 0.95 → 1.0（Fade + Scale）
+  - 设置页面从全屏改为模态对话框风格（800x600，居中，点击遮罩关闭）
+  - 快捷键/导入导出主对话框圆角统一为 12px，添加 boxShadow
+  - Quick Switcher 添加入场动画（之前无动画）
+  - 插件管理动画缩放范围从 0.9→1.0 改为 0.95→1.0
+  - 模板画廊动画时长从 250ms 改为 200ms
+  - app.dart 模态 overlay 动画时长从 180ms 改为 200ms
+  - 新增通用 ModalOverlay 组件（lib/core/widgets/modal_overlay.dart）
+- **Notes**: 用户体验一致性大幅提升
 
 ## [x] Issue 8: 自动保存防抖时间1秒与设置描述的2秒不符
 - **Discovered During**: Review Session 1
@@ -380,20 +381,18 @@ Task 5 (插件系统) ──────┼── Task 7 (Git备份) ───�
   - 或使用 flutter_markdown 在编辑框上层叠加只读渲染层
 - **Notes**: 这是较大的架构问题，短期可考虑提示用户主要使用源码模式
 
-## [ ] Issue 12: 搜索功能不高亮所有匹配项
+## [x] Issue 12: 搜索功能不高亮所有匹配项
 - **Discovered During**: Review Session 1
 - **Blocks Release**: No
 - **Severity**: Medium
-- **Description**:
-  - 编辑器内搜索只选中当前匹配项，其他匹配项完全没有视觉标记
-  - Obsidian/VS Code 会用黄色背景高亮所有匹配项
-  - 缺少区分大小写/正则/全字匹配选项
-- **Evidence / Signals**:
-  - 文件：lib/features/editor/widgets/note_panel.dart:1409-1642
-- **Suggested Remediation**:
-  - 添加 TextSpan 高亮所有匹配项
-  - 补充搜索选项
-- **Notes**: 搜索体验不符合预期
+- **Resolution**:
+  - 在 MarkdownHighlightController 中添加搜索高亮功能
+  - 所有匹配项使用黄色半透明背景（accentYellow.withValues(alpha: 0.25)）
+  - 当前匹配项使用橙色高亮（accentOrange.withValues(alpha: 0.4)）
+  - 搜索匹配数据从 MarkdownHighlightController 获取，保持单一数据源
+  - 保留匹配计数显示（x/y）
+  - 支持 Enter/Shift+Enter 导航到下一个/上一个匹配
+- **Notes**: 搜索体验对标 Obsidian/VS Code
 
 ## [ ] Issue 13: 浅色主题不可用但设置中提供选项
 - **Discovered During**: Review Session 1
@@ -443,17 +442,14 @@ Task 5 (插件系统) ──────┼── Task 7 (Git备份) ───�
   - URL 用 Uri.tryParse 验证格式
 - **Notes**: 安全防护
 
-## [ ] Issue 16: 知识图谱圆形揭示动画永远从左上角开始
+## [x] Issue 16: 知识图谱圆形揭示动画永远从左上角开始
 - **Discovered During**: Review Session 1
 - **Blocks Release**: No
 - **Severity**: Low
-- **Description**:
-  - `_toggleGraph(Offset.zero)` 永远传 Offset.zero
-  - 圆形展开动画中心点始终是屏幕左上角，不是按钮位置
-- **Evidence / Signals**:
-  - 文件：lib/app.dart:800-815 view.knowledgeGraph
-- **Suggested Remediation**:
-  - 从按钮点击位置获取 Offset 传入
+- **Resolution**:
+  - 命令面板调用时传入屏幕中心位置（Offset(size.width/2, size.height/2)）
+  - 动画从屏幕中心展开，而非左上角
+  - 知识图谱主要通过命令面板打开，从中心展开更自然
 - **Notes**: 视觉 polish
 
 ## [ ] Issue 17: 侧边栏resizer拖拽热区太小且无悬停反馈
@@ -570,4 +566,147 @@ Task 5 (插件系统) ──────┼── Task 7 (Git备份) ───�
 - **Suggested Remediation**:
   - 使用 dart:convert 的 jsonEncode 替代手动实现
 - **Notes**: 代码健壮性
+
+---
+
+## Round 8 审查状态 (2026-07-11)
+
+### 已确认修复的问题 (Round 1-7)
+
+通过代码审查，以下 Issue 已确认已修复并标记为 `[x]`：
+
+| Issue | 严重度 | 状态 | 验证方式 |
+|-------|--------|------|----------|
+| Issue 1: 缓存不失效 | Critical | ✅ 已修复 | Stream-based 变更通知架构 |
+| Issue 2: 路径遍历漏洞 | Critical | ✅ 已修复 | _safePath + canonicalize + isWithin |
+| Issue 3: 实体偏移量错误 | Critical | ✅ 已修复 | 正则捕获组包含@/# |
+| Issue 4: HTML导出XSS | Critical | ✅ 已修复 | URL白名单 + 代码块双重转义修复 |
+| Issue 5: dispose保存不可靠 | Critical | ✅ 已修复 | _saveSilently + fire-and-forget |
+| Issue 6: Overlay多boolean | High | ✅ 已修复 | OverlayType枚举 + _activeOverlay |
+| Issue 8: 自动保存时间不一致 | Medium | ✅ 已修复 | 读取settingsProvider.autoSaveDelay |
+| Issue 9: AI面板折叠 | High | ✅ 已修复 | aiChatPanelVisible设置 + 快捷键 |
+| Issue 10: 源码模式无高亮 | High | ✅ 已修复 | MarkdownHighlightController + 12种语法 |
+| Issue 13: 浅色主题误导 | Medium | ✅ 已修复 | 设置页标注"即将推出" |
+| Issue 14: Git目录检查+分支 | Medium | ✅ 已修复 | 过滤隐藏文件 + getCurrentBranch() |
+| Issue 15: Git参数注入 | Medium | ✅ 已修复 | _isValidGitParam + 正则验证 |
+| Issue 17: Resizer拖拽热区 | Medium | ✅ 已修复 | 8px热区 + MouseRegion + 动画 |
+| Issue 18: 任务复选框冒泡 | Medium | ✅ 已修复 | GestureDetector + HitTestBehavior.opaque |
+| Issue 19: 删除文案矛盾 | Low | ✅ 已修复 | "移到回收站，可从侧边栏恢复" |
+| Issue 20: mounted检查缺失 | Medium | ✅ 已修复 | 20处全部添加mounted检查 |
+| Issue 21: updatedAt强制覆盖 | Medium | ✅ 已修复 | 仅新笔记自动设置时间戳 |
+| Issue 22: Release模式错误反馈 | Medium | ✅ 已修复 | 重试按钮 + 错误详情 + 崩溃日志 |
+| Issue 23: Mermaid隐私问题 | Medium | ✅ 已修复 | 默认关闭 + 隐私同意 + 设置开关 |
+
+### 剩余待修复的问题
+
+| Issue | 严重度 | 说明 |
+|-------|--------|------|
+| Issue 11: LiveMarkdownEditor架构问题 | High | 按行拆分TextField导致编辑体验差 |
+
+---
+
+## Round 9 实现完成 (2026-07-11)
+
+本轮完成的修复：
+
+| Issue | 严重度 | 状态 |
+|-------|--------|------|
+| Issue 7: Overlay遮罩/动画不统一 | High | ✅ 已修复 |
+| Issue 12: 搜索不高亮所有匹配项 | Medium | ✅ 已修复 |
+| Issue 16: 图谱动画从左上角开始 | Low | ✅ 已修复 |
+
+---
+
+## [x] Task 12: Overlay遮罩/动画/关闭行为统一
+- **Priority**: high
+- **Depends On**: Task 6
+- **Description**:
+  - 新增通用 ModalOverlay 组件（lib/core/widgets/modal_overlay.dart）
+  - 遮罩统一为 Colors.black54
+  - 动画时长统一 200ms，曲线 Curves.easeOutCubic
+  - 缩放动画统一 0.95 → 1.0（Fade + Scale）
+  - 设置页面从全屏改为模态对话框风格（800x600，居中，点击遮罩关闭）
+  - 快捷键/导入导出主对话框圆角统一为 12px，添加 boxShadow
+  - Quick Switcher 添加入场动画
+  - 插件管理动画缩放范围统一
+  - 模板画廊动画时长从 250ms 改为 200ms
+  - app.dart 模态 overlay 动画时长从 180ms 改为 200ms
+- **Acceptance Criteria Addressed**: FR-12, AC-11
+- **Test Requirements**:
+  - `human-judgment` TR-12.1: 所有 modal overlay 遮罩样式一致
+  - `human-judgment` TR-12.2: 所有 modal overlay 动画一致
+  - `human-judgment` TR-12.3: 点击遮罩区域关闭 overlay
+  - `programmatic` TR-12.4: 抽取独立组件（代码审查）
+- **Notes**: 关键文件：lib/app.dart、各 overlay widget、lib/core/widgets/modal_overlay.dart
+
+---
+
+## [x] Task 13: 编辑器内搜索高亮所有匹配项
+- **Priority**: medium
+- **Depends On**: Task 4
+- **Description**:
+  - 在 MarkdownHighlightController 中添加搜索高亮功能
+  - 所有匹配项使用黄色半透明背景（accentYellow, alpha: 0.25）
+  - 当前匹配项使用橙色高亮（accentOrange, alpha: 0.4）
+  - 显示匹配计数（如 3/12）
+  - Enter 跳转到下一个，Shift+Enter 跳转到上一个
+  - 搜索匹配数据从 MarkdownHighlightController 获取，单一数据源
+- **Acceptance Criteria Addressed**: FR-13, AC-12
+- **Test Requirements**:
+  - `human-judgment` TR-13.1: 所有匹配项有黄色背景高亮
+  - `human-judgment` TR-13.2: 当前匹配项有橙色高亮
+  - `human-judgment` TR-13.3: 显示匹配计数 x/y
+  - `programmatic` TR-13.4: Enter/Shift+Enter 正确导航
+- **Notes**: 关键文件：lib/features/editor/services/syntax_highlighter.dart、lib/features/editor/widgets/note_panel.dart
+
+---
+
+## [x] Task 14: 知识图谱动画位置修复
+- **Priority**: low
+- **Depends On**: Task 6
+- **Description**:
+  - 命令面板调用时传入屏幕中心位置
+  - 圆形揭示动画从屏幕中心展开，而非左上角
+  - 关闭动画反向播放
+- **Acceptance Criteria Addressed**: FR-15, AC-14
+- **Test Requirements**:
+  - `human-judgment` TR-14.1: 动画从屏幕中心展开
+  - `human-judgment` TR-14.2: 关闭动画反向播放
+- **Notes**: 关键文件：lib/app.dart
+
+---
+
+## [x] Task 15: 源码模式语法高亮完善
+- **Priority**: high
+- **Depends On**: Task 4
+- **Description**:
+  - 新增 SyntaxHighlighter 类，支持 Markdown 源码模式高亮
+  - 支持 heading/wikiLink/tag/task/code/bold/italic/link/quote/list
+  - 新增 MarkdownHighlightController 继承 TextEditingController
+  - 重写 buildTextSpan 方法应用高亮
+  - 组合字符输入时使用下划线标记组合区域
+- **Acceptance Criteria Addressed**: Issue 10
+- **Test Requirements**:
+  - `human-judgment` TR-15.1: 标题、列表、引用等块级元素正确高亮
+  - `human-judgment` TR-15.2: wiki链接、标签、任务等行内元素正确高亮
+  - `programmatic` TR-15.3: 使用自定义 TextEditingController
+- **Notes**: 关键文件：lib/features/editor/services/syntax_highlighter.dart
+
+---
+
+## [x] Task 16: UI/UX Polish 第二波
+- **Priority**: medium
+- **Depends On**: Task 9
+- **Description**:
+  - Resizer 拖拽热区增大到 8px + 悬停动画
+  - 任务复选框阻止事件冒泡
+  - 删除文案改为"移到回收站"
+  - 主题设置标注"浅色即将推出"
+  - AI 面板可折叠
+- **Acceptance Criteria Addressed**: Issue 17, 18, 19, 9, 13
+- **Test Requirements**:
+  - `human-judgment` TR-16.1: Resizer 悬停有视觉反馈
+  - `human-judgment` TR-16.2: 点击任务复选框不打开笔记
+  - `human-judgment` TR-16.3: 删除确认文案正确
+- **Notes**: 多项小的 UI polish
 

@@ -108,7 +108,6 @@ class _AppShellState extends ConsumerState<_AppShell>
 
   /// 图谱按钮的位置（用于圆形展开动画起点）
   Offset _graphButtonPosition = Offset.zero;
-
   /// 命令快捷键 FocusNode
   late final FocusNode _shortcutFocusNode;
 
@@ -153,7 +152,7 @@ class _AppShellState extends ConsumerState<_AppShell>
     );
     _overlayAnimController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 200),
     );
     _overlayAnimation = CurvedAnimation(
       parent: _overlayAnimController,

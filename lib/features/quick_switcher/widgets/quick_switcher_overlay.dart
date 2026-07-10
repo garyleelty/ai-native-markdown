@@ -26,9 +26,13 @@ class QuickSwitcherOverlay extends ConsumerStatefulWidget {
       _QuickSwitcherOverlayState();
 }
 
-class _QuickSwitcherOverlayState extends ConsumerState<QuickSwitcherOverlay> {
+class _QuickSwitcherOverlayState extends ConsumerState<QuickSwitcherOverlay>
+    with SingleTickerProviderStateMixin {
   late final TextEditingController _searchController;
   late final FocusNode _searchFocusNode;
+  late final AnimationController _animController;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<double> _scaleAnimation;
 
   /// 列表滚动控制器（键盘导航时滚动到选中项）
   final ScrollController _listScrollController = ScrollController();
@@ -44,6 +48,17 @@ class _QuickSwitcherOverlayState extends ConsumerState<QuickSwitcherOverlay> {
     super.initState();
     _searchController = TextEditingController();
     _searchFocusNode = FocusNode();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
+    );
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+    );
     _searchController.addListener(_onSearchChanged);
     _loadNotes();
   }
@@ -56,6 +71,7 @@ class _QuickSwitcherOverlayState extends ConsumerState<QuickSwitcherOverlay> {
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _animController.dispose();
     _listScrollController.dispose();
     super.dispose();
   }
@@ -149,36 +165,44 @@ class _QuickSwitcherOverlayState extends ConsumerState<QuickSwitcherOverlay> {
   Widget build(BuildContext context) {
     final state = ref.watch(quickSwitcherProvider);
 
-    // 监听打开状态变化：打开时清空搜索框、重新加载笔记、请求焦点
     ref.listen<bool>(
       quickSwitcherProvider.select((s) => s.isOpen),
       (prev, next) {
         if (next) {
           _searchController.clear();
+          _animController.forward();
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) _searchFocusNode.requestFocus();
           });
           _loadNotes();
+        } else {
+          _animController.reverse();
         }
       },
     );
 
-    if (!state.isOpen) return const SizedBox.shrink();
+    if (!state.isOpen && _animController.isDismissed) {
+      return const SizedBox.shrink();
+    }
 
     return Focus(
       onKeyEvent: _handleKeyEvent,
       autofocus: true,
       child: Material(
-        color: Colors.black38,
+        color: Colors.black54,
         child: GestureDetector(
-          // 点击背景关闭
           onTap: () => ref.read(quickSwitcherProvider.notifier).close(),
           behavior: HitTestBehavior.opaque,
           child: Center(
             child: GestureDetector(
-              // 阻止点击面板内部时穿透到背景
               onTap: () {},
-              child: _buildPanel(state),
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: _buildPanel(state),
+                ),
+              ),
             ),
           ),
         ),

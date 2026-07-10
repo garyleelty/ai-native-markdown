@@ -13,6 +13,10 @@ import '../../features/mermaid/services/mermaid_service.dart';
 ///   2. 自动生成 mermaid.ink 渲染图片链接
 ///   3. 在侧边栏提供图表列表入口
 ///
+/// 隐私说明:
+///   Mermaid 图表需要发送到 mermaid.ink 在线渲染，
+///   首次激活时会提示用户确认隐私政策。
+///
 /// 支持图表类型:
 ///   - flowchart / graph (流程图)
 ///   - sequenceDiagram (时序图)
@@ -26,8 +30,11 @@ import '../../features/mermaid/services/mermaid_service.dart';
 
 class MermaidRenderPlugin extends BasePlugin {
   static const String _id = 'builtin.mermaid-render';
+  static const String _privacyKey = 'privacy_acknowledged';
+  static const String _renderEnabledKey = 'render_enabled';
 
   final MermaidService _service = MermaidService();
+  bool _privacyNoticeShown = false;
 
   @override
   PluginManifest get manifest => const PluginManifest(
@@ -36,17 +43,40 @@ class MermaidRenderPlugin extends BasePlugin {
         version: '1.0.0',
         description: '自动识别和渲染 Markdown 中的 Mermaid 图表代码块',
         author: 'AeroMind',
-        extensionTypes: ['contentProcessor'],
+        extensionTypes: ['contentProcessor', 'command'],
         iconCodePoint: 0xe3c4,
         category: 'editor',
         enabledByDefault: true,
       );
 
   @override
-  Future<String?> processContent(String markdown, String noteId) async {
-    if (!_service.hasMermaidBlocks(markdown)) return null;
+  Future<void> onActivate(PluginContext ctx) async {
+    super.onActivate(ctx);
+    _showPrivacyNoticeIfNeeded(ctx);
+  }
 
-    // 增强 Markdown: 在每个 Mermaid 块后追加渲染图片链接
+  void _showPrivacyNoticeIfNeeded(PluginContext ctx) {
+    if (_privacyNoticeShown) return;
+    final acknowledged = ctx.storage.getBool(_privacyKey) ?? false;
+    if (acknowledged) return;
+    _privacyNoticeShown = true;
+    ctx.api.showNotification(
+      'Mermaid 图表需要发送到 mermaid.ink 渲染，可在插件管理中禁用此功能',
+      type: NotificationType.info,
+    );
+  }
+
+  @override
+  Future<String?> processContent(String markdown, String noteId) async {
+    final ctx = context;
+    if (ctx == null) return null;
+
+    final acknowledged = ctx.storage.getBool(_privacyKey) ?? false;
+    final renderEnabled = ctx.storage.getBool(_renderEnabledKey) ?? true;
+
+    if (!_service.hasMermaidBlocks(markdown)) return null;
+    if (!acknowledged || !renderEnabled) return null;
+
     return _service.enhanceMarkdown(markdown);
   }
 
@@ -54,6 +84,14 @@ class MermaidRenderPlugin extends BasePlugin {
   List<PluginCommand> getCommands() {
     final pid = manifest.id;
     return [
+      PluginCommand(
+        id: '$pid.acknowledge-privacy',
+        name: '确认 Mermaid 隐私政策并启用渲染',
+        description: '确认同意将 Mermaid 图表代码发送到 mermaid.ink 进行在线渲染',
+        iconCodePoint: 0xe8e8,
+        action: () async => _acknowledgePrivacy(),
+        pluginId: pid,
+      ),
       PluginCommand(
         id: '$pid.export-mermaid',
         name: '导出 Mermaid 图表为 SVG',
@@ -71,6 +109,19 @@ class MermaidRenderPlugin extends BasePlugin {
         pluginId: pid,
       ),
     ];
+  }
+
+  Future<void> _acknowledgePrivacy() async {
+    final ctx = context;
+    final api = ctx?.api;
+    if (ctx == null || api == null) return;
+
+    await ctx.storage.putBool(_privacyKey, true);
+    await ctx.storage.putBool(_renderEnabledKey, true);
+    api.showNotification(
+      'Mermaid 图表渲染已启用',
+      type: NotificationType.success,
+    );
   }
 
   /// 提取当前笔记中的 Mermaid 图表，生成 SVG 链接并复制到剪贴板

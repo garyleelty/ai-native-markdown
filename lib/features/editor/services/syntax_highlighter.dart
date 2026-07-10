@@ -3,6 +3,7 @@
 /// ══════════════════════════════════════════════════
 /// 基于正则的简易语法高亮器，支持常见语言：
 ///   - Dart / JavaScript / TypeScript / Python / JSON / Bash
+///   - Markdown 源码模式高亮
 ///   - 未识别语言退化为纯文本（无高亮）
 ///
 /// 输出为 TextSpan 树，可直接用于 RichText / Text.rich。
@@ -14,6 +15,244 @@ import '../../../core/theme/aeromind_theme.dart';
 
 class SyntaxHighlighter {
   SyntaxHighlighter._();
+
+  /// Markdown 基础语法高亮样式
+  static const TextStyle _mdBaseStyle = TextStyle(
+    fontSize: 14,
+    height: 1.7,
+    color: AeroColors.textPrimary,
+  );
+
+  static const TextStyle _mdHeadingStyle = TextStyle(
+    fontSize: 14,
+    height: 1.7,
+    color: AeroColors.accentBlue,
+    fontWeight: FontWeight.w700,
+  );
+
+  static const TextStyle _mdWikiLinkStyle = TextStyle(
+    fontSize: 14,
+    height: 1.7,
+    color: AeroColors.accentGreen,
+    fontWeight: FontWeight.w500,
+  );
+
+  static const TextStyle _mdTagStyle = TextStyle(
+    fontSize: 14,
+    height: 1.7,
+    color: AeroColors.accentCyan,
+  );
+
+  static const TextStyle _mdTaskStyle = TextStyle(
+    fontSize: 14,
+    height: 1.7,
+    color: AeroColors.accentOrange,
+    fontWeight: FontWeight.w500,
+  );
+
+  static const TextStyle _mdCodeStyle = TextStyle(
+    fontSize: 14,
+    height: 1.7,
+    color: AeroColors.accentOrange,
+    fontFamily: 'monospace',
+    backgroundColor: AeroColors.bgDeep,
+  );
+
+  static const TextStyle _mdBoldStyle = TextStyle(
+    fontSize: 14,
+    height: 1.7,
+    color: AeroColors.textPrimary,
+    fontWeight: FontWeight.w700,
+  );
+
+  static const TextStyle _mdItalicStyle = TextStyle(
+    fontSize: 14,
+    height: 1.7,
+    color: AeroColors.textPrimary,
+    fontStyle: FontStyle.italic,
+  );
+
+  static const TextStyle _mdLinkStyle = TextStyle(
+    fontSize: 14,
+    height: 1.7,
+    color: AeroColors.accentBlue,
+    decoration: TextDecoration.underline,
+  );
+
+  static const TextStyle _mdQuoteStyle = TextStyle(
+    fontSize: 14,
+    height: 1.7,
+    color: AeroColors.textSecondary,
+    fontStyle: FontStyle.italic,
+  );
+
+  static const TextStyle _mdListStyle = TextStyle(
+    fontSize: 14,
+    height: 1.7,
+    color: AeroColors.accentPurple,
+    fontWeight: FontWeight.w600,
+  );
+
+  /// 解析 Markdown 文本生成带高亮的 TextSpan
+  static TextSpan highlightMarkdown(String text, {TextStyle? baseStyle}) {
+    final style = baseStyle ?? _mdBaseStyle;
+    final spans = <InlineSpan>[];
+
+    final patterns = <_MdPattern>[
+      _MdPattern(regex: RegExp(r'^#{1,6}\s.*$', multiLine: true), type: _MdTokenType.heading),
+      _MdPattern(regex: RegExp(r'\[\[([^\]]+)\]\]'), type: _MdTokenType.wikiLink),
+      _MdPattern(regex: RegExp(r'#(\w+)'), type: _MdTokenType.tag),
+      _MdPattern(regex: RegExp(r'^- \[[ xX]\]', multiLine: true), type: _MdTokenType.task),
+      _MdPattern(regex: RegExp(r'`([^`]+)`'), type: _MdTokenType.code),
+      _MdPattern(regex: RegExp(r'\*\*([^*]+)\*\*'), type: _MdTokenType.bold),
+      _MdPattern(regex: RegExp(r'__([^_]+)__'), type: _MdTokenType.bold),
+      _MdPattern(regex: RegExp(r'\*([^*]+)\*'), type: _MdTokenType.italic),
+      _MdPattern(regex: RegExp(r'_([^_]+)_'), type: _MdTokenType.italic),
+      _MdPattern(regex: RegExp(r'^>\s?.*$', multiLine: true), type: _MdTokenType.quote),
+      _MdPattern(regex: RegExp(r'^[-*+]\s', multiLine: true), type: _MdTokenType.listBullet),
+      _MdPattern(regex: RegExp(r'^\d+\.\s', multiLine: true), type: _MdTokenType.listNumber),
+      _MdPattern(regex: RegExp(r'\[([^\]]+)\]\(([^)]+)\)'), type: _MdTokenType.link),
+    ];
+
+    final lines = text.split('\n');
+    for (int lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+      final line = lines[lineIdx];
+      if (lineIdx > 0) {
+        spans.add(const TextSpan(text: '\n'));
+      }
+      _highlightLine(line, spans, patterns, style);
+    }
+
+    return TextSpan(style: style, children: spans);
+  }
+
+  static void _highlightLine(String line, List<InlineSpan> spans, List<_MdPattern> patterns, TextStyle baseStyle) {
+    int cursor = 0;
+
+    _MdTokenType? lineType;
+    int lineTypeEnd = 0;
+
+    if (RegExp(r'^#{1,6}\s').hasMatch(line)) {
+      lineType = _MdTokenType.heading;
+      lineTypeEnd = line.indexOf(' ');
+    } else if (line.startsWith('>')) {
+      lineType = _MdTokenType.quote;
+      lineTypeEnd = line.startsWith('> ') ? 2 : 1;
+    } else if (RegExp(r'^- \[[ xX]\]').hasMatch(line)) {
+      lineType = _MdTokenType.task;
+      lineTypeEnd = 5;
+    } else if (RegExp(r'^[-*+]\s').hasMatch(line)) {
+      lineType = _MdTokenType.listBullet;
+      lineTypeEnd = 2;
+    } else if (RegExp(r'^\d+\.\s').hasMatch(line)) {
+      lineType = _MdTokenType.listNumber;
+      final match = RegExp(r'^(\d+\.)\s').firstMatch(line);
+      lineTypeEnd = match != null ? match.end : 3;
+    }
+
+    if (lineType != null && lineTypeEnd > 0) {
+      final marker = line.substring(0, lineTypeEnd);
+      final markerStyle = _getMdStyle(lineType);
+      spans.add(TextSpan(text: marker, style: markerStyle));
+      cursor = lineTypeEnd;
+    }
+
+    final remainingText = line.substring(cursor);
+    _highlightInline(remainingText, spans, patterns, lineType, baseStyle);
+  }
+
+  static void _highlightInline(String text, List<InlineSpan> spans, List<_MdPattern> patterns, _MdTokenType? lineType, TextStyle baseStyle) {
+    int cursor = 0;
+    final lineBaseStyle = lineType == _MdTokenType.quote ? _mdQuoteStyle : baseStyle;
+
+    while (cursor < text.length) {
+      int earliestStart = text.length;
+      _MdPattern? earliestPattern;
+      RegExpMatch? earliestMatch;
+
+      for (final pattern in patterns) {
+        if (pattern.type == _MdTokenType.heading ||
+            pattern.type == _MdTokenType.quote ||
+            pattern.type == _MdTokenType.task ||
+            pattern.type == _MdTokenType.listBullet ||
+            pattern.type == _MdTokenType.listNumber) {
+          continue;
+        }
+        final match = pattern.regex.firstMatch(text.substring(cursor));
+        if (match != null) {
+          final absStart = cursor + match.start;
+          if (absStart < earliestStart) {
+            earliestStart = absStart;
+            earliestPattern = pattern;
+            earliestMatch = match;
+          }
+        }
+      }
+
+      if (earliestPattern == null || earliestMatch == null) {
+        spans.add(TextSpan(text: text.substring(cursor), style: lineBaseStyle));
+        break;
+      }
+
+      if (earliestStart > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, earliestStart), style: lineBaseStyle));
+      }
+
+      final matchedText = earliestMatch.group(0)!;
+      final content = earliestMatch.group(1) ?? '';
+
+      switch (earliestPattern.type) {
+        case _MdTokenType.wikiLink:
+          spans.add(TextSpan(text: matchedText, style: _mdWikiLinkStyle));
+          break;
+        case _MdTokenType.tag:
+          spans.add(TextSpan(text: matchedText, style: _mdTagStyle));
+          break;
+        case _MdTokenType.code:
+          spans.add(TextSpan(text: matchedText, style: _mdCodeStyle));
+          break;
+        case _MdTokenType.bold:
+          spans.add(TextSpan(text: content, style: _mdBoldStyle));
+          break;
+        case _MdTokenType.italic:
+          spans.add(TextSpan(text: content, style: _mdItalicStyle));
+          break;
+        case _MdTokenType.link:
+          spans.add(TextSpan(text: matchedText, style: _mdLinkStyle));
+          break;
+        default:
+          spans.add(TextSpan(text: matchedText, style: lineBaseStyle));
+      }
+
+      cursor = earliestStart + matchedText.length;
+    }
+  }
+
+  static TextStyle _getMdStyle(_MdTokenType type) {
+    switch (type) {
+      case _MdTokenType.heading:
+        return _mdHeadingStyle;
+      case _MdTokenType.wikiLink:
+        return _mdWikiLinkStyle;
+      case _MdTokenType.tag:
+        return _mdTagStyle;
+      case _MdTokenType.task:
+        return _mdTaskStyle;
+      case _MdTokenType.code:
+        return _mdCodeStyle;
+      case _MdTokenType.bold:
+        return _mdBoldStyle;
+      case _MdTokenType.italic:
+        return _mdItalicStyle;
+      case _MdTokenType.link:
+        return _mdLinkStyle;
+      case _MdTokenType.quote:
+        return _mdQuoteStyle;
+      case _MdTokenType.listBullet:
+      case _MdTokenType.listNumber:
+        return _mdListStyle;
+    }
+  }
 
   /// 识别代码语言并返回带高亮的 TextSpan
   static TextSpan highlight(String code, String language) {
@@ -344,5 +583,200 @@ class SyntaxHighlighter {
       i++;
     }
     return TextSpan(children: spans, style: _codeStyle);
+  }
+}
+
+enum _MdTokenType {
+  heading,
+  wikiLink,
+  tag,
+  task,
+  code,
+  bold,
+  italic,
+  link,
+  quote,
+  listBullet,
+  listNumber,
+}
+
+class _MdPattern {
+  final RegExp regex;
+  final _MdTokenType type;
+
+  _MdPattern({required this.regex, required this.type});
+}
+
+/// Markdown 源码编辑器语法高亮控制器
+///
+/// 重写 [buildTextSpan] 方法，在 TextField 中实时应用 Markdown 语法高亮
+class MarkdownHighlightController extends TextEditingController {
+  MarkdownHighlightController({super.text});
+
+  String _searchQuery = '';
+  List<TextRange> _searchMatches = [];
+  int _currentMatchIndex = -1;
+  bool _caseSensitive = false;
+
+  String get searchQuery => _searchQuery;
+  List<TextRange> get searchMatches => List.unmodifiable(_searchMatches);
+  int get currentMatchIndex => _currentMatchIndex;
+  bool get caseSensitive => _caseSensitive;
+
+  void updateSearch(String query, {bool caseSensitive = false}) {
+    _searchQuery = query;
+    _caseSensitive = caseSensitive;
+    _updateMatches();
+    notifyListeners();
+  }
+
+  void clearSearch() {
+    _searchQuery = '';
+    _searchMatches = [];
+    _currentMatchIndex = -1;
+    notifyListeners();
+  }
+
+  void setCurrentMatchIndex(int index) {
+    if (_searchMatches.isEmpty) {
+      _currentMatchIndex = -1;
+    } else {
+      _currentMatchIndex = index.clamp(0, _searchMatches.length - 1);
+    }
+    notifyListeners();
+  }
+
+  void _updateMatches() {
+    _searchMatches = [];
+    _currentMatchIndex = -1;
+    if (_searchQuery.isEmpty) return;
+
+    final content = text;
+    final query = _caseSensitive ? _searchQuery : _searchQuery.toLowerCase();
+    final lowerContent = _caseSensitive ? content : content.toLowerCase();
+
+    int start = 0;
+    while (true) {
+      final index = lowerContent.indexOf(query, start);
+      if (index == -1) break;
+      _searchMatches.add(TextRange(start: index, end: index + query.length));
+      start = index + query.length;
+    }
+
+    if (_searchMatches.isNotEmpty) {
+      _currentMatchIndex = 0;
+    }
+  }
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    final baseStyle = style ?? const TextStyle(fontSize: 14, height: 1.7);
+
+    TextSpan highlighted;
+    if (!withComposing || value.composing.isCollapsed) {
+      highlighted = SyntaxHighlighter.highlightMarkdown(text, baseStyle: baseStyle);
+    } else {
+      final composingRegion = value.composing;
+      final beforeComposing = text.substring(0, composingRegion.start);
+      final composingText = text.substring(composingRegion.start, composingRegion.end);
+      final afterComposing = text.substring(composingRegion.end);
+
+      highlighted = TextSpan(
+        style: baseStyle,
+        children: [
+          if (beforeComposing.isNotEmpty)
+            SyntaxHighlighter.highlightMarkdown(beforeComposing, baseStyle: baseStyle),
+          TextSpan(
+            text: composingText,
+            style: baseStyle.copyWith(
+              decoration: TextDecoration.underline,
+              decorationColor: baseStyle.color?.withValues(alpha: 0.5),
+            ),
+          ),
+          if (afterComposing.isNotEmpty)
+            SyntaxHighlighter.highlightMarkdown(afterComposing, baseStyle: baseStyle),
+        ],
+      );
+    }
+
+    if (_searchQuery.isEmpty || _searchMatches.isEmpty) {
+      return highlighted;
+    }
+
+    return _applySearchHighlight(highlighted, baseStyle);
+  }
+
+  TextSpan _applySearchHighlight(TextSpan span, TextStyle baseStyle) {
+    final children = <InlineSpan>[];
+    int currentOffset = 0;
+    int matchIndex = 0;
+
+    void processText(String text, TextStyle? style) {
+      if (text.isEmpty) return;
+
+      int textStart = currentOffset;
+      final textEnd = currentOffset + text.length;
+
+      while (matchIndex < _searchMatches.length) {
+        final match = _searchMatches[matchIndex];
+        if (match.start >= textEnd) break;
+        if (match.end <= textStart) {
+          matchIndex++;
+          continue;
+        }
+
+        final relStart = (match.start - textStart).clamp(0, text.length);
+        final relEnd = (match.end - textStart).clamp(0, text.length);
+
+        if (relStart > 0) {
+          children.add(TextSpan(text: text.substring(0, relStart), style: style));
+        }
+
+        final isCurrent = matchIndex == _currentMatchIndex;
+        final bgColor = isCurrent
+            ? AeroColors.accentOrange.withValues(alpha: 0.4)
+            : AeroColors.accentYellow.withValues(alpha: 0.25);
+
+        children.add(TextSpan(
+          text: text.substring(relStart, relEnd),
+          style: (style ?? baseStyle).copyWith(
+            backgroundColor: bgColor,
+          ),
+        ));
+
+        text = text.substring(relEnd);
+        textStart += relEnd;
+        matchIndex++;
+      }
+
+      if (text.isNotEmpty) {
+        children.add(TextSpan(text: text, style: style));
+      }
+
+      currentOffset = textEnd;
+    }
+
+    void traverse(InlineSpan span) {
+      if (span is TextSpan) {
+        if (span.text != null) {
+          processText(span.text!, span.style);
+        }
+        if (span.children != null) {
+          for (final child in span.children!) {
+            traverse(child);
+          }
+        }
+      } else {
+        children.add(span);
+      }
+    }
+
+    traverse(span);
+
+    return TextSpan(style: baseStyle, children: children);
   }
 }

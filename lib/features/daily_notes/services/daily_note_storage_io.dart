@@ -20,9 +20,9 @@ class DailyNoteStorage {
   }
 
   /// 获取文件状态信息
-  Future<_FileStat> stat(String filePath) async {
+  Future<DailyNoteFileStat> stat(String filePath) async {
     final s = await File(filePath).stat();
-    return _FileStat(changed: s.changed, modified: s.modified);
+    return DailyNoteFileStat(changed: s.changed, modified: s.modified);
   }
 
   /// 确保目录存在
@@ -56,9 +56,9 @@ class DailyNoteStorage {
 }
 
 /// 文件状态信息
-class _FileStat {
+class DailyNoteFileStat {
   final DateTime changed;
   final DateTime modified;
 
-  const _FileStat({required this.changed, required this.modified});
+  const DailyNoteFileStat({required this.changed, required this.modified});
 }

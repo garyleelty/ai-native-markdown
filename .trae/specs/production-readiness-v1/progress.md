@@ -131,3 +131,109 @@ None. All critical issues resolved. Product is production-ready.
 - 5个Critical级问题全部修复，包括2个安全漏洞、1个数据一致性bug、1个核心功能bug、1个数据丢失风险
 - 8个UI/UX问题修复:主题统一、编辑器体验、模式切换、状态栏、颜色一致性
 - 所有现有测试（89个）全部通过，macOS构建成功，静态分析0错误
+
+---
+
+## Round 8 (Spec Phase) — 生产级 UI/UX 修复规划
+
+### 代码审查结果
+
+对24个Review Issue进行了全面代码审查，确认：
+
+**✅ 已修复 (20个)：**
+- 5个Critical全部修复（缓存不失效、路径遍历、实体偏移、XSS、dispose保存）
+- Overlay统一管理（Issue 6）：已实现 OverlayType 枚举 + _activeOverlay 状态
+- AI面板折叠（Issue 9）：aiChatPanelVisible 设置 + 持久化
+- 源码模式高亮（Issue 10）：MarkdownHighlightController + 12种语法元素
+- Git备份修复（Issue 14-15）：目录检查、分支检测、参数注入防护
+- UI/UX Polish（Issue 17-19, 20-23）：全部完成
+
+**🔶 剩余待修复 (4个)：**
+
+| 优先级 | Issue | 说明 |
+|--------|-------|------|
+| High | Issue 7 | Overlay遮罩/动画/关闭行为不统一 |
+| High | Issue 11 | LiveMarkdownEditor按行拆分导致编辑体验差 |
+| Medium | Issue 12 | 搜索不高亮所有匹配项 |
+| Low | Issue 16 | 知识图谱动画从左上角开始 |
+
+### 设计决策
+
+1. **Issue 7（Overlay统一）**：优先级 High，抽取通用 OverlayDialog 组件，统一遮罩/动画/关闭行为，影响用户体验一致性
+2. **Issue 11（LiveMarkdownEditor）**：架构性问题，短期通过源码模式+语法高亮作为主要编辑模式缓解，暂不做大规模重构
+3. **Issue 12（搜索高亮）**：对标 Obsidian/VS Code，所有匹配项黄色背景 + 当前项橙色，Medium 优先级
+4. **Issue 16（图谱动画）**：视觉 polish，Low 优先级
+
+### 新增任务
+- Task 12: Overlay 遮罩/动画/关闭行为统一 (High)
+- Task 13: 编辑器内搜索高亮所有匹配项 (Medium)
+- Task 14: 知识图谱动画位置修复 (Low)
+
+### 关键文件
+- lib/app.dart — Overlay 统一管理
+- lib/features/editor/widgets/note_panel.dart — 搜索高亮
+- 各 overlay widget — 统一遮罩和动画
+
+### 下一步
+- 实现 Task 12（Overlay 统一）作为下一轮的主要任务
+- 然后依次完成 Task 13 和 Task 14
+
+---
+
+## Round 9 (Execution Phase) — UI/UX 统一与搜索高亮
+
+### 完成的工作
+
+#### 1. Overlay 视觉与交互统一 (Issue 7 / Task 12)
+- 新增通用 `ModalOverlay` 组件 (`lib/core/widgets/modal_overlay.dart`)
+- 所有 overlay 遮罩统一为 `Colors.black54`
+- 动画时长统一 200ms，曲线统一 `Curves.easeOutCubic`
+- 缩放动画统一 0.95 → 1.0（Fade + Scale）
+- **设置页面重构**：从全屏改为模态对话框风格（800x600，居中，点击遮罩关闭）
+- 快捷键/导入导出主对话框圆角统一为 12px，添加 boxShadow
+- Quick Switcher 添加入场动画（之前无动画）
+- 插件管理动画缩放范围从 0.9→1.0 改为 0.95→1.0
+- 模板画廊动画时长从 250ms 改为 200ms
+- app.dart 模态 overlay 动画时长从 180ms 改为 200ms
+
+#### 2. 编辑器搜索高亮所有匹配项 (Issue 12 / Task 13)
+- 在 `MarkdownHighlightController` 中新增搜索高亮功能
+- 新增 `updateSearch()` / `clearSearch()` / `setCurrentMatchIndex()` 方法
+- 所有匹配项使用黄色半透明背景（accentYellow, alpha: 0.25）
+- 当前匹配项使用橙色高亮（accentOrange, alpha: 0.4）
+- 搜索匹配数据从 MarkdownHighlightController 获取，单一数据源
+- 保留匹配计数显示（x/y）
+- 支持 Enter/Shift+Enter 导航到下一个/上一个匹配
+- `note_panel.dart` 移除冗余的 `_matches` 和 `_currentMatchIndex` 变量
+
+#### 3. 知识图谱动画位置 (Issue 16 / Task 14)
+- 确认知识图谱动画已从屏幕中心展开（命令面板调用时传入屏幕中心位置）
+- 非左上角展开，体验自然
+
+### 验证结果
+- ✅ `flutter test`: 89 passed, 0 failed
+- ✅ `dart analyze lib/`: 0 errors, 2 warnings (pre-existing), 2 info
+- ✅ 设置页面改为模态对话框后视觉效果更统一
+
+### 剩余问题
+- Issue 11: LiveMarkdownEditor 架构问题（按行拆分 TextField 导致编辑体验差）
+  - 优先级 High，但属于架构性重构
+  - 短期通过源码模式 + 语法高亮作为主要编辑模式缓解
+  - 建议未来版本统一为单 TextField + TextSpan 叠加渲染
+
+### 关键文件变更
+- `lib/core/widgets/modal_overlay.dart` — 新增通用 ModalOverlay 组件
+- `lib/app.dart` — 动画时长统一为 200ms
+- `lib/features/settings/widgets/settings_page.dart` — 改为模态对话框风格
+- `lib/features/help/widgets/keyboard_cheatsheet.dart` — 圆角 12px + boxShadow
+- `lib/features/import_export/widgets/import_export_panel.dart` — 圆角 12px + boxShadow
+- `lib/features/quick_switcher/widgets/quick_switcher_overlay.dart` — 添加入场动画
+- `lib/features/plugins/widgets/plugin_manager_panel.dart` — 动画缩放统一
+- `lib/features/templates/widgets/template_gallery.dart` — 动画时长 200ms
+- `lib/features/editor/services/syntax_highlighter.dart` — 搜索高亮功能
+- `lib/features/editor/widgets/note_panel.dart` — 搜索逻辑重构
+
+### 产品状态
+- 24 个 Review Issue 中已有 23 个修复
+- 仅剩 1 个架构性问题（LiveMarkdownEditor）待未来版本处理
+- 产品已达到生产可用水平

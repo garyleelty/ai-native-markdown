@@ -13,6 +13,9 @@
 - 修复 Git 备份、实体识别偏移等功能级 bug
 - 给异步操作添加加载/错误状态
 - 确保跨平台路径安全
+- 统一 UI/UX 设计语言（遮罩、动画、交互一致）
+- 源码模式具备基础语法高亮
+- 编辑器搜索体验对标 Obsidian/VS Code
 
 ## Non-Goals (Out of Scope)
 - 不做大规模 UI 重设计或主题更换
@@ -104,6 +107,27 @@ AeroMind 是一个 Flutter 桌面笔记应用，核心架构已完成：三层 f
 - 保存成功/失败有明确反馈
 - 长时间操作有 loading 指示器
 
+### FR-12: Overlay 视觉与交互统一
+- 所有模态 overlay 统一遮罩样式（半透明黑色背景）
+- 统一入场/出场动画（Fade + Scale）
+- 点击遮罩区域关闭 overlay（除需明确确认的对话框外）
+- 统一圆角、边框、阴影等视觉风格
+
+### FR-13: 编辑器内搜索体验
+- 搜索时高亮所有匹配项（黄色背景标记）
+- 当前匹配项有不同颜色高亮
+- 显示匹配计数（如 3/12）
+- 支持 Enter 跳转到下一个，Shift+Enter 跳转到上一个
+- 搜索框有关闭按钮和清除按钮
+
+### FR-14: 浅色主题清理
+- 移除设置中不可用的浅色主题选项，避免误导用户
+- 或在选项中明确标注"即将推出"且禁用切换
+
+### FR-15: 知识图谱动画优化
+- 圆形揭示动画从按钮点击位置开始，而非屏幕左上角
+- 关闭动画反向播放
+
 ## Non-Functional Requirements
 - **NFR-1**: 所有 critical 和 high 级别问题修复后，`flutter test` 全部通过
 - **NFR-2**: `dart analyze lib/` 无新增 warning/error（保持 0 error，warning 不超过 5 个）
@@ -181,6 +205,30 @@ AeroMind 是一个 Flutter 桌面笔记应用，核心架构已完成：三层 f
 - **Given**: 用户正常使用应用（创建/编辑/删除笔记、搜索、打开各种面板）
 - **When**: 操作 5 分钟
 - **Then**: 控制台无未捕获异常，应用不崩溃
+- **Verification**: `human-judgment`
+
+### AC-11: Overlay 视觉统一
+- **Given**: 应用正常运行
+- **When**: 用户打开命令面板、模板画廊、插件管理、设置等 overlay
+- **Then**: 所有 overlay 有一致的遮罩、动画、圆角和边框样式
+- **Verification**: `human-judgment`
+
+### AC-12: 搜索结果高亮
+- **Given**: 用户在编辑器中打开搜索栏并输入关键词
+- **When**: 存在多个匹配项
+- **Then**: 所有匹配项以黄色背景标记，当前匹配项以橙色高亮
+- **Verification**: `human-judgment`
+
+### AC-13: 设置无误导选项
+- **Given**: 用户打开设置页面
+- **When**: 查看主题设置
+- **Then**: 浅色主题选项要么可用，要么明确标注不可用，不会让用户以为切换了但没生效
+- **Verification**: `human-judgment`
+
+### AC-14: 图谱动画从按钮位置展开
+- **Given**: 用户在笔记面板中
+- **When**: 点击图谱按钮打开知识图谱
+- **Then**: 圆形揭示动画从按钮位置开始扩散，而非从左上角
 - **Verification**: `human-judgment`
 
 ## Open Questions

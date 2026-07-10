@@ -65,14 +65,22 @@ class KeyboardCheatsheetOverlay extends StatelessWidget {
     return Positioned.fill(
       child: Material(
         color: Colors.black54,
-        child: Center(
-          child: Container(
+        child: GestureDetector(
+          onTap: onClose,
+          behavior: HitTestBehavior.opaque,
+          child: Center(
+            child: GestureDetector(
+              onTap: () {},
+              child: Container(
             width: 600,
             constraints: const BoxConstraints(maxHeight: 600),
             decoration: BoxDecoration(
               color: AeroColors.bgSurface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AeroColors.border, width: 0.5),
+              boxShadow: const [
+                BoxShadow(color: AeroColors.shadow, blurRadius: 24),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -87,8 +95,8 @@ class KeyboardCheatsheetOverlay extends StatelessWidget {
                       bottom: BorderSide(color: AeroColors.divider, width: 0.5),
                     ),
                     borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(8),
-                      topRight: Radius.circular(8),
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
                     ),
                   ),
                   child: Row(
@@ -143,6 +151,8 @@ class KeyboardCheatsheetOverlay extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+              ),
             ),
           ),
         ),

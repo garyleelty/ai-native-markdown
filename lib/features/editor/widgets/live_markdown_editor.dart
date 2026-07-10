@@ -205,6 +205,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
       _syncToController();
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _lineFocusNodes[lineIndex + 1].requestFocus();
         _lineControllers[lineIndex + 1].selection = TextSelection.collapsed(
           offset: newLinePrefix.length,
@@ -237,6 +238,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
       _syncToController();
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _lineFocusNodes[lineIndex - 1].requestFocus();
         _lineControllers[lineIndex - 1].selection = TextSelection.collapsed(
           offset: caretPos,

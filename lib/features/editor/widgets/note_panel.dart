@@ -13,6 +13,7 @@ import '../../../providers/sidebar_provider.dart';
 import '../../../providers/pane_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../services/editor_service.dart';
+import '../services/syntax_highlighter.dart';
 import '../../quick_switcher/services/fuzzy_matcher.dart';
 import 'entity_text_editor.dart';
 import 'live_markdown_editor.dart';
@@ -38,11 +39,11 @@ class NotePanel extends ConsumerStatefulWidget {
 }
 
 class _NotePanelState extends ConsumerState<NotePanel> {
-  late final TextEditingController _textController;
+  late final MarkdownHighlightController _textController;
   late final FocusNode _focusNode;
   late final ScrollController _scrollController;
   final GlobalKey _editorKey = GlobalKey();
-  EditorMode _editorMode = EditorMode.source; // 三种模式
+  EditorMode _editorMode = EditorMode.source;
   String _rawMarkdown = '';
   DateTime? _lastHandledScrollRequest;
   bool _noteNotFound = false;
@@ -57,8 +58,6 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   bool _showSearchBar = false;
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _replaceController = TextEditingController();
-  int _currentMatchIndex = -1;
-  final List<TextRange> _matches = [];
   bool _showReplace = false;
 
   // wiki link 悬浮预览
@@ -81,7 +80,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   @override
   void initState() {
     super.initState();
-    _textController = TextEditingController();
+    _textController = MarkdownHighlightController();
     _focusNode = FocusNode();
     _scrollController = ScrollController();
     _textController.addListener(_onControllerTextChanged);
@@ -1395,8 +1394,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
       _showSearchBar = !_showSearchBar;
       if (!_showSearchBar) {
         _showReplace = false;
-        _matches.clear();
-        _currentMatchIndex = -1;
+        _textController.clearSearch();
         _searchController.clear();
         _replaceController.clear();
       }
@@ -1439,11 +1437,11 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                         borderSide:
                             const BorderSide(color: AeroColors.accentBlue),
                       ),
-                      suffixIcon: _matches.isNotEmpty
+                      suffixIcon: _textController.searchMatches.isNotEmpty
                           ? Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: Text(
-                                '${_currentMatchIndex + 1}/${_matches.length}',
+                                '${_textController.currentMatchIndex + 1}/${_textController.searchMatches.length}',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: AeroColors.textMuted,
@@ -1550,56 +1548,37 @@ class _NotePanelState extends ConsumerState<NotePanel> {
 
   void _updateMatches() {
     final query = _searchController.text;
-    final text = _textController.text;
-    _matches.clear();
-
-    if (query.isEmpty) {
-      setState(() {
-        _currentMatchIndex = -1;
-      });
-      return;
+    _textController.updateSearch(query);
+    setState(() {});
+    if (_textController.searchMatches.isNotEmpty) {
+      _scrollToMatch();
     }
-
-    int start = 0;
-    while (true) {
-      final index = text.toLowerCase().indexOf(query.toLowerCase(), start);
-      if (index == -1) break;
-      _matches.add(TextRange(start: index, end: index + query.length));
-      start = index + query.length;
-    }
-
-    setState(() {
-      if (_matches.isNotEmpty) {
-        _currentMatchIndex = 0;
-        _scrollToMatch();
-      } else {
-        _currentMatchIndex = -1;
-      }
-    });
   }
 
   void _findNext() {
-    if (_matches.isEmpty) return;
-    setState(() {
-      _currentMatchIndex = (_currentMatchIndex + 1) % _matches.length;
-      _scrollToMatch();
-    });
+    final matches = _textController.searchMatches;
+    if (matches.isEmpty) return;
+    final nextIndex = (_textController.currentMatchIndex + 1) % matches.length;
+    _textController.setCurrentMatchIndex(nextIndex);
+    _scrollToMatch();
   }
 
   void _findPrevious() {
-    if (_matches.isEmpty) return;
-    setState(() {
-      _currentMatchIndex = _currentMatchIndex - 1;
-      if (_currentMatchIndex < 0) {
-        _currentMatchIndex = _matches.length - 1;
-      }
-      _scrollToMatch();
-    });
+    final matches = _textController.searchMatches;
+    if (matches.isEmpty) return;
+    var prevIndex = _textController.currentMatchIndex - 1;
+    if (prevIndex < 0) {
+      prevIndex = matches.length - 1;
+    }
+    _textController.setCurrentMatchIndex(prevIndex);
+    _scrollToMatch();
   }
 
   void _scrollToMatch() {
-    if (_currentMatchIndex < 0 || _currentMatchIndex >= _matches.length) return;
-    final match = _matches[_currentMatchIndex];
+    final matches = _textController.searchMatches;
+    final currentIndex = _textController.currentMatchIndex;
+    if (currentIndex < 0 || currentIndex >= matches.length) return;
+    final match = matches[currentIndex];
     _textController.selection = TextSelection(
       baseOffset: match.start,
       extentOffset: match.end,
@@ -1608,8 +1587,10 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   }
 
   void _replaceOne() {
-    if (_matches.isEmpty || _currentMatchIndex < 0) return;
-    final match = _matches[_currentMatchIndex];
+    final matches = _textController.searchMatches;
+    final currentIndex = _textController.currentMatchIndex;
+    if (matches.isEmpty || currentIndex < 0) return;
+    final match = matches[currentIndex];
     final replaceText = _replaceController.text;
     final text = _textController.text;
     final newText = text.replaceRange(match.start, match.end, replaceText);
@@ -1622,7 +1603,8 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   }
 
   void _replaceAll() {
-    if (_matches.isEmpty) return;
+    final matches = _textController.searchMatches;
+    if (matches.isEmpty) return;
     final query = _searchController.text;
     final replaceText = _replaceController.text;
     final text = _textController.text;
@@ -1824,7 +1806,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
 // 子组件
 // ──────────────────────────────────────────────
 
-class _ToolbarButton extends StatelessWidget {
+class _ToolbarButton extends StatefulWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
@@ -1836,15 +1818,41 @@ class _ToolbarButton extends StatelessWidget {
   });
 
   @override
+  State<_ToolbarButton> createState() => _ToolbarButtonState();
+}
+
+class _ToolbarButtonState extends State<_ToolbarButton> {
+  bool _isHovering = false;
+
+  @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: Icon(icon, size: 16, color: AeroColors.textSecondary),
+      message: widget.tooltip,
+      waitDuration: const Duration(milliseconds: 500),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovering = true),
+        onExit: (_) => setState(() => _isHovering = false),
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(4),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: _isHovering
+                  ? AeroColors.accentBlue.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Icon(
+              widget.icon,
+              size: 15,
+              color: _isHovering
+                  ? AeroColors.accentBlue
+                  : AeroColors.textSecondary,
+            ),
+          ),
         ),
       ),
     );
@@ -2039,7 +2047,7 @@ class _LinkedNotePreview extends StatelessWidget {
   }
 }
 
-class _PredictiveLinkChip extends StatelessWidget {
+class _PredictiveLinkChip extends StatefulWidget {
   final PredictiveLink link;
   final VoidCallback onTap;
 
@@ -2049,34 +2057,76 @@ class _PredictiveLinkChip extends StatelessWidget {
   });
 
   @override
+  State<_PredictiveLinkChip> createState() => _PredictiveLinkChipState();
+}
+
+class _PredictiveLinkChipState extends State<_PredictiveLinkChip> {
+  bool _isHovering = false;
+
+  @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: ActionChip(
-        onPressed: onTap,
-        backgroundColor: AeroColors.bgSurface,
-        side: BorderSide(color: AeroColors.accentGreen.withValues(alpha: 0.3)),
-        avatar: const Icon(Icons.link, size: 14, color: AeroColors.accentGreen),
-        label: Builder(
-          builder: (context) => Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                link.targetTitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AeroColors.textPrimary,
-                    ),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovering = true),
+        onExit: (_) => setState(() => _isHovering = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: _isHovering
+                  ? AeroColors.accentGreen.withValues(alpha: 0.12)
+                  : AeroColors.bgSurface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _isHovering
+                    ? AeroColors.accentGreen.withValues(alpha: 0.5)
+                    : AeroColors.accentGreen.withValues(alpha: 0.25),
+                width: 0.5,
               ),
-              Text(
-                link.reason,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      fontSize: 9,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.link,
+                    size: 13,
+                    color: _isHovering
+                        ? AeroColors.accentGreen
+                        : AeroColors.accentGreen),
+                const SizedBox(width: 6),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.link.targetTitle,
+                      style:
+                          Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: _isHovering
+                                    ? AeroColors.accentGreen
+                                    : AeroColors.textPrimary,
+                                fontSize: 12,
+                                fontWeight: _isHovering
+                                    ? FontWeight.w500
+                                    : FontWeight.w400,
+                              ),
                     ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+                    Text(
+                      widget.link.reason,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontSize: 9,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2098,7 +2148,7 @@ class _HistoryItem {
 
 // ── 搜索栏小按钮 ──
 
-class _SearchMiniButton extends StatelessWidget {
+class _SearchMiniButton extends StatefulWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
@@ -2110,15 +2160,41 @@ class _SearchMiniButton extends StatelessWidget {
   });
 
   @override
+  State<_SearchMiniButton> createState() => _SearchMiniButtonState();
+}
+
+class _SearchMiniButtonState extends State<_SearchMiniButton> {
+  bool _isHovering = false;
+
+  @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: Icon(icon, size: 14, color: AeroColors.textSecondary),
+      message: widget.tooltip,
+      waitDuration: const Duration(milliseconds: 500),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovering = true),
+        onExit: (_) => setState(() => _isHovering = false),
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(4),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: _isHovering
+                  ? AeroColors.accentBlue.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Icon(
+              widget.icon,
+              size: 14,
+              color: _isHovering
+                  ? AeroColors.accentBlue
+                  : AeroColors.textSecondary,
+            ),
+          ),
         ),
       ),
     );

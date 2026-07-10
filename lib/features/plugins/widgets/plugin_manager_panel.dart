@@ -28,22 +28,29 @@ class PluginManagerOverlay extends ConsumerWidget {
     if (!state.isOpen) return const SizedBox.shrink();
 
     return Material(
-      color: Colors.black38,
-      child: Center(
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.9, end: 1.0),
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          builder: (context, scale, child) {
-            return Transform.scale(
-              scale: scale,
-              child: Opacity(
-                opacity: (scale - 0.9) * 10,
-                child: child,
-              ),
-            );
-          },
-          child: _PluginManagerDialog(),
+      color: Colors.black54,
+      child: GestureDetector(
+        onTap: () => ref.read(pluginManagerProvider.notifier).close(),
+        behavior: HitTestBehavior.opaque,
+        child: Center(
+          child: GestureDetector(
+            onTap: () {},
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.95, end: 1.0),
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              builder: (context, scale, child) {
+                return Transform.scale(
+                  scale: scale,
+                  child: Opacity(
+                    opacity: (scale - 0.95) * 20,
+                    child: child,
+                  ),
+                );
+              },
+              child: _PluginManagerDialog(),
+            ),
+          ),
         ),
       ),
     );

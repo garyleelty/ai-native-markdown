@@ -139,12 +139,12 @@ class _MermaidBlockWidgetState extends ConsumerState<MermaidBlockWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
               Icon(Icons.privacy_tip_outlined,
                   size: 14, color: AeroColors.accentOrange),
-              const SizedBox(width: 6),
-              const Text(
+              SizedBox(width: 6),
+              Text(
                 '需要在线渲染服务',
                 style: TextStyle(
                   fontSize: 12,
@@ -155,7 +155,7 @@ class _MermaidBlockWidgetState extends ConsumerState<MermaidBlockWidget> {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Mermaid 图表渲染使用 mermaid.ink 在线服务（第三方服务）。'
             '启用后，图表代码将通过 HTTPS 发送至 mermaid.ink 服务器进行渲染。'
             '你可以随时在设置中关闭此功能。',

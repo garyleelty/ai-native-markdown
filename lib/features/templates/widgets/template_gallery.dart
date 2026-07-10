@@ -34,7 +34,7 @@ class _TemplateGalleryOverlayState
   late final FocusNode _searchFocusNode;
   late final AnimationController _animController;
   late final Animation<double> _fadeAnimation;
-  late final Animation<double> _slideAnimation;
+  late final Animation<double> _scaleAnimation;
 
   @override
   void initState() {
@@ -43,13 +43,13 @@ class _TemplateGalleryOverlayState
     _searchFocusNode = FocusNode();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 250),
+      duration: const Duration(milliseconds: 200),
     );
     _fadeAnimation = CurvedAnimation(
       parent: _animController,
-      curve: Curves.easeOut,
+      curve: Curves.easeOutCubic,
     );
-    _slideAnimation = Tween<double>(begin: 20.0, end: 0.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
     );
   }
@@ -112,10 +112,7 @@ class _TemplateGalleryOverlayState
 
     if (!state.isOpen) return const SizedBox.shrink();
 
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: _buildOverlay(state),
-    );
+    return _buildOverlay(state);
   }
 
   Widget _buildOverlay(TemplateGalleryState state) {
@@ -127,16 +124,13 @@ class _TemplateGalleryOverlayState
         child: Center(
           child: GestureDetector(
             onTap: () {},
-            child: ListenableBuilder(
-            listenable: _animController,
-            builder: (context, child) {
-              return Transform.translate(
-                offset: Offset(0, _slideAnimation.value),
-                child: child,
-              );
-            },
-            child: _buildPanel(state),
-          ),
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: ScaleTransition(
+                scale: _scaleAnimation,
+                child: _buildPanel(state),
+              ),
+            ),
           ),
         ),
       ),

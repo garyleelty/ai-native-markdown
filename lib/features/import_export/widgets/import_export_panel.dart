@@ -48,8 +48,11 @@ class _ImportExportPanelState extends ConsumerState<ImportExportPanel> {
             constraints: const BoxConstraints(maxHeight: 560),
             decoration: BoxDecoration(
               color: AeroColors.bgSurface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AeroColors.border, width: 0.5),
+              boxShadow: const [
+                BoxShadow(color: AeroColors.shadow, blurRadius: 24),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,

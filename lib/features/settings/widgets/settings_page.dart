@@ -38,103 +38,127 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AeroColors.bgDeep,
-      child: Column(
-        children: [
-          // ── 标题栏 ──
-          Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: const BoxDecoration(
-              color: AeroColors.bgElevated,
-              border: Border(
-                bottom: BorderSide(color: AeroColors.divider, width: 0.5),
+      color: Colors.black54,
+      child: GestureDetector(
+        onTap: widget.onClose,
+        behavior: HitTestBehavior.opaque,
+        child: Center(
+          child: GestureDetector(
+            onTap: () {},
+            child: Container(
+              width: 800,
+              height: 600,
+              decoration: BoxDecoration(
+                color: AeroColors.bgDeep,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AeroColors.border, width: 0.5),
+                boxShadow: const [
+                  BoxShadow(color: AeroColors.shadow, blurRadius: 24),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Column(
+                  children: [
+                    // ── 标题栏 ──
+                    Container(
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: const BoxDecoration(
+                        color: AeroColors.bgElevated,
+                        border: Border(
+                          bottom: BorderSide(color: AeroColors.divider, width: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.settings_outlined,
+                              size: 18, color: AeroColors.accentBlue),
+                          const SizedBox(width: 8),
+                          const Text(
+                            '设置',
+                            style: TextStyle(
+                              color: AeroColors.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.close,
+                                size: 18, color: AeroColors.textSecondary),
+                            onPressed: widget.onClose,
+                            splashRadius: 16,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // ── 内容区 ──
+                    Expanded(
+                      child: Row(
+                        children: [
+                          // 左侧导航
+                          Container(
+                            width: 160,
+                            decoration: const BoxDecoration(
+                              color: AeroColors.bgSurface,
+                              border: Border(
+                                right: BorderSide(color: AeroColors.divider, width: 0.5),
+                              ),
+                            ),
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              itemCount: _sections.length,
+                              itemBuilder: (context, index) {
+                                final section = _sections[index];
+                                final isSelected = index == _selectedSection;
+                                return InkWell(
+                                  onTap: () => setState(() => _selectedSection = index),
+                                  child: Container(
+                                    height: 36,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    color: isSelected
+                                        ? AeroColors.accentBlue.withValues(alpha: 0.08)
+                                        : Colors.transparent,
+                                    child: Row(
+                                      children: [
+                                        Icon(section.icon,
+                                            size: 16,
+                                            color: isSelected
+                                                ? AeroColors.accentBlue
+                                                : AeroColors.textSecondary),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          section.label,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: isSelected
+                                                ? AeroColors.accentBlue
+                                                : AeroColors.textPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+
+                          // 右侧内容
+                          Expanded(
+                            child: _buildSectionContent(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.settings_outlined,
-                    size: 18, color: AeroColors.accentBlue),
-                const SizedBox(width: 8),
-                const Text(
-                  '设置',
-                  style: TextStyle(
-                    color: AeroColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close,
-                      size: 18, color: AeroColors.textSecondary),
-                  onPressed: widget.onClose,
-                  splashRadius: 16,
-                ),
-              ],
-            ),
           ),
-
-          // ── 内容区 ──
-          Expanded(
-            child: Row(
-              children: [
-                // 左侧导航
-                Container(
-                  width: 160,
-                  decoration: const BoxDecoration(
-                    color: AeroColors.bgSurface,
-                    border: Border(
-                      right: BorderSide(color: AeroColors.divider, width: 0.5),
-                    ),
-                  ),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: _sections.length,
-                    itemBuilder: (context, index) {
-                      final section = _sections[index];
-                      final isSelected = index == _selectedSection;
-                      return InkWell(
-                        onTap: () => setState(() => _selectedSection = index),
-                        child: Container(
-                          height: 36,
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          color: isSelected
-                              ? AeroColors.accentBlue.withValues(alpha: 0.08)
-                              : Colors.transparent,
-                          child: Row(
-                            children: [
-                              Icon(section.icon,
-                                  size: 16,
-                                  color: isSelected
-                                      ? AeroColors.accentBlue
-                                      : AeroColors.textSecondary),
-                              const SizedBox(width: 10),
-                              Text(
-                                section.label,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: isSelected
-                                      ? AeroColors.accentBlue
-                                      : AeroColors.textPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-                // 右侧内容
-                Expanded(
-                  child: _buildSectionContent(),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

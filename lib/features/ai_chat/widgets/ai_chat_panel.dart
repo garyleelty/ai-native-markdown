@@ -11,6 +11,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/builtin_plugins/ai_chat_plugin.dart';
 import '../../../core/plugin/plugin_registry.dart';
@@ -321,13 +322,52 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
     if (_messages.isEmpty) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            '开始与 AI 对话讨论当前笔记内容',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AeroColors.textMuted,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AeroColors.accentPurple.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  size: 24,
+                  color: AeroColors.accentPurple,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'AI 对话助手',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AeroColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '基于当前打开的笔记内容\n回答问题、总结要点、生成想法',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AeroColors.textMuted,
+                      height: 1.5,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              _buildQuickActionChip(
+                icon: Icons.summarize,
+                label: '总结当前笔记',
+              ),
+              const SizedBox(height: 6),
+              _buildQuickActionChip(
+                icon: Icons.lightbulb_outline,
+                label: '生成相关想法',
+              ),
+            ],
           ),
         ),
       );
@@ -346,11 +386,37 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
     );
   }
 
+  Widget _buildQuickActionChip({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AeroColors.bgElevated,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AeroColors.border, width: 0.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: AeroColors.accentPurple),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AeroColors.textSecondary,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 单条消息气泡
   Widget _buildMessageBubble(BuildContext context, ChatMessage msg) {
     final isUser = msg.role == 'user';
+    final timeStr = DateFormat('HH:mm').format(msg.timestamp);
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 10),
       child: Row(
         mainAxisAlignment:
             isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -362,28 +428,43 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
             const SizedBox(width: 4),
           ],
           Flexible(
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: isUser
-                    ? AeroColors.accentBlue.withValues(alpha: 0.15)
-                    : AeroColors.bgElevated,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: isUser
-                      ? AeroColors.accentBlue.withValues(alpha: 0.3)
-                      : AeroColors.border,
-                  width: 0.5,
-                ),
-              ),
-              child: SelectableText(
-                msg.content,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AeroColors.textPrimary,
-                      height: 1.4,
+            child: Column(
+              crossAxisAlignment: isUser
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isUser
+                        ? AeroColors.accentBlue.withValues(alpha: 0.15)
+                        : AeroColors.bgElevated,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: isUser
+                          ? AeroColors.accentBlue.withValues(alpha: 0.3)
+                          : AeroColors.border,
+                      width: 0.5,
                     ),
-              ),
+                  ),
+                  child: SelectableText(
+                    msg.content,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AeroColors.textPrimary,
+                          height: 1.4,
+                        ),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  timeStr,
+                  style: const TextStyle(
+                    color: AeroColors.textMuted,
+                    fontSize: 9,
+                  ),
+                ),
+              ],
             ),
           ),
           if (isUser) ...[
