@@ -4,6 +4,7 @@
 /// 替换原有的 _AIContextSidePanel,提供基于当前笔记上下文的
 /// AI 对话界面。通过 PluginRegistry 获取 AiChatPlugin 实例,
 /// 调用 plugin.chat() 进行多轮对话。
+/// 支持折叠/展开，以适配小屏幕。
 /// ──────────────────────────────────────────────────
 library;
 
@@ -24,7 +25,14 @@ class _SendMessageIntent extends Intent {
 
 /// AI 对话面板 — 替换 _AIContextSidePanel 的聊天 UI
 class AiChatPanel extends ConsumerStatefulWidget {
-  const AiChatPanel({super.key});
+  final bool isVisible;
+  final VoidCallback? onToggle;
+
+  const AiChatPanel({
+    super.key,
+    this.isVisible = true,
+    this.onToggle,
+  });
 
   @override
   ConsumerState<AiChatPanel> createState() => _AiChatPanelState();
@@ -58,6 +66,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
   /// 滚动到底部
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
@@ -126,6 +135,10 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.isVisible) {
+      return _buildCollapsedHandle(context);
+    }
+
     final paneState = ref.watch(paneStackProvider);
     final aiContext = ref.watch(aiContextPromptProvider);
     final plugin = _plugin;
@@ -155,11 +168,73 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
     );
   }
 
-  /// 头部栏: 图标 + 标题 + 上下文信息 + 清除按钮
+  /// 折叠状态下的把手条
+  Widget _buildCollapsedHandle(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onToggle,
+        child: Container(
+          width: 28,
+          decoration: const BoxDecoration(
+            color: AeroColors.bgSurface,
+            border: Border(
+                left: BorderSide(color: AeroColors.divider, width: 0.5)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 8),
+              RotatedBox(
+                quarterTurns: 3,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AeroColors.bgElevated,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: AeroColors.border, width: 0.5),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.chat,
+                          size: 12, color: AeroColors.accentPurple),
+                      SizedBox(width: 4),
+                      Text(
+                        'AI 对话',
+                        style: TextStyle(
+                          color: AeroColors.accentPurple,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              IconButton(
+                icon: const Icon(Icons.chevron_left,
+                    size: 16, color: AeroColors.textMuted),
+                onPressed: widget.onToggle,
+                splashRadius: 14,
+                tooltip: '展开 AI 面板',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+              ),
+              const Spacer(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 头部栏: 图标 + 标题 + 上下文信息 + 清除按钮 + 折叠按钮
   Widget _buildHeader(BuildContext context, int noteCount, int tokens) {
     return Container(
       height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: const BoxDecoration(
         color: AeroColors.bgElevated,
         border: Border(
@@ -175,25 +250,35 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
                   color: AeroColors.accentPurple,
                 ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
           Expanded(
             child: Text(
-              '上下文: $noteCount 篇笔记 (~$tokens tokens)',
+              '$noteCount篇 ~${tokens}tok',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: AeroColors.textMuted,
+                    fontSize: 10,
                   ),
             ),
           ),
-          InkWell(
-            onTap: _clearConversation,
-            borderRadius: BorderRadius.circular(3),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              child: Icon(Icons.delete_outline,
-                  size: 14, color: AeroColors.textMuted),
-            ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline,
+                size: 14, color: AeroColors.textMuted),
+            onPressed: _clearConversation,
+            splashRadius: 12,
+            tooltip: '清除对话',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right,
+                size: 16, color: AeroColors.textMuted),
+            onPressed: widget.onToggle,
+            splashRadius: 12,
+            tooltip: '折叠 AI 面板',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
           ),
         ],
       ),
@@ -217,6 +302,14 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
                     color: AeroColors.textSecondary,
                   ),
             ),
+            const SizedBox(height: 4),
+            Text(
+              '按 Cmd/Ctrl+Shift+P 打开插件管理',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AeroColors.textMuted,
+                    fontSize: 11,
+                  ),
+            ),
           ],
         ),
       ),
@@ -231,6 +324,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
           padding: const EdgeInsets.all(16),
           child: Text(
             '开始与 AI 对话讨论当前笔记内容',
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AeroColors.textMuted,
                 ),
@@ -348,8 +442,6 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
           Expanded(
             child: Shortcuts(
               shortcuts: {
-                // SingleActivator 默认 modifiers 为 false,即 Enter 不带任何修饰键时触发
-                // Shift+Enter 不会匹配此快捷键,会传递给 TextField 插入换行
                 const SingleActivator(LogicalKeyboardKey.enter):
                     const _SendMessageIntent(),
               },
@@ -371,10 +463,11 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
                         color: AeroColors.textPrimary,
                       ),
                   decoration: InputDecoration(
-                    hintText: '输入消息, Enter 发送, Shift+Enter 换行',
+                    hintText: 'Enter 发送, Shift+Enter 换行',
                     hintStyle:
                         Theme.of(context).textTheme.labelSmall?.copyWith(
                               color: AeroColors.textMuted,
+                              fontSize: 11,
                             ),
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(

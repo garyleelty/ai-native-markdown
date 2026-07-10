@@ -223,34 +223,12 @@ class _GeneralSection extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 16),
-        _SettingsGroup(
+        const _SettingsGroup(
           title: '外观',
           children: [
             _SettingsTile(
               title: '主题',
-              subtitle: settings.themeMode == AppThemeMode.dark
-                  ? '暗色 (默认)'
-                  : '浅色',
-              trailing: SegmentedButton<AppThemeMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: AppThemeMode.dark,
-                    icon: Icon(Icons.dark_mode_outlined, size: 14),
-                    label: Text('暗色', style: TextStyle(fontSize: 11)),
-                  ),
-                  ButtonSegment(
-                    value: AppThemeMode.light,
-                    icon: Icon(Icons.light_mode_outlined, size: 14),
-                    label: Text('浅色', style: TextStyle(fontSize: 11)),
-                  ),
-                ],
-                selected: {settings.themeMode},
-                onSelectionChanged: (selection) =>
-                    notifier.setThemeMode(selection.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity(horizontal: -3, vertical: -2),
-                ),
-              ),
+              subtitle: '暗色 (推荐) · 浅色主题即将推出',
             ),
           ],
         ),

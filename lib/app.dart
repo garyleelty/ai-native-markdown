@@ -62,12 +62,11 @@ class AeroMindApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(settingsProvider);
     return MaterialApp(
       title: 'AeroMind',
       theme: AeroTheme.dark,
       darkTheme: AeroTheme.dark,
-      themeMode: settings.flutterThemeMode,
+      themeMode: ThemeMode.dark,
       debugShowCheckedModeBanner: false,
       home: const _AppShell(),
     );
@@ -83,7 +82,7 @@ class _AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<_AppShell>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   /// 知识图谱是否可见
   bool _isGraphVisible = false;
 
@@ -98,6 +97,9 @@ class _AppShellState extends ConsumerState<_AppShell>
 
   /// 导入导出面板是否可见
   bool _isImportExportVisible = false;
+
+  /// AI 面板是否可见（运行时状态，null 表示使用设置默认值）
+  bool? _isAiPanelVisibleRuntime;
 
   /// 展开动画控制器
   late AnimationController _graphAnimController;
@@ -117,6 +119,25 @@ class _AppShellState extends ConsumerState<_AppShell>
 
   /// 是否已初始化插件
   bool _pluginsInitialized = false;
+
+  /// 响应式断点宽度
+  static const double _kCompactWidthBreakpoint = 1200;
+
+  bool _computeAiPanelVisible(double screenWidth) {
+    if (_isAiPanelVisibleRuntime != null) return _isAiPanelVisibleRuntime!;
+    final settingsVisible = ref.read(settingsProvider).aiChatPanelVisible;
+    return screenWidth >= _kCompactWidthBreakpoint && settingsVisible;
+  }
+
+  void _toggleAiPanel() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final currentVisible = _computeAiPanelVisible(screenWidth);
+    final newVisible = !currentVisible;
+    setState(() {
+      _isAiPanelVisibleRuntime = newVisible;
+    });
+    ref.read(settingsProvider.notifier).setAiChatPanelVisible(newVisible);
+  }
 
   @override
   void initState() {
@@ -392,7 +413,10 @@ class _AppShellState extends ConsumerState<_AppShell>
       'note.daily': () => _openTodayDailyNote(),
 
       // 打开知识图谱
-      'view.knowledgeGraph': () => _toggleGraph(Offset.zero),
+      'view.knowledgeGraph': () {
+        final size = MediaQuery.of(context).size;
+        _toggleGraph(Offset(size.width / 2, size.height / 2));
+      },
 
       // 切换侧边栏
       'view.toggleSidebar': () {
@@ -561,6 +585,12 @@ class _AppShellState extends ConsumerState<_AppShell>
       return true;
     }
 
+    // Cmd+. / Ctrl+. : 切换 AI 对话面板
+    if (isMeta && event.logicalKey == LogicalKeyboardKey.period) {
+      _toggleAiPanel();
+      return true;
+    }
+
     // Escape: 关闭最上层覆盖层
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       _closeTopOverlay();
@@ -594,7 +624,8 @@ class _AppShellState extends ConsumerState<_AppShell>
     } else if (_isImportExportVisible) {
       setState(() => _isImportExportVisible = false);
     } else if (_isGraphVisible) {
-      _toggleGraph(Offset.zero);
+      final size = MediaQuery.of(context).size;
+      _toggleGraph(Offset(size.width / 2, size.height / 2));
     }
   }
 
@@ -777,7 +808,7 @@ class _AppShellState extends ConsumerState<_AppShell>
         title: const Text('确认删除',
             style: TextStyle(color: AeroColors.textPrimary, fontSize: 14)),
         content: Text(
-          '确定要删除「${note.title}」吗？\n此操作不可撤销。',
+          '确定要删除「${note.title}」吗？\n笔记将移到回收站，可从侧边栏恢复。',
           style: const TextStyle(color: AeroColors.textSecondary, fontSize: 12),
         ),
         actions: [
@@ -923,6 +954,7 @@ class _AppShellState extends ConsumerState<_AppShell>
   Widget build(BuildContext context) {
     if (!_shortcutFocusNode.hasFocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _shortcutFocusNode.requestFocus();
       });
     }
@@ -934,41 +966,48 @@ class _AppShellState extends ConsumerState<_AppShell>
         key: _scaffoldKey,
         child: Scaffold(
           backgroundColor: AeroColors.bgDeep,
-          body: Stack(
-            children: [
-              // ── 主布局 ──
-              Row(
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final isAiPanelVisible = _computeAiPanelVisible(constraints.maxWidth);
+
+              return Stack(
                 children: [
-                  // ── 左侧: 侧边栏 ──
-                  SidebarContainer(
-                    onNoteSelected: (noteId, title) {
-                      ref
-                          .read(paneStackProvider.notifier)
-                          .openPane(noteId, title);
-                    },
-                  ),
+                  // ── 主布局 ──
+                  Row(
+                    children: [
+                      // ── 左侧: 侧边栏 ──
+                      SidebarContainer(
+                        onNoteSelected: (noteId, title) {
+                          ref
+                              .read(paneStackProvider.notifier)
+                              .openPane(noteId, title);
+                        },
+                      ),
 
-                  // ── 中间: Sliding Panes 笔记流 ──
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: SlidingPanesContainer(
-                            paneBuilder: (context, noteId, index) {
-                              return NotePanel(key: ValueKey(noteId), noteId: noteId);
-                            },
-                          ),
+                      // ── 中间: Sliding Panes 笔记流 ──
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: SlidingPanesContainer(
+                                paneBuilder: (context, noteId, index) {
+                                  return NotePanel(key: ValueKey(noteId), noteId: noteId);
+                                },
+                              ),
+                            ),
+                            // ── 底部状态栏 ──
+                            const _StatusBar(),
+                          ],
                         ),
-                        // ── 底部状态栏 ──
-                        const _StatusBar(),
-                      ],
-                    ),
-                  ),
+                      ),
 
-                  // ── 右侧: AI 上下文面板 ──
-                  const AiChatPanel(),
-                ],
-              ),
+                      // ── 右侧: AI 上下文面板 ──
+                      AiChatPanel(
+                        isVisible: isAiPanelVisible,
+                        onToggle: _toggleAiPanel,
+                      ),
+                    ],
+                  ),
 
               // ── 知识图谱覆盖层 ──
               if (_isGraphVisible)
@@ -978,9 +1017,9 @@ class _AppShellState extends ConsumerState<_AppShell>
                     return _KnowledgeGraphOverlay(
                       animationValue: _graphAnimation.value,
                       buttonPosition: _graphButtonPosition,
-                      onClose: () => _toggleGraph(Offset.zero),
+                      onClose: () => _toggleGraph(_graphButtonPosition),
                       onOpenNote: (noteId, title) {
-                        _toggleGraph(Offset.zero);
+                        _toggleGraph(_graphButtonPosition);
                         ref
                             .read(paneStackProvider.notifier)
                             .openPane(noteId, title);
@@ -1001,7 +1040,6 @@ class _AppShellState extends ConsumerState<_AppShell>
               // ── Quick Switcher 覆盖层 ──
               QuickSwitcherOverlay(
                 onOpenNote: (noteId) {
-                  // 异步获取笔记标题后通过 paneStackProvider 打开面板
                   final repo = ref.read(noteRepositoryProvider);
                   repo.getNote(noteId).then((note) {
                     if (note != null && mounted) {
@@ -1046,7 +1084,9 @@ class _AppShellState extends ConsumerState<_AppShell>
                   onClose: () =>
                       setState(() => _isImportExportVisible = false),
                 ),
-            ],
+                ],
+              );
+            },
           ),
         ),
       ),

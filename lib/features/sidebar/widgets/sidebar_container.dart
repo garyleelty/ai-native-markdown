@@ -965,7 +965,7 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
         title: const Text('确认删除',
             style: TextStyle(color: AeroColors.textPrimary, fontSize: 14)),
         content: Text(
-          '确定要删除「${widget.node.title}」吗？\n此操作不可撤销。',
+          '确定要删除「${widget.node.title}」吗？\n笔记将移到回收站，可从侧边栏恢复。',
           style: const TextStyle(color: AeroColors.textSecondary, fontSize: 12),
         ),
         actions: [

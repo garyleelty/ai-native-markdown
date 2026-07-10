@@ -15,6 +15,7 @@ class AppSettings {
   final bool defaultEditMode;
   final double fontSize;
   final AppThemeMode themeMode;
+  final bool aiChatPanelVisible;
 
   /// 远程 LLM 配置
   final String llmApiEndpoint;
@@ -29,6 +30,7 @@ class AppSettings {
     this.defaultEditMode = true,
     this.fontSize = 14.0,
     this.themeMode = AppThemeMode.dark,
+    this.aiChatPanelVisible = true,
     this.llmApiEndpoint = '',
     this.llmApiKey = '',
     this.llmModel = 'gpt-3.5-turbo',
@@ -42,6 +44,7 @@ class AppSettings {
     bool? defaultEditMode,
     double? fontSize,
     AppThemeMode? themeMode,
+    bool? aiChatPanelVisible,
     String? llmApiEndpoint,
     String? llmApiKey,
     String? llmModel,
@@ -56,6 +59,7 @@ class AppSettings {
       defaultEditMode: defaultEditMode ?? this.defaultEditMode,
       fontSize: fontSize ?? this.fontSize,
       themeMode: themeMode ?? this.themeMode,
+      aiChatPanelVisible: aiChatPanelVisible ?? this.aiChatPanelVisible,
       llmApiEndpoint: llmApiEndpoint ?? this.llmApiEndpoint,
       llmApiKey: llmApiKey ?? this.llmApiKey,
       llmModel: llmModel ?? this.llmModel,
@@ -72,6 +76,7 @@ class AppSettings {
       'defaultEditMode': defaultEditMode,
       'fontSize': fontSize,
       'themeMode': themeMode.name,
+      'aiChatPanelVisible': aiChatPanelVisible,
       'llmApiEndpoint': llmApiEndpoint,
       'llmApiKey': llmApiKey,
       'llmModel': llmModel,
@@ -98,6 +103,7 @@ class AppSettings {
         (e) => e.name == map['themeMode'],
         orElse: () => AppThemeMode.dark,
       ),
+      aiChatPanelVisible: map['aiChatPanelVisible'] as bool? ?? true,
       llmApiEndpoint: map['llmApiEndpoint'] as String? ?? '',
       llmApiKey: map['llmApiKey'] as String? ?? '',
       llmModel: map['llmModel'] as String? ?? 'gpt-3.5-turbo',
@@ -156,6 +162,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void setThemeMode(AppThemeMode mode) {
     state = state.copyWith(themeMode: mode);
+    _persist();
+  }
+
+  void setAiChatPanelVisible(bool visible) {
+    state = state.copyWith(aiChatPanelVisible: visible);
     _persist();
   }
 
