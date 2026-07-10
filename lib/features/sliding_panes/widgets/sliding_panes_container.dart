@@ -799,13 +799,29 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      color: widget.isActive
-          ? AeroColors.bgElevated
-          : AeroColors.bgSurface,
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: widget.isActive
+            ? AeroColors.bgElevated
+            : AeroColors.bgSurface,
+        border: const Border(
+          bottom: BorderSide(color: AeroColors.border, width: 0.5),
+        ),
+      ),
       child: Row(
         children: [
+          Container(
+            width: 3,
+            height: 14,
+            decoration: BoxDecoration(
+              color: widget.isActive
+                  ? AeroColors.accentBlue
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: _isEditing
                 ? TextField(
@@ -813,6 +829,7 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
                     focusNode: _focusNode,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontSize: 13,
+                          fontWeight: FontWeight.w500,
                           color: AeroColors.textPrimary,
                         ),
                     decoration: const InputDecoration(
@@ -828,12 +845,14 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
                     behavior: HitTestBehavior.opaque,
                     child: Tooltip(
                       message: '双击重命名',
+                      waitDuration: const Duration(milliseconds: 800),
                       child: Text(
                         widget.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               fontSize: 13,
+                              fontWeight: FontWeight.w500,
                               color: widget.isActive
                                   ? AeroColors.textPrimary
                                   : AeroColors.textSecondary,
@@ -842,15 +861,51 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
                     ),
                   ),
           ),
-          GestureDetector(
-            onTap: widget.onClose,
-            child: const Icon(
-              Icons.close,
-              size: 14,
-              color: AeroColors.textMuted,
-            ),
-          ),
+          _CloseButton(onTap: widget.onClose),
         ],
+      ),
+    );
+  }
+}
+
+class _CloseButton extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const _CloseButton({required this.onTap});
+
+  @override
+  State<_CloseButton> createState() => _CloseButtonState();
+}
+
+class _CloseButtonState extends State<_CloseButton> {
+  bool _isHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: _isHovering
+                ? AeroColors.accentRed.withValues(alpha: 0.85)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Icon(
+            Icons.close,
+            size: 14,
+            color: _isHovering
+                ? Colors.white
+                : AeroColors.textMuted,
+          ),
+        ),
       ),
     );
   }

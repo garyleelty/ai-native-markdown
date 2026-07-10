@@ -234,8 +234,8 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
   /// 头部栏: 图标 + 标题 + 上下文信息 + 清除按钮 + 折叠按钮
   Widget _buildHeader(BuildContext context, int noteCount, int tokens) {
     return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: const BoxDecoration(
         color: AeroColors.bgElevated,
         border: Border(
@@ -243,44 +243,41 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.chat, size: 14, color: AeroColors.accentPurple),
-          const SizedBox(width: 6),
-          Text(
-            'AI 对话',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AeroColors.accentPurple,
-                ),
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AeroColors.accentPurple, AeroColors.accentBlue],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Icon(Icons.auto_awesome, size: 14, color: Colors.white),
           ),
-          const SizedBox(width: 4),
-          Expanded(
+          const SizedBox(width: 8),
+          const Expanded(
             child: Text(
-              '$noteCount篇 ~${tokens}tok',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: AeroColors.textMuted,
-                    fontSize: 10,
-                  ),
+              'AI 助手',
+              style: TextStyle(
+                color: AeroColors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline,
-                size: 14, color: AeroColors.textMuted),
-            onPressed: _clearConversation,
-            splashRadius: 12,
+          _IconButton(
+            icon: Icons.delete_outline,
             tooltip: '清除对话',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+            onTap: _clearConversation,
           ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right,
-                size: 16, color: AeroColors.textMuted),
-            onPressed: widget.onToggle,
-            splashRadius: 12,
-            tooltip: '折叠 AI 面板',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-          ),
+          if (widget.onToggle != null)
+            _IconButton(
+              icon: Icons.chevron_right,
+              tooltip: '折叠 AI 面板',
+              onTap: widget.onToggle!,
+            ),
         ],
       ),
     );
@@ -584,6 +581,78 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel> {
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _IconButton extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final double size;
+
+  const _IconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.size = 16,
+  });
+
+  @override
+  State<_IconButton> createState() => _IconButtonState();
+}
+
+class _IconButtonState extends State<_IconButton> {
+  bool _isHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.tooltip,
+      waitDuration: const Duration(milliseconds: 600),
+      decoration: BoxDecoration(
+        color: AeroColors.bgElevated,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AeroColors.border, width: 0.5),
+        boxShadow: const [
+          BoxShadow(
+            color: AeroColors.shadow,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      textStyle: const TextStyle(
+        color: AeroColors.textPrimary,
+        fontSize: 11,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovering = true),
+        onExit: (_) => setState(() => _isHovering = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: _isHovering
+                  ? AeroColors.accentBlue.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Icon(
+              widget.icon,
+              size: widget.size,
+              color: _isHovering
+                  ? AeroColors.textPrimary
+                  : AeroColors.textMuted,
+            ),
+          ),
+        ),
       ),
     );
   }

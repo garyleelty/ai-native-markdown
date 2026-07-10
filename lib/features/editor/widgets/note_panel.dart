@@ -697,122 +697,126 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   // ──────────────────────────────────────────────
   Widget _buildToolbar() {
     return Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      color: AeroColors.bgSurface,
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: const BoxDecoration(
+        color: AeroColors.bgElevated,
+        border: Border(
+          bottom: BorderSide(color: AeroColors.border, width: 0.5),
+        ),
+      ),
       child: Row(
         children: [
-          // 编辑模式切换 (三态循环)
           _buildModeSwitchButton(),
-          const SizedBox(width: 4),
-          // 实体统计
+          const SizedBox(width: 8),
+          Container(
+            width: 1,
+            height: 16,
+            color: AeroColors.border,
+          ),
+          const SizedBox(width: 8),
           if (ref.watch(entityCacheProvider).getEntities(widget.noteId).isNotEmpty)
             _EntityCountBadge(
               entities:
                   ref.watch(entityCacheProvider).getEntities(widget.noteId),
             ),
-          const SizedBox(width: 8),
-          // Markdown 格式快捷按钮 (源码和实时预览模式下显示)
+          const Spacer(),
           if (_editorMode != EditorMode.preview)
-            Expanded(
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  _ToolbarButton(
-                    icon: Icons.undo,
-                    tooltip: '撤销 (Ctrl+Z)',
-                    onTap: _undo,
-                  ),
-                  _ToolbarButton(
-                    icon: Icons.redo,
-                    tooltip: '重做 (Ctrl+Y)',
-                    onTap: _redo,
-                  ),
-                  _toolbarDivider(),
-                  _ToolbarButton(
-                    icon: Icons.format_bold,
-                    tooltip: '粗体 (Ctrl+B)',
-                    onTap: _applyBold,
-                  ),
-                  _ToolbarButton(
-                    icon: Icons.format_italic,
-                    tooltip: '斜体 (Ctrl+I)',
-                    onTap: _applyItalic,
-                  ),
-                  _ToolbarButton(
-                    icon: Icons.strikethrough_s,
-                    tooltip: '删除线',
-                    onTap: _applyStrikethrough,
-                  ),
-                  _toolbarDivider(),
-                  _ToolbarButton(
-                    icon: Icons.looks_one,
-                    tooltip: '标题 1',
-                    onTap: () => _applyHeading(1),
-                  ),
-                  _ToolbarButton(
-                    icon: Icons.looks_two,
-                    tooltip: '标题 2',
-                    onTap: () => _applyHeading(2),
-                  ),
-                  _ToolbarButton(
-                    icon: Icons.looks_3,
-                    tooltip: '标题 3',
-                    onTap: () => _applyHeading(3),
-                  ),
-                  _toolbarDivider(),
-                  _ToolbarButton(
-                    icon: Icons.format_list_bulleted,
-                    tooltip: '无序列表',
-                    onTap: _applyUnorderedList,
-                  ),
-                  _ToolbarButton(
-                    icon: Icons.format_list_numbered,
-                    tooltip: '有序列表',
-                    onTap: _applyOrderedList,
-                  ),
-                  _ToolbarButton(
-                    icon: Icons.check_box,
-                    tooltip: '任务列表',
-                    onTap: _applyTaskList,
-                  ),
-                  _toolbarDivider(),
-                  _ToolbarButton(
-                    icon: Icons.format_quote,
-                    tooltip: '引用',
-                    onTap: _applyQuote,
-                  ),
-                  _ToolbarButton(
-                    icon: Icons.code,
-                    tooltip: '行内代码',
-                    onTap: _applyInlineCode,
-                  ),
-                  _ToolbarButton(
-                    icon: Icons.horizontal_rule,
-                    tooltip: '分割线',
-                    onTap: _applyHorizontalRule,
-                  ),
-                  _toolbarDivider(),
-                  _ToolbarButton(
-                    icon: Icons.link,
-                    tooltip: '链接 (Ctrl+Shift+K)',
-                    onTap: _applyLink,
-                  ),
-                  _ToolbarButton(
-                    icon: Icons.image,
-                    tooltip: '图片',
-                    onTap: _insertImage,
-                  ),
-                  _ToolbarButton(
-                    icon: Icons.insert_link,
-                    tooltip: '双向链接',
-                    onTap: _insertWikiLink,
-                  ),
-                ],
-              ),
+            _ToolbarGroup(
+              children: [
+                _ToolbarButton(
+                  icon: Icons.undo,
+                  tooltip: '撤销 (Ctrl+Z)',
+                  onTap: _undo,
+                ),
+                _ToolbarButton(
+                  icon: Icons.redo,
+                  tooltip: '重做 (Ctrl+Y)',
+                  onTap: _redo,
+                ),
+              ],
             ),
-          if (_editorMode == EditorMode.preview) const Spacer(),
-          // 搜索按钮
+          if (_editorMode != EditorMode.preview)
+            _ToolbarGroup(
+              children: [
+                _ToolbarButton(
+                  icon: Icons.format_bold,
+                  tooltip: '粗体 (Ctrl+B)',
+                  onTap: _applyBold,
+                ),
+                _ToolbarButton(
+                  icon: Icons.format_italic,
+                  tooltip: '斜体 (Ctrl+I)',
+                  onTap: _applyItalic,
+                ),
+                _ToolbarButton(
+                  icon: Icons.strikethrough_s,
+                  tooltip: '删除线',
+                  onTap: _applyStrikethrough,
+                ),
+              ],
+            ),
+          if (_editorMode != EditorMode.preview)
+            _ToolbarGroup(
+              children: [
+                _ToolbarButton(
+                  icon: Icons.looks_one,
+                  tooltip: '标题 1',
+                  onTap: () => _applyHeading(1),
+                ),
+                _ToolbarButton(
+                  icon: Icons.looks_two,
+                  tooltip: '标题 2',
+                  onTap: () => _applyHeading(2),
+                ),
+                _ToolbarButton(
+                  icon: Icons.looks_3,
+                  tooltip: '标题 3',
+                  onTap: () => _applyHeading(3),
+                ),
+              ],
+            ),
+          if (_editorMode != EditorMode.preview)
+            _ToolbarGroup(
+              children: [
+                _ToolbarButton(
+                  icon: Icons.format_list_bulleted,
+                  tooltip: '无序列表',
+                  onTap: _applyUnorderedList,
+                ),
+                _ToolbarButton(
+                  icon: Icons.format_list_numbered,
+                  tooltip: '有序列表',
+                  onTap: _applyOrderedList,
+                ),
+                _ToolbarButton(
+                  icon: Icons.check_box,
+                  tooltip: '任务列表',
+                  onTap: _applyTaskList,
+                ),
+              ],
+            ),
+          if (_editorMode != EditorMode.preview)
+            _ToolbarGroup(
+              children: [
+                _ToolbarButton(
+                  icon: Icons.format_quote,
+                  tooltip: '引用',
+                  onTap: _applyQuote,
+                ),
+                _ToolbarButton(
+                  icon: Icons.code,
+                  tooltip: '行内代码',
+                  onTap: _applyInlineCode,
+                ),
+                _ToolbarButton(
+                  icon: Icons.link,
+                  tooltip: '链接 (Ctrl+Shift+K)',
+                  onTap: _applyLink,
+                ),
+              ],
+            ),
+          const SizedBox(width: 4),
           _ToolbarButton(
             icon: Icons.search,
             tooltip: '搜索替换 (Ctrl+F)',
@@ -910,15 +914,6 @@ class _NotePanelState extends ConsumerState<NotePanel> {
         _dismissWikiLinkCompleter();
       }
     });
-  }
-
-  Widget _toolbarDivider() {
-    return Container(
-      width: 1,
-      height: 16,
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      color: AeroColors.divider,
-    );
   }
 
   // ── 格式化操作方法 ──
@@ -1806,6 +1801,23 @@ class _NotePanelState extends ConsumerState<NotePanel> {
 // 子组件
 // ──────────────────────────────────────────────
 
+class _ToolbarGroup extends StatelessWidget {
+  final List<Widget> children;
+
+  const _ToolbarGroup({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: children,
+      ),
+    );
+  }
+}
+
 class _ToolbarButton extends StatefulWidget {
   final IconData icon;
   final String tooltip;
@@ -1823,34 +1835,65 @@ class _ToolbarButton extends StatefulWidget {
 
 class _ToolbarButtonState extends State<_ToolbarButton> {
   bool _isHovering = false;
+  bool _isPressed = false;
 
   @override
   Widget build(BuildContext context) {
+    final bgColor = _isPressed
+        ? AeroColors.accentBlue.withValues(alpha: 0.2)
+        : _isHovering
+            ? AeroColors.accentBlue.withValues(alpha: 0.12)
+            : Colors.transparent;
+
+    final iconColor = _isHovering
+        ? AeroColors.textPrimary
+        : AeroColors.textSecondary;
+
     return Tooltip(
       message: widget.tooltip,
-      waitDuration: const Duration(milliseconds: 500),
+      waitDuration: const Duration(milliseconds: 600),
+      verticalOffset: 28,
+      decoration: BoxDecoration(
+        color: AeroColors.bgElevated,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AeroColors.border, width: 0.5),
+        boxShadow: const [
+          BoxShadow(
+            color: AeroColors.shadow,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      textStyle: const TextStyle(
+        color: AeroColors.textPrimary,
+        fontSize: 11,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovering = true),
-        onExit: (_) => setState(() => _isHovering = false),
-        child: InkWell(
+        onExit: (_) => setState(() {
+          _isHovering = false;
+          _isPressed = false;
+        }),
+        child: GestureDetector(
+          onTapDown: (_) => setState(() => _isPressed = true),
+          onTapUp: (_) => setState(() => _isPressed = false),
+          onTapCancel: () => setState(() => _isPressed = false),
           onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(4),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+            duration: const Duration(milliseconds: 120),
             curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.all(4),
+            width: 28,
+            height: 28,
             decoration: BoxDecoration(
-              color: _isHovering
-                  ? AeroColors.accentBlue.withValues(alpha: 0.12)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
+              color: bgColor,
+              borderRadius: BorderRadius.circular(6),
             ),
             child: Icon(
               widget.icon,
-              size: 15,
-              color: _isHovering
-                  ? AeroColors.accentBlue
-                  : AeroColors.textSecondary,
+              size: 16,
+              color: iconColor,
             ),
           ),
         ),

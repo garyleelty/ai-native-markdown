@@ -334,46 +334,81 @@ class _ActivityIconState extends State<_ActivityIcon> {
 
   @override
   Widget build(BuildContext context) {
+    final bgColor = widget.isActive
+        ? AeroColors.accentBlue.withValues(alpha: 0.12)
+        : _isHovering
+            ? AeroColors.bgHover
+            : Colors.transparent;
+
+    final iconColor = widget.isActive
+        ? AeroColors.accentBlue
+        : _isHovering
+            ? AeroColors.textPrimary
+            : AeroColors.textSecondary;
+
     return Tooltip(
       message: widget.tooltip,
       preferBelow: false,
-      waitDuration: const Duration(milliseconds: 500),
+      waitDuration: const Duration(milliseconds: 600),
+      verticalOffset: 4,
+      decoration: BoxDecoration(
+        color: AeroColors.bgElevated,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AeroColors.border, width: 0.5),
+        boxShadow: const [
+          BoxShadow(
+            color: AeroColors.shadow,
+            blurRadius: 8,
+            offset: Offset(2, 0),
+          ),
+        ],
+      ),
+      textStyle: const TextStyle(
+        color: AeroColors.textPrimary,
+        fontSize: 11,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovering = true),
         onExit: (_) => setState(() => _isHovering = false),
-        child: InkWell(
+        child: GestureDetector(
           onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(6),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             curve: Curves.easeOutCubic,
-            width: 36,
-            height: 36,
-            margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+            width: 38,
+            height: 38,
+            margin: const EdgeInsets.symmetric(vertical: 1, horizontal: 3),
             decoration: BoxDecoration(
-              color: widget.isActive
-                  ? AeroColors.accentBlue.withValues(alpha: 0.1)
-                  : _isHovering
-                      ? AeroColors.bgHover
-                      : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
-              border: widget.isActive
-                  ? const Border(
-                      left: BorderSide(color: AeroColors.accentBlue, width: 2),
-                    )
-                  : null,
+              color: bgColor,
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Transform.rotate(
-              angle: widget.iconRotation,
-              child: Icon(
-                widget.icon,
-                size: 18,
-                color: widget.isActive
-                    ? AeroColors.accentBlue
-                    : _isHovering
-                        ? AeroColors.textPrimary
-                        : AeroColors.textSecondary,
-              ),
+            child: Stack(
+              children: [
+                if (widget.isActive)
+                  Positioned(
+                    left: 0,
+                    top: 10,
+                    bottom: 10,
+                    child: Container(
+                      width: 2,
+                      decoration: BoxDecoration(
+                        color: AeroColors.accentBlue,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                Center(
+                  child: Transform.rotate(
+                    angle: widget.iconRotation,
+                    child: Icon(
+                      widget.icon,
+                      size: 18,
+                      color: iconColor,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
