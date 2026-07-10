@@ -187,12 +187,12 @@ class _NodeInfoCard extends StatelessWidget {
                       width: 0.5,
                     ),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.open_in_new,
+                      Icon(Icons.open_in_new,
                           size: 13, color: AeroColors.accentBlue),
-                      const SizedBox(width: 6),
+                      SizedBox(width: 6),
                       Text(
                         '打开笔记',
                         style: TextStyle(

@@ -161,7 +161,7 @@ class _WikiLinkCompleterState extends State<WikiLinkCompleter>
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
           child: Row(
             children: [
-              Text(
+              const Text(
                 '双向链接',
                 style: TextStyle(
                   color: AeroColors.textMuted,
@@ -179,7 +179,7 @@ class _WikiLinkCompleterState extends State<WikiLinkCompleter>
                 ),
                 child: Text(
                   '${widget.suggestions.length}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AeroColors.textSecondary,
                     fontSize: 9,
                     fontWeight: FontWeight.w600,
@@ -596,12 +596,12 @@ class _KeyboardHints extends StatelessWidget {
           top: BorderSide(color: AeroColors.border.withValues(alpha: 0.5), width: 0.5),
         ),
       ),
-      child: Row(
+      child: const Row(
         children: [
           _HintKey(label: '↑↓', description: '导航'),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           _HintKey(label: '↵', description: '选择'),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           _HintKey(label: 'Esc', description: '关闭'),
         ],
       ),

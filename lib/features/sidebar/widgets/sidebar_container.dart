@@ -1331,7 +1331,7 @@ class _TagView extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
                       children: [
-                        Icon(Icons.description_outlined,
+                        const Icon(Icons.description_outlined,
                             size: 14, color: AeroColors.textMuted),
                         const SizedBox(width: 8),
                         Expanded(
@@ -1529,15 +1529,15 @@ class _TagView extends ConsumerWidget {
               controller: controller,
               autofocus: true,
               style: const TextStyle(fontSize: 13),
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: '输入新标签名',
-                hintStyle: const TextStyle(color: AeroColors.textMuted, fontSize: 12),
+                hintStyle: TextStyle(color: AeroColors.textMuted, fontSize: 12),
                 prefixText: '# ',
-                prefixStyle: const TextStyle(color: AeroColors.accentPurple),
-                enabledBorder: const UnderlineInputBorder(
+                prefixStyle: TextStyle(color: AeroColors.accentPurple),
+                enabledBorder: UnderlineInputBorder(
                   borderSide: BorderSide(color: AeroColors.divider),
                 ),
-                focusedBorder: const UnderlineInputBorder(
+                focusedBorder: UnderlineInputBorder(
                   borderSide: BorderSide(color: AeroColors.accentPurple),
                 ),
               ),

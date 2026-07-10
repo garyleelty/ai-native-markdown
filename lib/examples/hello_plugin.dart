@@ -12,6 +12,7 @@
 ///
 /// 开发自己的插件时，复制此文件并修改即可。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'package:aeromind/core/plugin/base_plugin.dart';
 import 'package:aeromind/core/plugin/plugin_manifest.dart';

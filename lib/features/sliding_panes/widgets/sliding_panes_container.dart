@@ -572,7 +572,7 @@ class _StackedTitleBar extends StatelessWidget {
                   : AeroColors.border,
               width: isActive ? 1.5 : 0.5,
             ),
-            bottom: BorderSide(
+            bottom: const BorderSide(
               color: AeroColors.border,
               width: 0.5,
             ),
@@ -810,7 +810,7 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
           ),
           GestureDetector(
             onTap: widget.onClose,
-            child: Icon(
+            child: const Icon(
               Icons.close,
               size: 14,
               color: AeroColors.textMuted,

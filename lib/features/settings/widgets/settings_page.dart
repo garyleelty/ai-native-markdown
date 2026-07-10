@@ -358,7 +358,7 @@ class _AISectionState extends ConsumerState<_AISection> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: AeroColors.accentBlue),
+                        borderSide: const BorderSide(color: AeroColors.accentBlue),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -405,7 +405,7 @@ class _AISectionState extends ConsumerState<_AISection> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: AeroColors.accentBlue),
+                        borderSide: const BorderSide(color: AeroColors.accentBlue),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -439,7 +439,7 @@ class _AISectionState extends ConsumerState<_AISection> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: AeroColors.accentBlue),
+                        borderSide: const BorderSide(color: AeroColors.accentBlue),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -553,7 +553,6 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
   final _userNameController = TextEditingController();
   final _userEmailController = TextEditingController();
   final _branchController = TextEditingController();
-  bool _initialized = false;
 
   @override
   void initState() {
@@ -564,7 +563,6 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
       _userNameController.text = state.userName;
       _userEmailController.text = state.userEmail;
       _branchController.text = state.branch;
-      setState(() => _initialized = true);
     });
   }
 
@@ -617,7 +615,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
                 onChanged: (v) {
                   ref.read(gitBackupProvider.notifier).updateConfig(enabled: v);
                 },
-                activeColor: AeroColors.accentBlue,
+                activeThumbColor: AeroColors.accentBlue,
               ),
             ),
             _buildTextField(
@@ -666,7 +664,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
                         .read(gitBackupProvider.notifier)
                         .updateConfig(autoBackup: v)
                     : null,
-                activeColor: AeroColors.accentBlue,
+                activeThumbColor: AeroColors.accentBlue,
               ),
             ),
             const SizedBox(height: 8),
@@ -907,7 +905,7 @@ class _AboutSection extends StatelessWidget {
               ),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Center(
+            child: const Center(
               child: Text(
                 'A',
                 style: TextStyle(
@@ -938,7 +936,7 @@ class _AboutSection extends StatelessWidget {
             style: TextStyle(color: AeroColors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: 24),
-          Text(
+          const Text(
             'Sliding Panes · 实体识别 · 语义上下文 · 插件系统',
             style: TextStyle(color: AeroColors.textMuted, fontSize: 11),
           ),

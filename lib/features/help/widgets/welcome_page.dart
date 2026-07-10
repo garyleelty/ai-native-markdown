@@ -3,6 +3,7 @@
 /// ══════════════════════════════════════════════════
 /// 新用户引导，介绍核心特性、快捷键、首次启动提示。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'package:flutter/material.dart';
 import '../../../core/theme/aeromind_theme.dart';
@@ -148,9 +149,9 @@ class WelcomePage extends StatelessWidget {
                     children: [
                       TextButton(
                         onPressed: onShowShortcuts,
-                        child: Row(
+                        child: const Row(
                           mainAxisSize: MainAxisSize.min,
-                          children: const [
+                          children: [
                             Icon(Icons.keyboard_outlined,
                                 size: 14, color: AeroColors.accentCyan),
                             SizedBox(width: 6),

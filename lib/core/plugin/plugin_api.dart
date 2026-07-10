@@ -5,6 +5,7 @@
 /// 插件通过 PluginApi 与宿主应用交互，而非直接访问内部状态。
 /// 这是插件系统的安全边界。
 /// ──────────────────────────────────────────────────
+library;
 
 import '../models/note_model.dart';
 import 'plugin_storage.dart';

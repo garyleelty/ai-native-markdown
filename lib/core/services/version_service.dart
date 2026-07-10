@@ -4,6 +4,7 @@
 /// 在自动保存时创建内容快照，支持查看和恢复历史版本。
 /// 每篇笔记最多保留 [maxVersionsPerNote] 条快照。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'package:hive_flutter/hive_flutter.dart';
 import '../services/hive_service.dart';

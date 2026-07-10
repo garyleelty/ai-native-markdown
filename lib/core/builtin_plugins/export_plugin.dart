@@ -6,6 +6,7 @@
 ///   - 导出为 HTML
 ///   - 导出为 JSON 格式
 /// ──────────────────────────────────────────────────
+library;
 
 import 'dart:convert';
 import 'package:flutter/services.dart';

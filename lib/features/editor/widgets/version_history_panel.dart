@@ -3,6 +3,7 @@
 /// ══════════════════════════════════════════════════
 /// 展示某篇笔记的历史版本时间线，支持查看与恢复。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -353,15 +354,15 @@ class _VersionTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.article_outlined,
                 size: 12,
                 color: AeroColors.textMuted,
               ),
-              const SizedBox(width: 4),
-              const Text(
+              SizedBox(width: 4),
+              Text(
                 '完整内容预览',
                 style: TextStyle(
                   color: AeroColors.textMuted,

@@ -130,9 +130,9 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
-          Icon(Icons.calendar_today, size: 14, color: AeroColors.accentBlue),
+          const Icon(Icons.calendar_today, size: 14, color: AeroColors.accentBlue),
           const SizedBox(width: 6),
-          Text(
+          const Text(
             '日记',
             style: TextStyle(
               fontSize: 13,
@@ -150,7 +150,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
                 color: AeroColors.accentBlue.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
+              child: const Text(
                 '今天',
                 style: TextStyle(
                   fontSize: 10,
@@ -184,12 +184,12 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
             children: [
               GestureDetector(
                 onTap: _prevMonth,
-                child: Icon(Icons.chevron_left,
+                child: const Icon(Icons.chevron_left,
                     size: 18, color: AeroColors.textSecondary),
               ),
               Text(
                 '$year 年 $month 月',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: AeroColors.textPrimary,
@@ -197,7 +197,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
               ),
               GestureDetector(
                 onTap: _nextMonth,
-                child: Icon(Icons.chevron_right,
+                child: const Icon(Icons.chevron_right,
                     size: 18, color: AeroColors.textSecondary),
               ),
             ],
@@ -211,7 +211,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
                       child: Center(
                         child: Text(
                           d,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 10,
                             color: AeroColors.textMuted,
                             fontWeight: FontWeight.w500,
@@ -339,7 +339,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
             children: [
               Text(
                 DateFormat('MM月dd日').format(today),
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: AeroColors.textPrimary,
@@ -348,7 +348,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
               const SizedBox(width: 6),
               Text(
                 _weekdayName(today.weekday),
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12,
                   color: AeroColors.textMuted,
                 ),
@@ -367,10 +367,10 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: AeroColors.border, width: 0.5),
               ),
-              child: Row(
+              child: const Row(
                 children: [
                   Icon(Icons.edit_note, size: 16, color: AeroColors.accentBlue),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
                     '打开今天的日记',
                     style: TextStyle(
@@ -379,7 +379,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const Spacer(),
+                  Spacer(),
                   Icon(Icons.arrow_forward_ios,
                       size: 10, color: AeroColors.textMuted),
                 ],

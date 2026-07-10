@@ -5,6 +5,7 @@
 /// 通过 PluginApi.aiContextPrompt 获取上下文骨架,
 /// 异步读取笔记内容填充,调用 LlmClient 发送对话。
 /// ──────────────────────────────────────────────────
+library;
 
 import '../../features/ai_engine/services/llm_client_factory.dart';
 import '../plugin/base_plugin.dart';

@@ -3,6 +3,7 @@
 /// ══════════════════════════════════════════════════
 /// 显示引用当前笔记的其他笔记列表。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

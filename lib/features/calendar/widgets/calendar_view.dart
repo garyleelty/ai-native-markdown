@@ -275,7 +275,7 @@ class _MonthHeader extends StatelessWidget {
           const Spacer(),
           Text(
             '$year 年 $month 月',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
               color: AeroColors.textPrimary,
@@ -329,7 +329,7 @@ class _TodayButton extends StatelessWidget {
           color: AeroColors.accentBlue.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(3),
         ),
-        child: Text(
+        child: const Text(
           '今天',
           style: TextStyle(
             fontSize: 10,
@@ -395,11 +395,11 @@ class _CalendarFooter extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
-          Icon(Icons.calendar_today, size: 12, color: AeroColors.accentCyan),
+          const Icon(Icons.calendar_today, size: 12, color: AeroColors.accentCyan),
           const SizedBox(width: 6),
           Text(
             statsText,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 11,
               color: AeroColors.textSecondary,
             ),
@@ -417,7 +417,7 @@ class _CalendarFooter extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               todayHas ? '今天已记录 ✓' : '',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 10,
                 color: AeroColors.textMuted,
               ),

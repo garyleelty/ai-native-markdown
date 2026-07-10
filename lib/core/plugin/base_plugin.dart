@@ -4,6 +4,7 @@
 /// 所有 AeroMind 插件必须继承此类。
 /// 提供生命周期钩子和扩展点注册接口。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'plugin_manifest.dart';
 import 'plugin_api.dart';

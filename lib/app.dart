@@ -307,7 +307,7 @@ class _AppShellState extends ConsumerState<_AppShell>
           id: now.millisecondsSinceEpoch.toString(),
           title: '${note.title} 副本',
           rawMarkdown: duplicatedMarkdown,
-          filePath: "",
+          filePath: '',
           createdAt: now,
           updatedAt: now,
           tags: note.tags,
@@ -1056,7 +1056,7 @@ class _StatusBar extends ConsumerWidget {
       child: Row(
         children: [
           // 面板信息
-          Icon(Icons.article_outlined, size: 12, color: AeroColors.textMuted),
+          const Icon(Icons.article_outlined, size: 12, color: AeroColors.textMuted),
           const SizedBox(width: 4),
           Text(
             '${paneState.panes.length} 个面板',
@@ -1084,7 +1084,7 @@ class _StatusBar extends ConsumerWidget {
           const Spacer(),
 
           // 插件状态
-          Icon(Icons.extension, size: 12, color: AeroColors.accentCyan),
+          const Icon(Icons.extension, size: 12, color: AeroColors.accentCyan),
           const SizedBox(width: 4),
           Text(
             '${pluginState.activeCount} 插件',

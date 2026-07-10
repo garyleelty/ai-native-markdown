@@ -4,6 +4,7 @@
 /// 每个插件拥有独立的存储命名空间，互不干扰。
 /// 底层基于 Hive，每个插件使用独立 Box。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'package:hive_flutter/hive_flutter.dart';
 

@@ -5,6 +5,7 @@
 /// AI 对话界面。通过 PluginRegistry 获取 AiChatPlugin 实例,
 /// 调用 plugin.chat() 进行多轮对话。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

@@ -4,6 +4,7 @@
 /// 鼠标悬停在 [[wiki link]] 上时，通过 OverlayEntry
 /// 弹出卡片显示目标笔记的标题和内容预览。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'dart:async';
 import 'package:flutter/material.dart';

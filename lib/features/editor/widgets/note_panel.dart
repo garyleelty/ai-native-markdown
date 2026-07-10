@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -140,7 +139,9 @@ class _NotePanelState extends ConsumerState<NotePanel> {
         if (req == null) return;
         if (req.noteId != widget.noteId) return;
         if (_lastHandledScrollRequest != null &&
-            _lastHandledScrollRequest == req.timestamp) return;
+            _lastHandledScrollRequest == req.timestamp) {
+          return;
+        }
         _lastHandledScrollRequest = req.timestamp;
         _scrollToOffset(req.offset);
         // 消费后清除请求
@@ -1232,7 +1233,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: Row(
               children: [
-                Icon(Icons.auto_awesome, size: 14, color: AeroColors.accentPurple),
+                const Icon(Icons.auto_awesome, size: 14, color: AeroColors.accentPurple),
                 const SizedBox(width: 6),
                 Text(
                   'AI 推荐关联',
@@ -1867,7 +1868,7 @@ class _PredictiveLinkChip extends StatelessWidget {
         onPressed: onTap,
         backgroundColor: AeroColors.bgSurface,
         side: BorderSide(color: AeroColors.accentGreen.withValues(alpha: 0.3)),
-        avatar: Icon(Icons.link, size: 14, color: AeroColors.accentGreen),
+        avatar: const Icon(Icons.link, size: 14, color: AeroColors.accentGreen),
         label: Builder(
           builder: (context) => Column(
             mainAxisAlignment: MainAxisAlignment.center,

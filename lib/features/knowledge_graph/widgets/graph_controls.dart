@@ -44,7 +44,7 @@ class _GraphControlsState extends ConsumerState<GraphControls> {
 
     return Container(
       width: 240,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AeroColors.bgSurface,
         border: Border(
           right: BorderSide(color: AeroColors.divider, width: 0.5),
@@ -105,7 +105,7 @@ class _GraphControlsState extends ConsumerState<GraphControls> {
       ),
       child: Row(
         children: [
-          Icon(Icons.account_tree_outlined,
+          const Icon(Icons.account_tree_outlined,
               size: 16, color: AeroColors.accentBlue),
           const SizedBox(width: 8),
           Text(
@@ -149,16 +149,16 @@ class _GraphControlsState extends ConsumerState<GraphControls> {
           fillColor: AeroColors.bgElevated,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(4),
-            borderSide: BorderSide(color: AeroColors.border, width: 0.5),
+            borderSide: const BorderSide(color: AeroColors.border, width: 0.5),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(4),
-            borderSide: BorderSide(color: AeroColors.border, width: 0.5),
+            borderSide: const BorderSide(color: AeroColors.border, width: 0.5),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(4),
             borderSide:
-                BorderSide(color: AeroColors.accentBlue, width: 0.5),
+                const BorderSide(color: AeroColors.accentBlue, width: 0.5),
           ),
         ),
         onChanged: (value) {

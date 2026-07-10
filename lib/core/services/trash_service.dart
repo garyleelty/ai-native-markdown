@@ -4,6 +4,7 @@
 /// 删除笔记时移入回收站，支持恢复和彻底删除。
 /// 超过 [retentionDays] 天的回收站项目自动清理。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/note_model.dart';

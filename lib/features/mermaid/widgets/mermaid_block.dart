@@ -90,10 +90,10 @@ class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
       ),
       child: Row(
         children: [
-          Icon(Icons.account_tree_outlined,
+          const Icon(Icons.account_tree_outlined,
               size: 14, color: AeroColors.accentPurple),
           const SizedBox(width: 6),
-          Text(
+          const Text(
             'Mermaid 图表',
             style: TextStyle(
               fontSize: 11,
@@ -110,7 +110,7 @@ class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
             ),
             child: Text(
               diagramType,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 9,
                 color: AeroColors.accentPurple,
                 fontFamily: 'monospace',
@@ -136,7 +136,7 @@ class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
           return Container(
             height: 120,
             alignment: Alignment.center,
-            child: SizedBox(
+            child: const SizedBox(
               width: 20,
               height: 20,
               child: CircularProgressIndicator(
@@ -162,11 +162,11 @@ class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
               Icon(Icons.warning_amber_rounded,
                   size: 12, color: AeroColors.accentOrange),
-              const SizedBox(width: 4),
+              SizedBox(width: 4),
               Text(
                 '图表加载失败，显示原始代码',
                 style: TextStyle(
@@ -185,7 +185,7 @@ class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
             ),
             child: SelectableText(
               widget.code,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 11,
                 fontFamily: 'monospace',
                 color: AeroColors.textSecondary,
@@ -209,8 +209,8 @@ class _ZoomButton extends StatelessWidget {
     return InkWell(
       onTap: () => _showZoomDialog(context),
       borderRadius: BorderRadius.circular(4),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
+      child: const Padding(
+        padding: EdgeInsets.all(4),
         child: Icon(Icons.zoom_in, size: 14, color: AeroColors.textMuted),
       ),
     );
@@ -235,7 +235,7 @@ class _ZoomButton extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Text('Mermaid 图表',
+                  const Text('Mermaid 图表',
                       style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -243,7 +243,7 @@ class _ZoomButton extends StatelessWidget {
                   const Spacer(),
                   InkWell(
                     onTap: () => Navigator.of(ctx).pop(),
-                    child: Icon(Icons.close,
+                    child: const Icon(Icons.close,
                         size: 18, color: AeroColors.textMuted),
                   ),
                 ],

@@ -191,10 +191,10 @@ class _TemplateGalleryOverlayState
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          Icon(Icons.dashboard_customize_outlined,
+          const Icon(Icons.dashboard_customize_outlined,
               size: 18, color: AeroColors.accentBlue),
           const SizedBox(width: 8),
-          Text(
+          const Text(
             '模板画廊',
             style: TextStyle(
               fontSize: 15,
@@ -205,7 +205,7 @@ class _TemplateGalleryOverlayState
           const Spacer(),
           Text(
             '${ref.read(templateGalleryProvider).templates.length} 个模板',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 11,
               color: AeroColors.textMuted,
             ),
@@ -213,7 +213,7 @@ class _TemplateGalleryOverlayState
           const SizedBox(width: 12),
           GestureDetector(
             onTap: () => ref.read(templateGalleryProvider.notifier).close(),
-            child: Icon(Icons.close, size: 16, color: AeroColors.textMuted),
+            child: const Icon(Icons.close, size: 16, color: AeroColors.textMuted),
           ),
         ],
       ),
@@ -236,7 +236,7 @@ class _TemplateGalleryOverlayState
             ),
             child: Row(
               children: [
-                Icon(Icons.search, size: 14, color: AeroColors.textMuted),
+                const Icon(Icons.search, size: 14, color: AeroColors.textMuted),
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
@@ -326,12 +326,12 @@ class _TemplateGalleryOverlayState
     final templates = state.filteredTemplates;
 
     if (templates.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.search_off, size: 32, color: AeroColors.textMuted),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               '没有找到匹配的模板',
               style: TextStyle(color: AeroColors.textMuted, fontSize: 13),
@@ -435,7 +435,7 @@ class _TemplateCard extends StatelessWidget {
                         template.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: AeroColors.textPrimary,
@@ -453,7 +453,7 @@ class _TemplateCard extends StatelessWidget {
                     template.preview(lines: 3),
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 10,
                       color: AeroColors.textMuted,
                       height: 1.5,
@@ -491,7 +491,7 @@ class _TemplateCard extends StatelessWidget {
                           color: AeroColors.accentOrange.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(3),
                         ),
-                        child: Text(
+                        child: const Text(
                           '自定义',
                           style: TextStyle(
                             fontSize: 9,

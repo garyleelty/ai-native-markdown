@@ -219,7 +219,7 @@ class _CommandPaletteOverlayState
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          Icon(Icons.search, size: 18, color: AeroColors.textSecondary),
+          const Icon(Icons.search, size: 18, color: AeroColors.textSecondary),
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
@@ -251,7 +251,7 @@ class _CommandPaletteOverlayState
               borderRadius: BorderRadius.circular(4),
               border: Border.all(color: AeroColors.border, width: 0.5),
             ),
-            child: Text(
+            child: const Text(
               'ESC',
               style: TextStyle(
                 fontSize: 10,
@@ -270,7 +270,7 @@ class _CommandPaletteOverlayState
       return Container(
         height: 80,
         alignment: Alignment.center,
-        child: Text(
+        child: const Text(
           '没有匹配的命令',
           style: TextStyle(color: AeroColors.textMuted, fontSize: 13),
         ),
@@ -325,7 +325,7 @@ class _CommandPaletteOverlayState
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          Text(
+          const Text(
             '最近使用',
             style: TextStyle(
               fontSize: 10,
@@ -366,7 +366,7 @@ class _CommandPaletteOverlayState
                 ? AeroColors.accentBlue.withValues(alpha: 0.12)
                 : Colors.transparent,
             border: isSelected
-                ? Border(
+                ? const Border(
                     left: BorderSide(
                       color: AeroColors.accentBlue,
                       width: 2,
@@ -409,7 +409,7 @@ class _CommandPaletteOverlayState
                     color: AeroColors.accentPurple.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(3),
                   ),
-                  child: Text(
+                  child: const Text(
                     'AI',
                     style: TextStyle(
                       fontSize: 9,
@@ -427,7 +427,7 @@ class _CommandPaletteOverlayState
                     color: AeroColors.accentCyan.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(3),
                   ),
-                  child: Text(
+                  child: const Text(
                     '插件',
                     style: TextStyle(
                       fontSize: 9,
@@ -455,7 +455,7 @@ class _CommandPaletteOverlayState
 
     return Text(
       displayText,
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 11,
         color: AeroColors.textMuted,
         fontWeight: FontWeight.w400,

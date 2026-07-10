@@ -7,6 +7,7 @@
 ///   - 内容格式化
 ///   - Markdown 快捷操作
 /// ──────────────────────────────────────────────────
+library;
 
 import 'dart:async';
 
@@ -37,7 +38,7 @@ class EditorStats {
 
   @override
   String toString() =>
-      '$wordCount 字 · $lineCount 行 · ${readingTimeMinutes}分钟阅读';
+      '$wordCount 字 · $lineCount 行 · $readingTimeMinutes分钟阅读';
 }
 
 /// 编辑器服务

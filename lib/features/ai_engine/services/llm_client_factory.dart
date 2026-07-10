@@ -6,6 +6,7 @@
 /// 使用方式:
 ///   final client = createLlmClient();
 ///   final result = await client.callLlm(...);
+library;
 
 import 'llm_client_io.dart' if (dart.library.html) 'llm_client_web.dart';
 

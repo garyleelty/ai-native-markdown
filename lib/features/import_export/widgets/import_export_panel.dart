@@ -6,6 +6,7 @@
 ///   - 导出全部笔记为 JSON
 ///   - 从 JSON 导入笔记（合并到本地存储）
 /// ──────────────────────────────────────────────────
+library;
 
 import 'dart:convert';
 import 'package:flutter/material.dart';

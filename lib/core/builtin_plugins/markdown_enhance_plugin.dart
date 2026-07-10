@@ -6,6 +6,7 @@
 ///   - 自动规范化标题层级
 ///   - 自动移除行尾空格
 /// ──────────────────────────────────────────────────
+library;
 
 import '../plugin/base_plugin.dart';
 import '../plugin/plugin_manifest.dart';

@@ -7,6 +7,7 @@
 ///   - 使用插件存储
 ///   - 状态栏显示
 /// ──────────────────────────────────────────────────
+library;
 
 import '../plugin/base_plugin.dart';
 import '../plugin/plugin_manifest.dart';

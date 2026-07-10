@@ -3,6 +3,7 @@
 /// ══════════════════════════════════════════════════
 /// 列出应用所有快捷键。可通过 `?` 键或命令面板打开。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'package:flutter/material.dart';
 import '../../../core/theme/aeromind_theme.dart';
@@ -24,7 +25,7 @@ class ShortcutItem {
 const List<ShortcutItem> kAllShortcuts = [
   ShortcutItem(keys: 'Cmd/Ctrl + K', description: '打开命令面板', category: '全局'),
   ShortcutItem(keys: 'Cmd/Ctrl + T', description: '模板画廊', category: '全局'),
-  ShortcutItem(keys: 'Cmd/Ctrl + D', description: "今天的日记", category: '全局'),
+  ShortcutItem(keys: 'Cmd/Ctrl + D', description: '今天的日记', category: '全局'),
   ShortcutItem(keys: 'Cmd/Ctrl + B', description: '切换侧边栏', category: '全局'),
   ShortcutItem(keys: 'Cmd/Ctrl + Shift + P', description: '插件管理', category: '全局'),
   ShortcutItem(keys: 'Escape', description: '关闭覆盖层', category: '全局'),

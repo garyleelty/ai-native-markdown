@@ -4,6 +4,7 @@
 /// 将插件 API 调用桥接到 AeroMind 内部服务。
 /// 这是插件系统和宿主应用之间的唯一连接点。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'dart:async';
 import 'package:flutter/material.dart';

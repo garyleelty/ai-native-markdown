@@ -4,6 +4,7 @@
 /// 负责: 注册 / 激活 / 暂停 / 销毁插件，
 ///       依赖检查、事件分发、扩展点聚合。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'dart:developer' as dev;
 import 'package:flutter/foundation.dart';

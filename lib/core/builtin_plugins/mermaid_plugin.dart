@@ -30,7 +30,7 @@ class MermaidRenderPlugin extends BasePlugin {
   final MermaidService _service = MermaidService();
 
   @override
-  PluginManifest get manifest => PluginManifest(
+  PluginManifest get manifest => const PluginManifest(
         id: _id,
         name: 'Mermaid 图表渲染',
         version: '1.0.0',

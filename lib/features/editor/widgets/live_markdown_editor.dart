@@ -544,8 +544,8 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(width: 8),
-          Text('•',
-              style: const TextStyle(
+          const Text('•',
+              style: TextStyle(
                 fontSize: 14,
                 color: AeroColors.textSecondary,
               )),

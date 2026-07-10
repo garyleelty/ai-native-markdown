@@ -144,7 +144,7 @@ class AeroTheme {
       );
 
   /// 堆叠标题栏装饰
-  static BoxDecoration get stackedTitleDecoration => BoxDecoration(
+  static BoxDecoration get stackedTitleDecoration => const BoxDecoration(
         color: AeroColors.bgElevated,
         border: Border(
           right: BorderSide(color: AeroColors.border, width: 0.5),

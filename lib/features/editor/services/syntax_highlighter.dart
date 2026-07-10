@@ -7,6 +7,7 @@
 ///
 /// 输出为 TextSpan 树，可直接用于 RichText / Text.rich。
 /// ──────────────────────────────────────────────────
+library;
 
 import 'package:flutter/material.dart';
 import '../../../core/theme/aeromind_theme.dart';
@@ -165,11 +166,11 @@ class SyntaxHighlighter {
     final spans = <InlineSpan>[];
     final pattern = RegExp(
       r'"(?:\\.|[^"\\])*"' // 字符串
-      r"|"
+      r'|'
       r'\b(?:true|false|null)\b' // 字面量
-      r"|"
+      r'|'
       r'-?\d+\.?\d*(?:[eE][+-]?\d+)?' // 数字
-      r"|"
+      r'|'
       r'[\[\]{}:,]' // 标点
     );
     int cursor = 0;

@@ -57,7 +57,7 @@ class _MermaidInlineWidgetState extends State<MermaidInlineWidget> {
               border: Border.all(color: AeroColors.border, width: 0.5),
             ),
             alignment: Alignment.center,
-            child: Column(
+            child: const Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 SizedBox(
@@ -69,7 +69,7 @@ class _MermaidInlineWidgetState extends State<MermaidInlineWidget> {
                         AlwaysStoppedAnimation(AeroColors.accentBlue),
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(
                   '渲染 Mermaid 图表...',
                   style: TextStyle(
@@ -93,11 +93,11 @@ class _MermaidInlineWidgetState extends State<MermaidInlineWidget> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                const Row(
                   children: [
                     Icon(Icons.account_tree_outlined,
                         size: 12, color: AeroColors.accentPurple),
-                    const SizedBox(width: 5),
+                    SizedBox(width: 5),
                     Text('Mermaid 图表',
                         style: TextStyle(
                             fontSize: 10,
@@ -114,7 +114,7 @@ class _MermaidInlineWidgetState extends State<MermaidInlineWidget> {
                   ),
                   child: SelectableText(
                     widget.code,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 10,
                       fontFamily: 'monospace',
                       color: AeroColors.textSecondary,
