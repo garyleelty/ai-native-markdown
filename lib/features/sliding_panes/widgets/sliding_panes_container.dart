@@ -344,7 +344,7 @@ class _SlidingPanesContainerState
     );
   }
 
-  void _createNewNote(BuildContext context) {
+  Future<void> _createNewNote(BuildContext context) async {
     final repo = ref.read(noteRepositoryProvider);
     final now = DateTime.now();
     final note = NoteModel(
@@ -355,8 +355,10 @@ class _SlidingPanesContainerState
       createdAt: now,
       updatedAt: now,
     );
-    repo.saveNote(note);
-    ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
+    await repo.saveNote(note);
+    if (context.mounted) {
+      ref.read(paneStackProvider.notifier).openPane(note.id, note.title);
+    }
   }
 
   void _openQuickSwitcher(BuildContext context) {
