@@ -246,8 +246,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
       _focusNode.requestFocus();
       // 给一帧时间让 TextField 响应 selection 变化并自动滚动
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_scrollController.hasClients) return;
-        // 额外调整：确保光标在可视区域中间
+        if (!mounted || !_scrollController.hasClients) return;
         final pos = _scrollController.position;
         final target = pos.pixels;
         _scrollController.animateTo(

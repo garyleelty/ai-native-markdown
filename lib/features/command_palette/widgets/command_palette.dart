@@ -81,6 +81,7 @@ class _CommandPaletteOverlayState
       _animController.forward();
       // 延迟一帧让 build 完成后再请求焦点
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _searchFocusNode.requestFocus();
       });
     } else {
@@ -124,10 +125,9 @@ class _CommandPaletteOverlayState
   /// 滚动列表使当前选中项可见
   void _scrollToSelected() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_listScrollController.hasClients) return;
+      if (!mounted || !_listScrollController.hasClients) return;
       final state = ref.read(commandPaletteProvider);
       final index = state.selectedIndex;
-      // 每项高度约 44px，加上分隔线高度
       final targetOffset = (index * 44.0) - 100.0;
       _listScrollController.animateTo(
         targetOffset.clamp(0.0, _listScrollController.position.maxScrollExtent),

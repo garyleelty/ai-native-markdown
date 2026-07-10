@@ -1,21 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../providers/settings_provider.dart';
 import '../services/mermaid_service.dart';
 
-/// ══════════════════════════════════════════════════
-/// MermaidBlockWidget — Mermaid 图表渲染组件
-/// ══════════════════════════════════════════════════
-/// 显示渲染后的 Mermaid 图表，支持:
-///   - 图片加载状态
-///   - 错误回退 (显示原始代码)
-///   - 点击放大查看
-/// ──────────────────────────────────────────────────
-
-class MermaidBlockWidget extends StatefulWidget {
-  /// Mermaid 代码
+class MermaidBlockWidget extends ConsumerStatefulWidget {
   final String code;
-
-  /// 是否显示为紧凑模式
   final bool compact;
 
   const MermaidBlockWidget({
@@ -25,35 +15,18 @@ class MermaidBlockWidget extends StatefulWidget {
   });
 
   @override
-  State<MermaidBlockWidget> createState() => _MermaidBlockWidgetState();
+  ConsumerState<MermaidBlockWidget> createState() => _MermaidBlockWidgetState();
 }
 
-class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
-  final _service = MermaidService();
-
-  @override
-  void initState() {
-    super.initState();
-    _loadImage();
-  }
-
-  @override
-  void didUpdateWidget(covariant MermaidBlockWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.code != widget.code) {
-      _loadImage();
-    }
-  }
-
-  void _loadImage() {
-    // 预加载图片，通过 Image.network 自带错误处理
-  }
-
-  String get _imageUrl => _service.renderToUrl(widget.code);
+class _MermaidBlockWidgetState extends ConsumerState<MermaidBlockWidget> {
+  String get _imageUrl => MermaidService().renderToUrl(widget.code);
 
   @override
   Widget build(BuildContext context) {
     final type = _getDiagramType(widget.code);
+    final mermaidEnabled = ref.watch(
+      settingsProvider.select((s) => s.mermaidEnabled),
+    );
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -65,10 +38,8 @@ class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── 标题栏 ──
           _buildHeader(type),
-          // ── 图表内容 ──
-          _buildContent(),
+          mermaidEnabled ? _buildContent() : _buildConsentPrompt(),
         ],
       ),
     );
@@ -118,8 +89,15 @@ class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
             ),
           ),
           const Spacer(),
-          // 放大按钮
-          _ZoomButton(imageUrl: _imageUrl),
+          Consumer(
+            builder: (context, ref, _) {
+              final enabled = ref.watch(
+                settingsProvider.select((s) => s.mermaidEnabled),
+              );
+              if (!enabled) return const SizedBox.shrink();
+              return _ZoomButton(imageUrl: _imageUrl);
+            },
+          ),
         ],
       ),
     );
@@ -148,28 +126,153 @@ class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
           );
         },
         errorBuilder: (context, error, stackTrace) {
-          return _buildCodeFallback();
+          return _buildCodeFallback('图表加载失败，请检查网络连接');
         },
       ),
     );
   }
 
-  /// 加载失败时的代码回退显示
-  Widget _buildCodeFallback() {
+  Widget _buildConsentPrompt() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      color: AeroColors.bgDeep,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.privacy_tip_outlined,
+                  size: 14, color: AeroColors.accentOrange),
+              const SizedBox(width: 6),
+              const Text(
+                '需要在线渲染服务',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AeroColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Mermaid 图表渲染使用 mermaid.ink 在线服务（第三方服务）。'
+            '启用后，图表代码将通过 HTTPS 发送至 mermaid.ink 服务器进行渲染。'
+            '你可以随时在设置中关闭此功能。',
+            style: TextStyle(
+              fontSize: 11,
+              color: AeroColors.textMuted,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              TextButton(
+                onPressed: () => ref
+                    .read(settingsProvider.notifier)
+                    .setMermaidEnabled(true),
+                style: TextButton.styleFrom(
+                  backgroundColor: AeroColors.accentPurple.withValues(alpha: 0.15),
+                  foregroundColor: AeroColors.accentPurple,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 8),
+                ),
+                child: const Text('启用并渲染', style: TextStyle(fontSize: 11)),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => _showCodeOnly(context),
+                style: TextButton.styleFrom(
+                  foregroundColor: AeroColors.textMuted,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 8),
+                ),
+                child: const Text('仅显示代码', style: TextStyle(fontSize: 11)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCodeOnly(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: AeroColors.bgDeep,
+        insetPadding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: const BoxDecoration(
+                border: Border(
+                  bottom:
+                      BorderSide(color: AeroColors.divider, width: 0.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Text('Mermaid 源码',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AeroColors.textPrimary)),
+                  const Spacer(),
+                  InkWell(
+                    onTap: () => Navigator.of(ctx).pop(),
+                    child: const Icon(Icons.close,
+                        size: 18, color: AeroColors.textMuted),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AeroColors.bgSurface,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: SelectableText(
+                    widget.code,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                      color: AeroColors.textSecondary,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCodeFallback(String message) {
     return Container(
       padding: const EdgeInsets.all(12),
       color: AeroColors.bgDeep,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.warning_amber_rounded,
+              const Icon(Icons.warning_amber_rounded,
                   size: 12, color: AeroColors.accentOrange),
-              SizedBox(width: 4),
+              const SizedBox(width: 4),
               Text(
-                '图表加载失败，显示原始代码',
-                style: TextStyle(
+                message,
+                style: const TextStyle(
                   fontSize: 10,
                   color: AeroColors.accentOrange,
                 ),
@@ -199,7 +302,6 @@ class _MermaidBlockWidgetState extends State<MermaidBlockWidget> {
   }
 }
 
-/// 放大查看按钮
 class _ZoomButton extends StatelessWidget {
   final String imageUrl;
   const _ZoomButton({required this.imageUrl});
@@ -225,12 +327,13 @@ class _ZoomButton extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 标题栏
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: const BoxDecoration(
                 border: Border(
-                  bottom: BorderSide(color: AeroColors.divider, width: 0.5),
+                  bottom:
+                      BorderSide(color: AeroColors.divider, width: 0.5),
                 ),
               ),
               child: Row(
@@ -249,28 +352,29 @@ class _ZoomButton extends StatelessWidget {
                 ],
               ),
             ),
-            // 图片
-            InteractiveViewer(
-              maxScale: 5.0,
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.contain,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return const SizedBox(
-                    height: 200,
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return const SizedBox(
-                    height: 100,
-                    child: Center(
-                      child: Text('加载失败',
-                          style: TextStyle(color: AeroColors.textMuted)),
-                    ),
-                  );
-                },
+            Flexible(
+              child: InteractiveViewer(
+                maxScale: 5.0,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return const SizedBox(
+                      height: 200,
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return const SizedBox(
+                      height: 100,
+                      child: Center(
+                        child: Text('加载失败',
+                            style: TextStyle(color: AeroColors.textMuted)),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ],

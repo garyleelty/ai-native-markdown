@@ -130,10 +130,9 @@ class _QuickSwitcherOverlayState extends ConsumerState<QuickSwitcherOverlay> {
   /// 滚动列表使当前选中项可见
   void _scrollToSelected() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_listScrollController.hasClients) return;
+      if (!mounted || !_listScrollController.hasClients) return;
       final state = ref.read(quickSwitcherProvider);
       final index = state.selectedIndex;
-      // 每项高度约 56px（标题 + 副标题 + padding）
       final targetOffset = (index * 56.0) - 100.0;
       _listScrollController.animateTo(
         targetOffset.clamp(

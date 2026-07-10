@@ -104,38 +104,6 @@ class AeroTheme {
         ),
       );
 
-  /// 浅色主题 (Material 原生组件使用)
-  /// 注意：AeroColors 为固定暗色调色板，自定义组件仍以暗色为主。
-  /// 此主题用于让原生 Material 组件（SegmentedButton、SnackBar、Dialog 等）
-  /// 在浅色模式下保持一致。
-  static ThemeData get light => ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xFFFAFAFA),
-        colorScheme: const ColorScheme.light(
-          surface: Color(0xFFFFFFFF),
-          primary: AeroColors.accentBlue,
-          secondary: AeroColors.accentPurple,
-          outline: Color(0xFFD0D0D0),
-        ),
-        textTheme: const TextTheme(
-          bodyMedium: TextStyle(
-            fontSize: 14,
-            height: 1.7,
-            color: Color(0xFF1E1E1E),
-          ),
-          bodySmall: TextStyle(
-            fontSize: 12,
-            color: Color(0xFF5A5A5A),
-          ),
-        ),
-        dividerTheme: const DividerThemeData(
-          color: Color(0xFFE0E0E0),
-          thickness: 1,
-          space: 0,
-        ),
-      );
-
   /// 面板卡片装饰 (含精细边框 + 阴影)
   static BoxDecoration get paneDecoration => BoxDecoration(
         color: AeroColors.bgSurface,

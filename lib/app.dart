@@ -73,6 +73,15 @@ class AeroMindApp extends ConsumerWidget {
   }
 }
 
+/// 覆盖层类型枚举 — 统一管理所有非 provider 管理的覆盖层
+enum OverlayType {
+  settings,
+  cheatsheet,
+  welcome,
+  importExport,
+  knowledgeGraph,
+}
+
 /// App Shell — 所有覆盖层通过 Stack 叠加
 class _AppShell extends ConsumerStatefulWidget {
   const _AppShell();
@@ -82,30 +91,22 @@ class _AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<_AppShell>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  /// 知识图谱是否可见
-  bool _isGraphVisible = false;
-
-  /// 设置页面是否可见
-  bool _isSettingsVisible = false;
-
-  /// 快捷键速查表是否可见
-  bool _isCheatsheetVisible = false;
-
-  /// 欢迎页面是否可见
-  bool _isWelcomeVisible = false;
-
-  /// 导入导出面板是否可见
-  bool _isImportExportVisible = false;
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  /// 当前活动的覆盖层（null 表示无覆盖层）
+  OverlayType? _activeOverlay;
 
   /// AI 面板是否可见（运行时状态，null 表示使用设置默认值）
   bool? _isAiPanelVisibleRuntime;
 
-  /// 展开动画控制器
+  /// 知识图谱圆形展开动画控制器
   late AnimationController _graphAnimController;
   late Animation<double> _graphAnimation;
 
-  /// 图谱按钮的位置
+  /// 模态覆盖层淡入动画控制器
+  late AnimationController _overlayAnimController;
+  late Animation<double> _overlayAnimation;
+
+  /// 图谱按钮的位置（用于圆形展开动画起点）
   Offset _graphButtonPosition = Offset.zero;
 
   /// 命令快捷键 FocusNode
@@ -150,14 +151,22 @@ class _AppShellState extends ConsumerState<_AppShell>
       parent: _graphAnimController,
       curve: Curves.easeOutCubic,
     );
+    _overlayAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    );
+    _overlayAnimation = CurvedAnimation(
+      parent: _overlayAnimController,
+      curve: Curves.easeOutCubic,
+    );
     _shortcutFocusNode = FocusNode();
 
     // 注册全局键盘快捷键处理器（使用 HardwareKeyboard 确保在所有平台
     // 包括 Web 上都能收到键盘事件，不依赖 Focus 层级传播）
     HardwareKeyboard.instance.addHandler(_handleHardwareKeyEvent);
 
-    // 延迟初始化插件系统
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _initPlugins();
       _initCommandActions();
       _maybeShowWelcome();
@@ -169,7 +178,7 @@ class _AppShellState extends ConsumerState<_AppShell>
     try {
       final seen = HiveService.metaBox.get('welcome_shown') == true;
       if (!seen && mounted) {
-        setState(() => _isWelcomeVisible = true);
+        _showOverlay(OverlayType.welcome);
         await HiveService.metaBox.put('welcome_shown', true);
         await _createFirstNoteIfNeeded();
       } else {
@@ -425,8 +434,7 @@ class _AppShellState extends ConsumerState<_AppShell>
 
       // 打开设置
       'settings.open': () {
-        _closeAllOverlays();
-        setState(() => _isSettingsVisible = true);
+        _showOverlay(OverlayType.settings);
       },
 
       // 版本历史
@@ -446,20 +454,17 @@ class _AppShellState extends ConsumerState<_AppShell>
 
       // 快捷键速查表
       'help.shortcuts': () {
-        _closeAllOverlays();
-        setState(() => _isCheatsheetVisible = true);
+        _showOverlay(OverlayType.cheatsheet);
       },
 
       // 欢迎页面
       'help.welcome': () {
-        _closeAllOverlays();
-        setState(() => _isWelcomeVisible = true);
+        _showOverlay(OverlayType.welcome);
       },
 
       // 导入导出面板
       'note.importExport': () {
-        _closeAllOverlays();
-        setState(() => _isImportExportVisible = true);
+        _showOverlay(OverlayType.importExport);
       },
 
       // Git 备份
@@ -486,8 +491,7 @@ class _AppShellState extends ConsumerState<_AppShell>
         }
       },
       'git.settings': () {
-        _closeAllOverlays();
-        setState(() => _isSettingsVisible = true);
+        _showOverlay(OverlayType.settings);
       },
     });
   }
@@ -496,11 +500,80 @@ class _AppShellState extends ConsumerState<_AppShell>
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKeyEvent);
     _graphAnimController.dispose();
+    _overlayAnimController.dispose();
     _shortcutFocusNode.dispose();
     _pluginApi?.dispose();
     PluginRegistry.instance.disposeAll();
     HiveService.closeHive();
     super.dispose();
+  }
+
+  /// 显示模态覆盖层（统一动画+互斥管理）
+  void _showOverlay(OverlayType type) {
+    _closeAllProviderOverlays();
+    if (type == OverlayType.knowledgeGraph) {
+      _graphAnimController.forward(from: 0.0);
+    } else {
+      _overlayAnimController.forward(from: 0.0);
+    }
+    setState(() => _activeOverlay = type);
+  }
+
+  /// 隐藏当前模态覆盖层
+  void _hideOverlay() {
+    if (_activeOverlay == OverlayType.knowledgeGraph) {
+      _graphAnimController.reverse().then((_) {
+        if (mounted) setState(() => _activeOverlay = null);
+      });
+    } else {
+      _overlayAnimController.reverse().then((_) {
+        if (mounted) setState(() => _activeOverlay = null);
+      });
+    }
+  }
+
+  /// 关闭所有 provider 管理的 overlay（命令面板/QuickSwitcher/模板/插件管理）
+  void _closeAllProviderOverlays() {
+    if (ref.read(commandPaletteProvider).isOpen) {
+      ref.read(commandPaletteProvider.notifier).close();
+    }
+    if (ref.read(quickSwitcherProvider).isOpen) {
+      ref.read(quickSwitcherProvider.notifier).close();
+    }
+    if (ref.read(templateGalleryProvider).isOpen) {
+      ref.read(templateGalleryProvider.notifier).close();
+    }
+    if (ref.read(pluginManagerProvider).isOpen) {
+      ref.read(pluginManagerProvider.notifier).close();
+    }
+  }
+
+  /// 关闭最上层覆盖层（ESC键使用，一次只关一个）
+  void _closeTopOverlay() {
+    if (ref.read(commandPaletteProvider).isOpen) {
+      ref.read(commandPaletteProvider.notifier).close();
+    } else if (ref.read(quickSwitcherProvider).isOpen) {
+      ref.read(quickSwitcherProvider.notifier).close();
+    } else if (ref.read(templateGalleryProvider).isOpen) {
+      ref.read(templateGalleryProvider.notifier).close();
+    } else if (ref.read(pluginManagerProvider).isOpen) {
+      ref.read(pluginManagerProvider.notifier).close();
+    } else if (_activeOverlay != null) {
+      _hideOverlay();
+    }
+  }
+
+  /// 关闭所有覆盖层（打开新overlay前使用，确保互斥）
+  void _closeAllOverlays() {
+    _closeAllProviderOverlays();
+    if (_activeOverlay != null) {
+      if (_activeOverlay == OverlayType.knowledgeGraph) {
+        _graphAnimController.value = 0.0;
+      } else {
+        _overlayAnimController.value = 0.0;
+      }
+      setState(() => _activeOverlay = null);
+    }
   }
 
   /// 全局键盘快捷键处理器（基于 HardwareKeyboard，不依赖 Focus 层级）
@@ -576,11 +649,10 @@ class _AppShellState extends ConsumerState<_AppShell>
     // ?: 快捷键速查表 (Shift+/)
     if (event.logicalKey == LogicalKeyboardKey.slash &&
         HardwareKeyboard.instance.isShiftPressed) {
-      if (_isCheatsheetVisible) {
-        setState(() => _isCheatsheetVisible = false);
+      if (_activeOverlay == OverlayType.cheatsheet) {
+        _hideOverlay();
       } else {
-        _closeAllOverlays();
-        setState(() => _isCheatsheetVisible = true);
+        _showOverlay(OverlayType.cheatsheet);
       }
       return true;
     }
@@ -598,67 +670,6 @@ class _AppShellState extends ConsumerState<_AppShell>
     }
 
     return false;
-  }
-
-  /// 关闭最上层覆盖层（ESC键使用，一次只关一个）
-  void _closeTopOverlay() {
-    final cmdState = ref.read(commandPaletteProvider);
-    final tplState = ref.read(templateGalleryProvider);
-    final pluginState = ref.read(pluginManagerProvider);
-    final qsState = ref.read(quickSwitcherProvider);
-
-    if (cmdState.isOpen) {
-      ref.read(commandPaletteProvider.notifier).close();
-    } else if (qsState.isOpen) {
-      ref.read(quickSwitcherProvider.notifier).close();
-    } else if (tplState.isOpen) {
-      ref.read(templateGalleryProvider.notifier).close();
-    } else if (pluginState.isOpen) {
-      ref.read(pluginManagerProvider.notifier).close();
-    } else if (_isSettingsVisible) {
-      setState(() => _isSettingsVisible = false);
-    } else if (_isCheatsheetVisible) {
-      setState(() => _isCheatsheetVisible = false);
-    } else if (_isWelcomeVisible) {
-      setState(() => _isWelcomeVisible = false);
-    } else if (_isImportExportVisible) {
-      setState(() => _isImportExportVisible = false);
-    } else if (_isGraphVisible) {
-      final size = MediaQuery.of(context).size;
-      _toggleGraph(Offset(size.width / 2, size.height / 2));
-    }
-  }
-
-  /// 关闭所有覆盖层（打开新overlay前使用，确保互斥）
-  void _closeAllOverlays() {
-    final cmdState = ref.read(commandPaletteProvider);
-    final tplState = ref.read(templateGalleryProvider);
-    final pluginState = ref.read(pluginManagerProvider);
-    final qsState = ref.read(quickSwitcherProvider);
-
-    if (cmdState.isOpen) {
-      ref.read(commandPaletteProvider.notifier).close();
-    }
-    if (qsState.isOpen) {
-      ref.read(quickSwitcherProvider.notifier).close();
-    }
-    if (tplState.isOpen) {
-      ref.read(templateGalleryProvider.notifier).close();
-    }
-    if (pluginState.isOpen) {
-      ref.read(pluginManagerProvider.notifier).close();
-    }
-    if (_isSettingsVisible || _isCheatsheetVisible || _isWelcomeVisible ||
-        _isImportExportVisible || _isGraphVisible) {
-      _graphAnimController.value = 0.0;
-      setState(() {
-        _isSettingsVisible = false;
-        _isCheatsheetVisible = false;
-        _isWelcomeVisible = false;
-        _isImportExportVisible = false;
-        _isGraphVisible = false;
-      });
-    }
   }
 
   /// 打开今天的日记
@@ -830,15 +841,16 @@ class _AppShellState extends ConsumerState<_AppShell>
 
   /// 切换知识图谱可见性
   void _toggleGraph(Offset buttonPosition) {
-    if (_isGraphVisible) {
-      _graphAnimController.reverse().then((_) {
-        if (mounted) setState(() => _isGraphVisible = false);
-      });
+    if (_activeOverlay == OverlayType.knowledgeGraph) {
+      _hideOverlay();
     } else {
-      _closeAllOverlays();
+      _closeAllProviderOverlays();
+      if (_activeOverlay != null) {
+        _overlayAnimController.value = 0.0;
+      }
       setState(() {
         _graphButtonPosition = buttonPosition;
-        _isGraphVisible = true;
+        _activeOverlay = OverlayType.knowledgeGraph;
       });
       _buildGraphData();
       _graphAnimController.forward(from: 0.0);
@@ -1010,16 +1022,16 @@ class _AppShellState extends ConsumerState<_AppShell>
                   ),
 
               // ── 知识图谱覆盖层 ──
-              if (_isGraphVisible)
+              if (_activeOverlay == OverlayType.knowledgeGraph)
                 ListenableBuilder(
                   listenable: _graphAnimController,
                   builder: (context, child) {
                     return _KnowledgeGraphOverlay(
                       animationValue: _graphAnimation.value,
                       buttonPosition: _graphButtonPosition,
-                      onClose: () => _toggleGraph(_graphButtonPosition),
+                      onClose: _hideOverlay,
                       onOpenNote: (noteId, title) {
-                        _toggleGraph(_graphButtonPosition);
+                        _hideOverlay();
                         ref
                             .read(paneStackProvider.notifier)
                             .openPane(noteId, title);
@@ -1051,38 +1063,37 @@ class _AppShellState extends ConsumerState<_AppShell>
                 },
               ),
 
-              // ── 设置页面覆盖层 ──
-              if (_isSettingsVisible)
+              // ── 模态覆盖层（设置/快捷键/欢迎/导入导出，统一动画）──
+              if (_activeOverlay == OverlayType.settings)
                 Positioned.fill(
-                  child: SettingsPage(
-                    onClose: () => setState(() => _isSettingsVisible = false),
+                  child: FadeTransition(
+                    opacity: _overlayAnimation,
+                    child: SettingsPage(onClose: _hideOverlay),
                   ),
                 ),
-
-              // ── 快捷键速查表覆盖层 ──
-              if (_isCheatsheetVisible)
-                KeyboardCheatsheetOverlay(
-                  onClose: () => setState(() => _isCheatsheetVisible = false),
+              if (_activeOverlay == OverlayType.cheatsheet)
+                FadeTransition(
+                  opacity: _overlayAnimation,
+                  child: KeyboardCheatsheetOverlay(onClose: _hideOverlay),
                 ),
-
-              // ── 欢迎页面覆盖层 ──
-              if (_isWelcomeVisible)
-                WelcomePage(
-                  onClose: () => setState(() => _isWelcomeVisible = false),
-                  onShowShortcuts: () {
-                    setState(() {
-                      _isWelcomeVisible = false;
-                      _isCheatsheetVisible = true;
-                    });
-                  },
+              if (_activeOverlay == OverlayType.welcome)
+                FadeTransition(
+                  opacity: _overlayAnimation,
+                  child: WelcomePage(
+                    onClose: _hideOverlay,
+                    onShowShortcuts: () {
+                      setState(() => _activeOverlay = OverlayType.cheatsheet);
+                      _overlayAnimController.forward(from: 0.0);
+                    },
+                  ),
                 ),
-
-              // ── 导入导出面板覆盖层 ──
-              if (_isImportExportVisible)
-                ImportExportPanel(
-                  activeNoteId: ref.watch(paneStackProvider).activeNoteId,
-                  onClose: () =>
-                      setState(() => _isImportExportVisible = false),
+              if (_activeOverlay == OverlayType.importExport)
+                FadeTransition(
+                  opacity: _overlayAnimation,
+                  child: ImportExportPanel(
+                    activeNoteId: ref.watch(paneStackProvider).activeNoteId,
+                    onClose: _hideOverlay,
+                  ),
                 ),
                 ],
               );

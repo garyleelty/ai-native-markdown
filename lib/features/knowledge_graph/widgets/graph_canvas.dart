@@ -157,6 +157,7 @@ class _GraphCanvasState extends ConsumerState<GraphCanvas>
     // 如果图谱已初始化且布局还在运行，启动 Ticker
     if (state.isInitialized && state.isLayoutRunning) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _ensureLayoutRunning();
       });
     }

@@ -31,6 +31,25 @@ class GitBackupService {
 
   GitBackupService({required this.workingDirectory});
 
+  static final _commitHashRegex = RegExp(r'^[0-9a-fA-F]+$');
+  static final _remoteNameRegex = RegExp(r'^[a-zA-Z0-9_-]+$');
+
+  bool _isValidGitParam(String value) {
+    if (value.isEmpty) return false;
+    if (value.startsWith('-')) return false;
+    return true;
+  }
+
+  bool _isValidUrl(String url) {
+    if (url.isEmpty || url.startsWith('-')) return false;
+    final uri = Uri.tryParse(url);
+    return uri != null && (uri.isScheme('https') || uri.isScheme('http') || uri.isScheme('ssh') || url.contains('@'));
+  }
+
+  bool _isValidCommitHash(String hash) {
+    return _commitHashRegex.hasMatch(hash) && hash.length >= 4;
+  }
+
   Future<bool> isGitInstalled() async {
     if (kIsWeb) return false;
     try {
@@ -52,6 +71,20 @@ class GitBackupService {
     }
   }
 
+  Future<String?> getCurrentBranch() async {
+    if (kIsWeb) return null;
+    try {
+      final result = await _runGit(['rev-parse', '--abbrev-ref', 'HEAD']);
+      if (result.success && result.stdout.trim().isNotEmpty) {
+        final branch = result.stdout.trim();
+        if (branch != 'HEAD') return branch;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<GitResult> init() async {
     try {
       await _ensureDir();
@@ -67,6 +100,13 @@ class GitBackupService {
 
   Future<GitResult> setUserInfo(String name, String email) async {
     try {
+      if (!_isValidGitParam(name) || !_isValidGitParam(email)) {
+        return GitResult(
+          exitCode: -1,
+          stdout: '',
+          stderr: '无效的用户名或邮箱参数',
+        );
+      }
       final result1 = await _runGit(['config', 'user.name', name]);
       if (!result1.success) return result1;
       return _runGit(['config', 'user.email', email]);
@@ -81,6 +121,13 @@ class GitBackupService {
 
   Future<GitResult> addRemote(String url, {String name = 'origin'}) async {
     try {
+      if (!_isValidUrl(url) || !_remoteNameRegex.hasMatch(name)) {
+        return GitResult(
+          exitCode: -1,
+          stdout: '',
+          stderr: '无效的远程仓库 URL 或名称',
+        );
+      }
       final hasRemote = await _hasRemote(name);
       if (hasRemote) {
         return _runGit(['remote', 'set-url', name, url]);
@@ -97,6 +144,13 @@ class GitBackupService {
 
   Future<GitResult> removeRemote({String name = 'origin'}) async {
     try {
+      if (!_remoteNameRegex.hasMatch(name)) {
+        return GitResult(
+          exitCode: -1,
+          stdout: '',
+          stderr: '无效的远程仓库名称',
+        );
+      }
       return _runGit(['remote', 'remove', name]);
     } catch (e) {
       return GitResult(
@@ -109,6 +163,7 @@ class GitBackupService {
 
   Future<String?> getRemoteUrl({String name = 'origin'}) async {
     try {
+      if (!_remoteNameRegex.hasMatch(name)) return null;
       final result = await _runGit(['remote', 'get-url', name]);
       if (result.success && result.stdout.trim().isNotEmpty) {
         return result.stdout.trim();
@@ -154,6 +209,13 @@ class GitBackupService {
 
   Future<GitResult> commit(String message) async {
     try {
+      if (message.isEmpty || message.startsWith('-')) {
+        return GitResult(
+          exitCode: -1,
+          stdout: '',
+          stderr: '无效的提交信息',
+        );
+      }
       final hasChanges = await this.hasChanges();
       if (!hasChanges) {
         return GitResult(
@@ -174,9 +236,17 @@ class GitBackupService {
     }
   }
 
-  Future<GitResult> push({String remote = 'origin', String branch = 'main'}) async {
+  Future<GitResult> push({String remote = 'origin', String? branch}) async {
     try {
-      return _runGit(['push', '-u', remote, branch]);
+      if (!_remoteNameRegex.hasMatch(remote)) {
+        return GitResult(
+          exitCode: -1,
+          stdout: '',
+          stderr: '无效的远程仓库名称',
+        );
+      }
+      final targetBranch = branch ?? await getCurrentBranch() ?? 'main';
+      return _runGit(['push', '-u', remote, targetBranch]);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -186,9 +256,17 @@ class GitBackupService {
     }
   }
 
-  Future<GitResult> pull({String remote = 'origin', String branch = 'main'}) async {
+  Future<GitResult> pull({String remote = 'origin', String? branch}) async {
     try {
-      return _runGit(['pull', remote, branch]);
+      if (!_remoteNameRegex.hasMatch(remote)) {
+        return GitResult(
+          exitCode: -1,
+          stdout: '',
+          stderr: '无效的远程仓库名称',
+        );
+      }
+      final targetBranch = branch ?? await getCurrentBranch() ?? 'main';
+      return _runGit(['pull', remote, targetBranch]);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -200,16 +278,37 @@ class GitBackupService {
 
   Future<GitResult> clone(String url) async {
     try {
+      if (!_isValidUrl(url)) {
+        return GitResult(
+          exitCode: -1,
+          stdout: '',
+          stderr: '无效的仓库 URL',
+        );
+      }
       await _ensureDir();
-      final dir = Directory(workingDirectory);
-      final isEmpty = await dir.list().isEmpty;
-      if (!isEmpty) {
+
+      if (await isGitRepo()) {
         return GitResult(
           exitCode: 1,
           stdout: '',
-          stderr: '目标目录不为空，无法 clone',
+          stderr: '目录已存在 Git 仓库，无法 clone',
         );
       }
+
+      final dir = Directory(workingDirectory);
+      final contents = await dir.list().toList();
+      final nonHidden = contents.where((f) {
+        final name = f.path.split(Platform.pathSeparator).last;
+        return !name.startsWith('.');
+      }).toList();
+      if (nonHidden.isNotEmpty) {
+        return GitResult(
+          exitCode: 1,
+          stdout: '',
+          stderr: '目标目录不为空（存在非隐藏文件），无法 clone',
+        );
+      }
+
       return _runGit(['clone', url, '.']);
     } catch (e) {
       return GitResult(
@@ -258,6 +357,13 @@ class GitBackupService {
 
   Future<GitResult> checkout(String commitHash) async {
     try {
+      if (!_isValidCommitHash(commitHash)) {
+        return GitResult(
+          exitCode: -1,
+          stdout: '',
+          stderr: '无效的 commit hash',
+        );
+      }
       return _runGit(['checkout', commitHash]);
     } catch (e) {
       return GitResult(
@@ -270,6 +376,13 @@ class GitBackupService {
 
   Future<GitResult> resetHard(String commitHash) async {
     try {
+      if (!_isValidCommitHash(commitHash)) {
+        return GitResult(
+          exitCode: -1,
+          stdout: '',
+          stderr: '无效的 commit hash',
+        );
+      }
       return _runGit(['reset', '--hard', commitHash]);
     } catch (e) {
       return GitResult(

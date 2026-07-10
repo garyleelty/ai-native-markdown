@@ -67,6 +67,7 @@ class _TemplateGalleryOverlayState
       _searchController.clear();
       _animController.forward();
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _searchFocusNode.requestFocus();
       });
     } else {

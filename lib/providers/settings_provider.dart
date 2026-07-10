@@ -16,6 +16,7 @@ class AppSettings {
   final double fontSize;
   final AppThemeMode themeMode;
   final bool aiChatPanelVisible;
+  final bool mermaidEnabled;
 
   /// 远程 LLM 配置
   final String llmApiEndpoint;
@@ -31,6 +32,7 @@ class AppSettings {
     this.fontSize = 14.0,
     this.themeMode = AppThemeMode.dark,
     this.aiChatPanelVisible = true,
+    this.mermaidEnabled = false,
     this.llmApiEndpoint = '',
     this.llmApiKey = '',
     this.llmModel = 'gpt-3.5-turbo',
@@ -45,6 +47,7 @@ class AppSettings {
     double? fontSize,
     AppThemeMode? themeMode,
     bool? aiChatPanelVisible,
+    bool? mermaidEnabled,
     String? llmApiEndpoint,
     String? llmApiKey,
     String? llmModel,
@@ -60,6 +63,7 @@ class AppSettings {
       fontSize: fontSize ?? this.fontSize,
       themeMode: themeMode ?? this.themeMode,
       aiChatPanelVisible: aiChatPanelVisible ?? this.aiChatPanelVisible,
+      mermaidEnabled: mermaidEnabled ?? this.mermaidEnabled,
       llmApiEndpoint: llmApiEndpoint ?? this.llmApiEndpoint,
       llmApiKey: llmApiKey ?? this.llmApiKey,
       llmModel: llmModel ?? this.llmModel,
@@ -77,6 +81,7 @@ class AppSettings {
       'fontSize': fontSize,
       'themeMode': themeMode.name,
       'aiChatPanelVisible': aiChatPanelVisible,
+      'mermaidEnabled': mermaidEnabled,
       'llmApiEndpoint': llmApiEndpoint,
       'llmApiKey': llmApiKey,
       'llmModel': llmModel,
@@ -104,6 +109,7 @@ class AppSettings {
         orElse: () => AppThemeMode.dark,
       ),
       aiChatPanelVisible: map['aiChatPanelVisible'] as bool? ?? true,
+      mermaidEnabled: map['mermaidEnabled'] as bool? ?? false,
       llmApiEndpoint: map['llmApiEndpoint'] as String? ?? '',
       llmApiKey: map['llmApiKey'] as String? ?? '',
       llmModel: map['llmModel'] as String? ?? 'gpt-3.5-turbo',
@@ -167,6 +173,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void setAiChatPanelVisible(bool visible) {
     state = state.copyWith(aiChatPanelVisible: visible);
+    _persist();
+  }
+
+  void setMermaidEnabled(bool enabled) {
+    state = state.copyWith(mermaidEnabled: enabled);
     _persist();
   }
 

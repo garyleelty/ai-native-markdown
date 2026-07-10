@@ -112,6 +112,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
       _cursorLine = lineIndex;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       if (lineIndex < _lineFocusNodes.length) {
         _lineFocusNodes[lineIndex].requestFocus();
         if (offset != null) {

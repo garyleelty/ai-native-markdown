@@ -359,7 +359,7 @@ class _ActivityIcon extends StatelessWidget {
 }
 
 /// 拖拽调整宽度的分隔条
-class _Resizer extends StatelessWidget {
+class _Resizer extends StatefulWidget {
   final VoidCallback onDragStart;
   final VoidCallback onDragEnd;
   final ValueChanged<double> onDragUpdate;
@@ -371,21 +371,39 @@ class _Resizer extends StatelessWidget {
   });
 
   @override
+  State<_Resizer> createState() => _ResizerState();
+}
+
+class _ResizerState extends State<_Resizer> {
+  bool _isHovered = false;
+  bool _isDragging = false;
+
+  @override
   Widget build(BuildContext context) {
+    final isActive = _isHovered || _isDragging;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onPanStart: (_) => onDragStart(),
-      onPanEnd: (_) => onDragEnd(),
-      onPanUpdate: (details) => onDragUpdate(details.delta.dx),
+      onPanStart: (_) {
+        setState(() => _isDragging = true);
+        widget.onDragStart();
+      },
+      onPanEnd: (_) {
+        setState(() => _isDragging = false);
+        widget.onDragEnd();
+      },
+      onPanUpdate: (details) => widget.onDragUpdate(details.delta.dx),
       child: MouseRegion(
         cursor: SystemMouseCursors.resizeColumn,
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
         child: Container(
-          width: SidebarLayout.resizerWidth,
+          width: 8,
           color: Colors.transparent,
           child: Center(
-            child: Container(
-              width: 1,
-              color: AeroColors.divider,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              width: isActive ? 3 : 1,
+              color: isActive ? AeroColors.accentBlue : AeroColors.divider,
             ),
           ),
         ),
@@ -565,6 +583,7 @@ class _NoteTreeViewState extends ConsumerState<_NoteTreeView> {
     // 如果树为空，触发加载
     if (state.noteTree.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         ref.read(sidebarProvider.notifier).loadNoteTree();
       });
     }
@@ -1077,6 +1096,7 @@ class _SearchViewState extends ConsumerState<_SearchView> {
     super.initState();
     _controller.addListener(_onTextChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _focusNode.requestFocus();
     });
   }
@@ -1428,6 +1448,7 @@ class _TagView extends ConsumerWidget {
     if (tags.isEmpty) {
       // 触发加载
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
         ref.read(sidebarProvider.notifier).showTags();
       });
       return const Center(
@@ -1831,6 +1852,7 @@ class _RecentView extends ConsumerWidget {
 
     if (state.recentNoteIds.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
         ref.read(sidebarProvider.notifier).showRecent();
       });
       return const Center(
@@ -2031,37 +2053,40 @@ class _TaskTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      child: Container(
+      child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 复选框
-            InkWell(
+            // 复选框 - 使用 GestureDetector 阻止事件冒泡到父 InkWell
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: onToggle,
-              child: Container(
-                width: 16,
-                height: 16,
-                margin: const EdgeInsets.only(top: 1),
-                decoration: BoxDecoration(
-                  color: task.isCompleted
-                      ? AeroColors.accentGreen
-                      : Colors.transparent,
-                  border: Border.all(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 1, right: 4, bottom: 4),
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
                     color: task.isCompleted
                         ? AeroColors.accentGreen
-                        : AeroColors.textMuted,
-                    width: 1,
+                        : Colors.transparent,
+                    border: Border.all(
+                      color: task.isCompleted
+                          ? AeroColors.accentGreen
+                          : AeroColors.textMuted,
+                      width: 1,
+                    ),
+                    borderRadius: BorderRadius.circular(3),
                   ),
-                  borderRadius: BorderRadius.circular(3),
+                  child: task.isCompleted
+                      ? const Icon(Icons.check,
+                          size: 12, color: Colors.white)
+                      : null,
                 ),
-                child: task.isCompleted
-                    ? const Icon(Icons.check,
-                        size: 12, color: Colors.white)
-                    : null,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
             // 任务内容
             Expanded(
               child: Column(

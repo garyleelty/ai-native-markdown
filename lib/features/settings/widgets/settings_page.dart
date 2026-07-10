@@ -223,6 +223,21 @@ class _GeneralSection extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 16),
+        _SettingsGroup(
+          title: '图表渲染',
+          children: [
+            _SettingsTile(
+              title: 'Mermaid 在线渲染',
+              subtitle: '使用 mermaid.ink 在线服务渲染 Mermaid 图表（需网络）',
+              trailing: Switch(
+                value: settings.mermaidEnabled,
+                onChanged: notifier.setMermaidEnabled,
+                activeThumbColor: AeroColors.accentPurple,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
         const _SettingsGroup(
           title: '外观',
           children: [
@@ -536,6 +551,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final state = ref.read(gitBackupProvider);
       _remoteUrlController.text = state.remoteUrl;
       _userNameController.text = state.userName;

@@ -68,11 +68,11 @@ class LocalNoteRepository implements NoteRepository {
 
   @override
   Future<NoteModel> saveNote(NoteModel note) async {
-    final now = DateTime.now();
-    final id = note.id.isEmpty ? generateId() : note.id;
+    final isNew = note.id.isEmpty;
+    final id = isNew ? generateId() : note.id;
     final updated = note.copyWith(
       id: id,
-      updatedAt: now,
+      updatedAt: isNew ? DateTime.now() : note.updatedAt,
     );
     await _noteBox.put(updated.id, updated);
     _changesController.add(NoteChangeEvent(NoteChangeType.saved, updated.id));

@@ -51,7 +51,7 @@ class SidebarLayout {
   static const double minWidth = 200.0;
   static const double maxWidth = 500.0;
   static const double defaultWidth = 270.0;
-  static const double resizerWidth = 4.0;
+  static const double resizerWidth = 8.0;
 }
 
 /// 笔记树节点

@@ -174,7 +174,7 @@ class _SlidingPanesContainerState
 
     // 2) 在下一帧执行滚动动画，避免 rebuild 导致 ScrollController 失效
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
+      if (!mounted || !_scrollController.hasClients) return;
       _scrollController.animateTo(
         targetOffset,
         duration: PaneLayout.bounceDuration,
@@ -729,6 +729,7 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
       _isEditing = true;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _focusNode.requestFocus();
       _controller.selection = TextSelection(
         baseOffset: 0,
