@@ -294,7 +294,7 @@ class _AppShellState extends ConsumerState<_AppShell>
       case NotificationType.warning:
         return AeroColors.accentOrange;
       case NotificationType.error:
-        return AeroColors.accentPurple;
+        return AeroColors.error;
     }
   }
 

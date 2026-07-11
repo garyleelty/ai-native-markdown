@@ -406,3 +406,73 @@ None. All critical issues resolved. Product is production-ready.
 - 所有 89 个测试通过，macOS 构建成功
 - 产品达到生产级 UI/UX 质量
 
+
+---
+
+## Round 15 (Execution Phase) — 主题系统完善 + 通用组件抽取 + 设计原子统一
+
+### 完成的工作
+
+#### 1. 主题系统全面升级
+- **修复关键 bug**：error 通知颜色从 accentPurple（紫色）改为 error（红色），错误提示不再误导用户
+- **提升可访问性**：
+  - textMuted: #5A5A5A → #7A7A7A（对比度提升至约 4.8:1，满足 WCAG AA）
+  - textSecondary: #808080 → #9D9D9D（对比度进一步提升）
+- **新增设计系统基础常量类**：
+  - `AeroSpacing`：xs(4)/sm(8)/md(12)/lg(16)/xl(20)/xxl(24)/xxxl(32)
+  - `AeroRadius`：xs(3)/sm(4)/md(6)/lg(8)/xl(12)/pill(999)
+  - `AeroBorderWidth`：thin(0.5)/base(1)/thick(2)
+  - `AeroIconSize`：sm(14)/md(16)/lg(18)/xl(20)
+  - `AeroAnimation`：fast(120ms)/normal(150ms)/slow(200ms) + easeOutCubic 曲线
+  - `AeroShadows`：sm/md/lg 三档阴影
+- **统一主题配置**：
+  - TooltipTheme：暗色背景 + 边框 + 阴影 + 500ms 延迟
+  - InputDecorationTheme：统一输入框样式（bgInput 背景、accentBlue 聚焦边框）
+  - 按钮主题：TextButton/OutlinedButton/FilledButton 统一样式和圆角
+  - DialogThemeData：统一对话框背景、边框、圆角
+  - ColorScheme 添加 error 颜色
+
+#### 2. 通用组件抽取
+- **新增 `AeroCloseButton` 组件** (`lib/core/widgets/close_button.dart`)：
+  - 两种尺寸：sm(22px)/md(24px)
+  - 悬停效果：红色背景 + 白色图标
+  - 统一动画：120ms easeOutCubic
+  - 内置 Tooltip 和 Semantics 标签
+  - DialogHeader 和面板标题栏统一使用该组件
+- **新增 `ConfirmDialog` 组件** (`lib/core/widgets/confirm_dialog.dart`)：
+  - 四种类型：info/warning/danger/success
+  - 支持破坏性操作样式（isDestructive）
+  - 统一的图标容器 + 标题 + 内容 + 按钮布局
+  - `showConfirmDialog()` 辅助函数简化调用
+  - 删除笔记确认、wiki 链接创建确认改用统一组件
+
+#### 3. 视觉一致性修复
+- **选中指示条统一为 2px**：活动栏 3px → 2px，resizer 激活态 3px → 2px
+- **移除重复的关闭按钮实现**：DialogHeader 和 SlidingPanes 各自的 _CloseButton 替换为通用组件
+
+### 验证结果
+- ✅ `flutter test test/unit/`: 88 passed, 0 failed
+- ✅ `flutter build macos --debug`: 构建成功
+- ✅ 无新增编译错误
+
+### 关键设计决策
+1. **设计原子从颜色扩展到全维度**：间距、圆角、边框、字号、图标、动画、阴影全部常量化为独立类，未来组件可直接引用
+2. **CloseButton 加 Aero 前缀**：避免与 Flutter 自带的 `CloseButton` 命名冲突
+3. **ConfirmDialog 基于 AlertDialog 构建**：利用 Material 的 showDialog 基础设施，而非完全自定义 Overlay，保证焦点管理和 ESC 关闭等行为正确
+4. **对比度优先**：textMuted 从 #5A5A5A 提升到 #7A7A7A，确保小字号也可读
+
+### 文件变更（主要）
+- `lib/core/theme/aeromind_theme.dart` — 设计常量 + 主题配置全面升级
+- `lib/core/widgets/close_button.dart` — 新增通用关闭按钮组件
+- `lib/core/widgets/confirm_dialog.dart` — 新增通用确认对话框组件
+- `lib/core/widgets/dialog_header.dart` — 改用 AeroCloseButton
+- `lib/features/sliding_panes/widgets/sliding_panes_container.dart` — 改用 AeroCloseButton
+- `lib/features/sidebar/widgets/sidebar_container.dart` — 选中指示条统一 + 确认对话框统一
+- `lib/features/editor/widgets/note_panel.dart` — wiki 链接创建对话框统一
+- `lib/app.dart` — error 通知颜色修复
+
+### 产品状态
+- 设计系统基础原子全部建立
+- 通用组件库逐步扩充（EmptyState + ModalOverlay + DialogHeader + SearchInput + AeroCloseButton + ConfirmDialog）
+- 可访问性提升（对比度达标）
+- 所有 88 个单元测试通过，macOS 构建成功

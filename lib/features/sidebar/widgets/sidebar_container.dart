@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../core/widgets/search_input.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/models/note_model.dart';
 import '../../../core/services/search_service.dart';
 import '../../../core/services/task_service.dart';
@@ -536,7 +537,7 @@ class _ActivityIconState extends State<_ActivityIcon> {
                     top: 9,
                     bottom: 9,
                     child: Container(
-                      width: 3,
+                      width: 2,
                       decoration: BoxDecoration(
                         color: AeroColors.accentBlue,
                         borderRadius: const BorderRadius.horizontal(
@@ -608,7 +609,7 @@ class _ResizerState extends State<_Resizer> {
           child: Center(
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
-              width: isActive ? 3 : 1,
+              width: isActive ? 2 : 1,
               color: isActive ? AeroColors.accentBlue : AeroColors.divider,
             ),
           ),
@@ -1119,41 +1120,26 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
     }
   }
 
-  void _confirmDelete() {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AeroColors.bgElevated,
-        title: const Text('确认删除',
-            style: TextStyle(color: AeroColors.textPrimary, fontSize: 14)),
-        content: Text(
-          '确定要删除「${widget.node.title}」吗？\n笔记将移到回收站，可从侧边栏恢复。',
-          style: const TextStyle(color: AeroColors.textSecondary, fontSize: 12),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消', style: TextStyle(color: AeroColors.textMuted)),
-          ),
-          TextButton(
-            onPressed: () async {
-              try {
-                await ref.read(sidebarProvider.notifier).deleteNote(widget.node.id);
-                if (ctx.mounted) Navigator.pop(ctx);
-              } catch (e) {
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(content: Text('删除失败: $e'), duration: const Duration(seconds: 2)),
-                  );
-                }
-              }
-            },
-            child: const Text('删除', style: TextStyle(color: AeroColors.error)),
-          ),
-        ],
-      ),
+  Future<void> _confirmDelete() async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: '确认删除',
+      content: '确定要删除「${widget.node.title}」吗？\n笔记将移到回收站，可从侧边栏恢复。',
+      confirmText: '删除',
+      cancelText: '取消',
+      isDestructive: true,
     );
+    if (confirmed == true) {
+      try {
+        await ref.read(sidebarProvider.notifier).deleteNote(widget.node.id);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('删除失败: $e'), duration: const Duration(seconds: 2)),
+          );
+        }
+      }
+    }
   }
 }
 

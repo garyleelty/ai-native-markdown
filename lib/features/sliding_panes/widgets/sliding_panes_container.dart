@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/close_button.dart';
 import '../../../providers/note_provider.dart';
 import '../../../providers/pane_provider.dart';
 import '../../../providers/template_provider.dart';
@@ -861,51 +862,11 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
                     ),
                   ),
           ),
-          _CloseButton(onTap: widget.onClose),
+          AeroCloseButton(
+            onPressed: widget.onClose,
+            size: AeroCloseButtonSize.sm,
+          ),
         ],
-      ),
-    );
-  }
-}
-
-class _CloseButton extends StatefulWidget {
-  final VoidCallback onTap;
-
-  const _CloseButton({required this.onTap});
-
-  @override
-  State<_CloseButton> createState() => _CloseButtonState();
-}
-
-class _CloseButtonState extends State<_CloseButton> {
-  bool _isHovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovering = true),
-      onExit: (_) => setState(() => _isHovering = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOutCubic,
-          width: 22,
-          height: 22,
-          decoration: BoxDecoration(
-            color: _isHovering
-                ? AeroColors.accentRed.withValues(alpha: 0.85)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Icon(
-            Icons.close,
-            size: 14,
-            color: _isHovering
-                ? Colors.white
-                : AeroColors.textMuted,
-          ),
-        ),
       ),
     );
   }

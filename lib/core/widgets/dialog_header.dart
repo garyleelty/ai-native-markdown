@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/aeromind_theme.dart';
+import 'close_button.dart';
 
 class DialogHeader extends StatelessWidget {
   final IconData icon;
@@ -65,51 +66,8 @@ class DialogHeader extends StatelessWidget {
           ],
           const Spacer(),
           if (onClose != null)
-            _CloseButton(onPressed: onClose!),
+            AeroCloseButton(onPressed: onClose!),
         ],
-      ),
-    );
-  }
-}
-
-class _CloseButton extends StatefulWidget {
-  final VoidCallback onPressed;
-
-  const _CloseButton({required this.onPressed});
-
-  @override
-  State<_CloseButton> createState() => _CloseButtonState();
-}
-
-class _CloseButtonState extends State<_CloseButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-            color: _isHovered
-                ? AeroColors.accentRed.withValues(alpha: 0.85)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Icon(
-            Icons.close,
-            size: 16,
-            color: _isHovered
-                ? Colors.white
-                : AeroColors.textSecondary,
-          ),
-        ),
       ),
     );
   }

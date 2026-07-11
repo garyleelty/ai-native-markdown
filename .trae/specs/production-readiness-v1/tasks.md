@@ -750,3 +750,45 @@ Task 5 (插件系统) ──────┼── Task 7 (Git备份) ───�
   - `programmatic` TR-18.3: 所有 89 个测试通过
 - **Notes**: 关键文件：各 overlay widget 文件
 
+---
+
+## [x] Task 19: 主题系统与设计原子完善
+- **Priority**: high
+- **Depends On**: Task 18
+- **Description**:
+  - 修复 error 通知颜色错误（紫色→红色）
+  - 提升 textMuted 对比度（#5A5A5A → #7A7A7A），达到 WCAG AA 标准
+  - 提升 textSecondary 对比度（#808080 → #9D9D9D）
+  - 新增设计系统基础常量类：AeroSpacing、AeroRadius、AeroBorderWidth、AeroIconSize、AeroAnimation、AeroShadows
+  - 统一 Tooltip 主题（暗色背景、边框、阴影）
+  - 统一输入框主题（InputDecorationTheme）
+  - 统一按钮主题（TextButton/OutlinedButton/FilledButton）
+  - 统一对话框主题（DialogThemeData）
+  - ColorScheme 添加 error 颜色
+- **Acceptance Criteria Addressed**: 设计系统基础原子统一、可访问性提升
+- **Test Requirements**:
+  - `programmatic` TR-19.1: 所有 88 个单元测试通过
+  - `programmatic` TR-19.2: macOS Debug 构建成功
+  - `human-judgment` TR-19.3: Tooltip 样式统一
+- **Notes**: 关键文件：lib/core/theme/aeromind_theme.dart、lib/app.dart
+
+---
+
+## [x] Task 20: 通用组件抽取与对话框统一
+- **Priority**: high
+- **Depends On**: Task 19
+- **Description**:
+  - 抽取通用 AeroCloseButton 组件（两种尺寸、悬停效果、Tooltip、语义标签）
+  - DialogHeader 和面板标题栏统一使用 AeroCloseButton
+  - 新增 ConfirmDialog 组件和 showConfirmDialog 辅助函数
+  - 支持 info/warning/danger/success 四种对话框类型
+  - 支持破坏性操作样式（红色确认按钮）
+  - 删除笔记确认和 wiki 链接创建确认改用统一组件
+  - 统一选中指示条宽度为 2px（活动栏、resizer）
+- **Acceptance Criteria Addressed**: 组件复用、视觉一致性
+- **Test Requirements**:
+  - `programmatic` TR-20.1: 所有 88 个单元测试通过
+  - `programmatic` TR-20.2: macOS Debug 构建成功
+  - `human-judgment` TR-20.3: 关闭按钮样式统一
+- **Notes**: 关键文件：lib/core/widgets/close_button.dart、lib/core/widgets/confirm_dialog.dart
+

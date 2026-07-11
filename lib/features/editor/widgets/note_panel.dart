@@ -7,6 +7,7 @@ import '../../../core/models/predictive_link.dart';
 import '../../../core/services/file_service.dart';
 import '../../../core/services/version_service.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../../providers/ai_provider.dart';
 import '../../../providers/note_provider.dart';
 import '../../../providers/sidebar_provider.dart';
@@ -1282,27 +1283,13 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     }
 
     if (!mounted) return;
-    final create = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AeroColors.bgElevated,
-        title: Text('创建笔记「$linkText」?'),
-        content: const Text('未找到该笔记，是否创建新笔记？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AeroColors.accentBlue,
-              foregroundColor: AeroColors.bgDeep,
-            ),
-            child: const Text('创建'),
-          ),
-        ],
-      ),
+    final create = await showConfirmDialog(
+      context,
+      title: '创建笔记「$linkText」?',
+      content: '未找到该笔记，是否创建新笔记？',
+      confirmText: '创建',
+      cancelText: '取消',
+      type: ConfirmDialogType.info,
     );
 
     if (create == true && mounted) {
