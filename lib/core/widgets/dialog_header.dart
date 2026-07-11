@@ -26,18 +26,18 @@ class DialogHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: height,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.lg),
       decoration: const BoxDecoration(
         color: AeroColors.bgElevated,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AeroRadius.xl)),
         border: Border(
-          bottom: BorderSide(color: AeroColors.divider, width: 0.5),
+          bottom: BorderSide(color: AeroColors.divider, width: AeroBorderWidth.thin),
         ),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: iconColor),
-          const SizedBox(width: 8),
+          Icon(icon, size: AeroIconSize.lg, color: iconColor),
+          const SizedBox(width: AeroSpacing.sm),
           Text(
             title,
             style: const TextStyle(
@@ -47,12 +47,15 @@ class DialogHeader extends StatelessWidget {
             ),
           ),
           if (badgeText != null) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: AeroSpacing.sm),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AeroSpacing.sm - 2,
+                vertical: AeroSpacing.xs / 2,
+              ),
               decoration: BoxDecoration(
                 color: (badgeColor ?? iconColor).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(AeroRadius.sm),
               ),
               child: Text(
                 badgeText!,

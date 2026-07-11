@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/aeromind_theme.dart';
+import 'core/widgets/confirm_dialog.dart';
+import 'core/widgets/input_dialog.dart';
 import 'core/models/note_model.dart';
 import 'core/plugin/base_plugin.dart';
 import 'core/plugin/plugin_registry.dart';
@@ -745,45 +747,17 @@ class _AppShellState extends ConsumerState<_AppShell>
     final note = await repo.getNote(noteId);
     if (note == null || !mounted) return;
 
-    final controller = TextEditingController(text: note.title);
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AeroColors.bgElevated,
-        title: const Text('重命名笔记',
-            style: TextStyle(color: AeroColors.textPrimary, fontSize: 14)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(color: AeroColors.textPrimary, fontSize: 13),
-          decoration: const InputDecoration(
-            hintText: '新标题...',
-            hintStyle: TextStyle(color: AeroColors.textMuted),
-            isDense: true,
-          ),
-          onSubmitted: (_) => _doRename(ctx, noteId, controller.text),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消', style: TextStyle(color: AeroColors.textMuted)),
-          ),
-          TextButton(
-            onPressed: () => _doRename(ctx, noteId, controller.text),
-            child: const Text('确定', style: TextStyle(color: AeroColors.accentBlue)),
-          ),
-        ],
-      ),
-    ).then((_) => controller.dispose());
-  }
-
-  Future<void> _doRename(BuildContext ctx, String noteId, String newTitle) async {
-    if (newTitle.trim().isEmpty) {
-      Navigator.pop(ctx);
-      return;
+    final newTitle = await showInputDialog(
+      context,
+      title: '重命名笔记',
+      initialValue: note.title,
+      hintText: '新标题...',
+      confirmText: '确定',
+      icon: Icons.edit,
+    );
+    if (newTitle != null && newTitle.trim().isNotEmpty) {
+      await ref.read(sidebarProvider.notifier).renameNote(noteId, newTitle.trim());
     }
-    await ref.read(sidebarProvider.notifier).renameNote(noteId, newTitle.trim());
-    if (ctx.mounted) Navigator.pop(ctx);
   }
 
   /// 显示删除确认对话框
@@ -792,31 +766,17 @@ class _AppShellState extends ConsumerState<_AppShell>
     final note = await repo.getNote(noteId);
     if (note == null || !mounted) return;
 
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AeroColors.bgElevated,
-        title: const Text('确认删除',
-            style: TextStyle(color: AeroColors.textPrimary, fontSize: 14)),
-        content: Text(
-          '确定要删除「${note.title}」吗？\n笔记将移到回收站，可从侧边栏恢复。',
-          style: const TextStyle(color: AeroColors.textSecondary, fontSize: 12),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消', style: TextStyle(color: AeroColors.textMuted)),
-          ),
-          TextButton(
-            onPressed: () async {
-              await ref.read(sidebarProvider.notifier).deleteNote(noteId);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('删除', style: TextStyle(color: AeroColors.error)),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: '确认删除',
+      content: '确定要删除「${note.title}」吗？\n笔记将移到回收站，可从侧边栏恢复。',
+      confirmText: '删除',
+      type: ConfirmDialogType.danger,
+      isDestructive: true,
     );
+    if (confirmed == true) {
+      await ref.read(sidebarProvider.notifier).deleteNote(noteId);
+    }
   }
 
   /// 切换知识图谱可见性

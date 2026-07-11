@@ -1192,21 +1192,26 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                   expands: true,
                   cursorColor: AeroColors.primary,
                   cursorWidth: 1.5,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontSize: ref.watch(settingsProvider.select((s) => s.fontSize)),
-                        height: 1.7,
+                  style: Theme.of(context)
+                      .extension<AeroTextTheme>()!
+                      .codeMedium
+                      .copyWith(
+                        fontSize:
+                            ref.watch(settingsProvider.select((s) => s.fontSize)),
+                        height: 1.6,
                       ),
                   decoration: InputDecoration(
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.all(20),
                     hintText: '开始书写...',
                     hintStyle: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(
+                        .extension<AeroTextTheme>()!
+                        .codeMedium
+                        .copyWith(
                           color: AeroColors.textMuted,
-                          fontSize: ref.watch(settingsProvider.select((s) => s.fontSize)),
-                          height: 1.7,
+                          fontSize: ref
+                              .watch(settingsProvider.select((s) => s.fontSize)),
+                          height: 1.6,
                         ),
                   ),
                   onChanged: _onTextChanged,

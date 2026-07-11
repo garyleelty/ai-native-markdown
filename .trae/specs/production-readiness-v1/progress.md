@@ -476,3 +476,94 @@ None. All critical issues resolved. Product is production-ready.
 - 通用组件库逐步扩充（EmptyState + ModalOverlay + DialogHeader + SearchInput + AeroCloseButton + ConfirmDialog）
 - 可访问性提升（对比度达标）
 - 所有 88 个单元测试通过，macOS 构建成功
+
+---
+
+## Round 16 (Execution Phase) — 设计系统深度统一 + 字体系统 + 组件库完善
+
+### 完成的工作
+
+#### 1. 主题系统硬编码清理
+- paneDecoration 改用 AeroRadius.md + AeroBorderWidth.thin + AeroShadows.sm
+- stackedTitleDecoration 改用 AeroBorderWidth.thin
+- scrollbarTheme 改用 AeroSpacing.sm + AeroRadius.xs
+- 消除主题层的硬编码数值，全部使用设计系统原子常量
+
+#### 2. 核心组件设计常量全面应用
+- **EmptyState**：间距改用 AeroSpacing.xxxl/xxl/lg/xs，圆角改用 AeroRadius.xl
+- **SearchInput**：图标尺寸改用 AeroIconSize.md/sm，边框改用 AeroBorderWidth.thin/base，圆角改用 AeroRadius.md，间距改用 AeroSpacing.md/sm/xs
+- **DialogHeader**：间距改用 AeroSpacing.lg/sm/xs，圆角改用 AeroRadius.xl，边框改用 AeroBorderWidth.thin，图标尺寸改用 AeroIconSize.lg
+
+#### 3. 新增 InputDialog 通用输入对话框组件
+- 位置：`lib/core/widgets/input_dialog.dart`
+- 功能：带图标的标题 + 输入框 + 验证 + 确认/取消按钮
+- 支持 validator 验证，错误提示
+- 支持自定义图标、颜色、键盘类型
+- 与 ConfirmDialog 视觉风格完全统一（相同的内边距、标题布局、按钮样式）
+- 提供 showInputDialog() 辅助函数简化调用
+
+#### 4. 字体系统完善：新增 AeroTextTheme 主题扩展
+- 新增 `AeroTextTheme` 类继承 `ThemeExtension`
+- 三等代码字体样式：codeLarge(16px) / codeMedium(14px) / codeSmall(12px)
+- 统一使用等宽字体 fontFamily: 'monospace'
+- 通过 Theme.of(context).extension<AeroTextTheme>()! 获取
+- 支持主题间的 lerp 过渡动画
+
+#### 5. 源码模式编辑器使用等宽字体
+- 编辑器 TextField 样式从 bodyMedium 改为 codeMedium
+- 行高从 1.7 调整为 1.6（更适合代码字体）
+- hint 文本同步使用等宽字体
+- 字体大小仍从 settingsProvider 读取，支持用户自定义
+
+#### 6. 对话框系统全面统一（6 处）
+- **app.dart**:
+  - 删除确认 → ConfirmDialog (danger, isDestructive)
+  - 重命名笔记 → InputDialog (edit 图标)
+- **trash_panel.dart**:
+  - 彻底删除 → ConfirmDialog (danger, isDestructive)
+  - 清空回收站 → ConfirmDialog (danger, isDestructive)
+- **sidebar_container.dart**:
+  - 新建笔记 → InputDialog (note_add 图标)
+  - 重命名笔记 → InputDialog (edit 图标)
+- 移除 3 个重复的对话框 Widget 类（_NewNoteDialog, _RenameNoteDialog 等）
+
+#### 7. 空状态组件全面统一（5 处）
+- 笔记树空状态 → EmptyState (article_outlined 图标)
+- 搜索空状态 → EmptyState (search_off 图标)
+- 标签空状态 → EmptyState (label_outline 图标)
+- 回收站空状态 → EmptyState (delete_outline 图标)
+- 版本历史空状态 → EmptyState (history 图标)
+- 所有空状态视觉风格完全一致
+
+### 验证结果
+- ✅ `flutter test`: 89 passed, 0 failed
+- ✅ `flutter analyze lib/`: 0 errors, 1 warning (pre-existing), 5 info
+- ✅ `flutter build macos --debug`: 构建成功
+
+### 关键设计决策
+1. **ThemeExtension 而非全局静态**：代码字体使用 ThemeExtension 而非全局静态类，支持未来主题切换和动画过渡
+2. **InputDialog 与 ConfirmDialog 视觉对齐**：相同的标题布局、内边距、按钮样式，用户感知一致
+3. **等宽字体仅用于源码模式**：阅读模式保持比例字体，源码模式使用等宽字体，兼顾阅读体验和代码编辑专业性
+4. **渐进式统一策略**：先统一核心组件和高频对话框，再逐步推广到全项目，避免一次性改动过大
+
+### 新增文件
+- `lib/core/widgets/input_dialog.dart` — 通用输入对话框组件
+
+### 主要修改文件
+- `lib/core/theme/aeromind_theme.dart` — AeroTextTheme + 主题硬编码清理
+- `lib/core/widgets/empty_state.dart` — 设计常量应用
+- `lib/core/widgets/search_input.dart` — 设计常量应用
+- `lib/core/widgets/dialog_header.dart` — 设计常量应用
+- `lib/features/editor/widgets/note_panel.dart` — 源码模式等宽字体
+- `lib/app.dart` — 对话框统一
+- `lib/features/sidebar/widgets/trash_panel.dart` — 对话框 + 空状态统一
+- `lib/features/sidebar/widgets/sidebar_container.dart` — 对话框 + 空状态统一
+- `lib/features/editor/widgets/version_history_panel.dart` — 空状态统一
+
+### 产品状态
+- 设计系统原子（间距/圆角/边框/图标/动画/阴影）从"定义了但没用"升级为"核心组件全面应用"
+- 对话框组件库完善：ConfirmDialog + InputDialog 覆盖绝大多数场景
+- 空状态组件全面统一，5 处零散实现全部替换
+- 源码编辑器使用等宽字体，更符合 Markdown 编辑器专业定位
+- 89 个测试全部通过，macOS 构建成功
+

@@ -136,6 +136,45 @@ class AeroShadows {
       ];
 }
 
+/// 扩展文本主题：代码等宽字体样式
+class AeroTextTheme extends ThemeExtension<AeroTextTheme> {
+  final TextStyle codeLarge;
+  final TextStyle codeMedium;
+  final TextStyle codeSmall;
+
+  const AeroTextTheme({
+    required this.codeLarge,
+    required this.codeMedium,
+    required this.codeSmall,
+  });
+
+  @override
+  ThemeExtension<AeroTextTheme> copyWith({
+    TextStyle? codeLarge,
+    TextStyle? codeMedium,
+    TextStyle? codeSmall,
+  }) {
+    return AeroTextTheme(
+      codeLarge: codeLarge ?? this.codeLarge,
+      codeMedium: codeMedium ?? this.codeMedium,
+      codeSmall: codeSmall ?? this.codeSmall,
+    );
+  }
+
+  @override
+  ThemeExtension<AeroTextTheme> lerp(
+    ThemeExtension<AeroTextTheme>? other,
+    double t,
+  ) {
+    if (other is! AeroTextTheme) return this;
+    return AeroTextTheme(
+      codeLarge: TextStyle.lerp(codeLarge, other.codeLarge, t)!,
+      codeMedium: TextStyle.lerp(codeMedium, other.codeMedium, t)!,
+      codeSmall: TextStyle.lerp(codeSmall, other.codeSmall, t)!,
+    );
+  }
+}
+
 /// AeroMind 核心主题构建
 class AeroTheme {
   AeroTheme._();
@@ -178,6 +217,30 @@ class AeroTheme {
             letterSpacing: 0.5,
           ),
         ),
+        // 扩展：代码字体样式（等宽字体）
+        // 使用方式：Theme.of(context).extension<AeroTextTheme>()!.codeMedium
+        extensions: const [
+          AeroTextTheme(
+            codeLarge: TextStyle(
+              fontSize: 16,
+              fontFamily: 'monospace',
+              height: 1.6,
+              color: AeroColors.textPrimary,
+            ),
+            codeMedium: TextStyle(
+              fontSize: 14,
+              fontFamily: 'monospace',
+              height: 1.6,
+              color: AeroColors.textPrimary,
+            ),
+            codeSmall: TextStyle(
+              fontSize: 12,
+              fontFamily: 'monospace',
+              height: 1.5,
+              color: AeroColors.textSecondary,
+            ),
+          ),
+        ],
         dividerTheme: const DividerThemeData(
           color: AeroColors.divider,
           thickness: 1,
@@ -281,11 +344,11 @@ class AeroTheme {
           thumbColor: WidgetStateProperty.all(AeroColors.bgHover),
           thickness: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.hovered)) {
-              return 8;
+              return AeroSpacing.sm;
             }
             return 6;
           }),
-          radius: const Radius.circular(3),
+          radius: Radius.circular(AeroRadius.xs),
         ),
         splashFactory: InkRipple.splashFactory,
         snackBarTheme: const SnackBarThemeData(
@@ -314,23 +377,17 @@ class AeroTheme {
   /// 面板卡片装饰 (含精细边框 + 阴影)
   static BoxDecoration get paneDecoration => BoxDecoration(
         color: AeroColors.bgSurface,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AeroColors.border, width: 0.5),
-        boxShadow: const [
-          BoxShadow(
-            color: AeroColors.shadow,
-            blurRadius: 12,
-            offset: Offset(2, 0),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(AeroRadius.md),
+        border: Border.all(color: AeroColors.border, width: AeroBorderWidth.thin),
+        boxShadow: AeroShadows.sm,
       );
 
   /// 堆叠标题栏装饰
   static BoxDecoration get stackedTitleDecoration => const BoxDecoration(
         color: AeroColors.bgElevated,
         border: Border(
-          right: BorderSide(color: AeroColors.border, width: 0.5),
-          bottom: BorderSide(color: AeroColors.border, width: 0.5),
+          right: BorderSide(color: AeroColors.border, width: AeroBorderWidth.thin),
+          bottom: BorderSide(color: AeroColors.border, width: AeroBorderWidth.thin),
         ),
       );
 }

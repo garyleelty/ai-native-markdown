@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/services/version_service.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/empty_state.dart';
 
 /// 版本历史面板
 ///
@@ -115,7 +116,11 @@ class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
                 }
                 final versions = snapshot.data ?? const [];
                 if (versions.isEmpty) {
-                  return _buildEmptyState('暂无版本历史');
+                  return const EmptyState(
+                    icon: Icons.history,
+                    title: '暂无历史版本',
+                    subtitle: '保存笔记后会自动生成历史快照',
+                  );
                 }
                 return _buildTimeline(versions);
               },

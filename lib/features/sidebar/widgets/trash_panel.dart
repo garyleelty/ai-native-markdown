@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../../core/models/note_model.dart';
 import '../../../core/services/trash_service.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/confirm_dialog.dart';
+import '../../../core/widgets/empty_state.dart';
 import '../../../providers/note_provider.dart';
 
 /// 回收站版本号 — 在恢复/删除后递增以触发 FutureBuilder 重建
@@ -82,29 +84,13 @@ class TrashPanel extends ConsumerWidget {
     WidgetRef ref,
     String trashId,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AeroColors.bgElevated,
-        title: const Text(
-          '彻底删除',
-          style: TextStyle(color: AeroColors.textPrimary, fontSize: 16),
-        ),
-        content: const Text(
-          '此操作不可撤销，确定要彻底删除该笔记吗？',
-          style: TextStyle(color: AeroColors.textSecondary, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: AeroColors.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('删除', style: TextStyle(color: AeroColors.accentOrange)),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: '彻底删除',
+      content: '此操作不可撤销，确定要彻底删除该笔记吗？',
+      confirmText: '删除',
+      type: ConfirmDialogType.danger,
+      isDestructive: true,
     );
     if (confirmed == true) {
       try {
@@ -122,29 +108,13 @@ class TrashPanel extends ConsumerWidget {
   }
 
   Future<void> _emptyTrash(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AeroColors.bgElevated,
-        title: const Text(
-          '清空回收站',
-          style: TextStyle(color: AeroColors.textPrimary, fontSize: 16),
-        ),
-        content: const Text(
-          '将永久删除回收站中的所有笔记，此操作不可撤销。',
-          style: TextStyle(color: AeroColors.textSecondary, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: AeroColors.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('清空', style: TextStyle(color: AeroColors.accentOrange)),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: '清空回收站',
+      content: '将永久删除回收站中的所有笔记，此操作不可撤销。',
+      confirmText: '清空',
+      type: ConfirmDialogType.danger,
+      isDestructive: true,
     );
     if (confirmed == true) {
       try {
@@ -196,7 +166,11 @@ class TrashPanel extends ConsumerWidget {
                 }
                 final notes = snapshot.data ?? [];
                 if (notes.isEmpty) {
-                  return _buildEmptyState('回收站为空', Icons.delete_outline);
+                  return const EmptyState(
+                    icon: Icons.delete_outline,
+                    title: '回收站为空',
+                    subtitle: '删除的笔记会出现在这里',
+                  );
                 }
                 return ListView.separated(
                   padding: const EdgeInsets.symmetric(vertical: 4),

@@ -792,3 +792,30 @@ Task 5 (插件系统) ──────┼── Task 7 (Git备份) ───�
   - `human-judgment` TR-20.3: 关闭按钮样式统一
 - **Notes**: 关键文件：lib/core/widgets/close_button.dart、lib/core/widgets/confirm_dialog.dart
 
+---
+
+## [x] Task 21: 设计系统深度统一 + 字体系统 + 对话框组件库完善
+- **Priority**: high
+- **Depends On**: Task 20
+- **Description**:
+  - 主题系统硬编码清理：paneDecoration/stackedTitleDecoration/scrollbarTheme 改用 AeroRadius/AeroBorderWidth/AeroSpacing 常量
+  - 核心组件设计常量应用：EmptyState、SearchInput、DialogHeader 全面使用设计系统原子
+  - 新增 InputDialog 通用输入对话框组件（带图标、验证、统一样式）
+  - 新增 AeroTextTheme 主题扩展：codeLarge/codeMedium/codeSmall 三等代码字体样式
+  - 源码模式编辑器使用等宽字体（通过主题扩展获取）
+  - 对话框系统统一：6 处零散 AlertDialog 改用 ConfirmDialog/InputDialog
+    - app.dart：删除确认 → ConfirmDialog (danger)，重命名 → InputDialog
+    - trash_panel.dart：彻底删除、清空回收站 → ConfirmDialog (danger)
+    - sidebar_container.dart：新建笔记、重命名 → InputDialog
+  - 空状态组件统一：5 处零散实现改用 EmptyState
+    - 笔记树空状态、搜索空状态、标签空状态
+    - 回收站空状态、版本历史空状态
+- **Acceptance Criteria Addressed**: 设计系统一致性、组件复用率、编辑器字体专业性
+- **Test Requirements**:
+  - `programmatic` TR-21.1: 所有 89 个测试通过
+  - `programmatic` TR-21.2: macOS Debug 构建成功
+  - `programmatic` TR-21.3: flutter analyze 0 errors
+  - `human-judgment` TR-21.4: 所有对话框视觉风格统一
+  - `human-judgment` TR-21.5: 源码模式编辑器使用等宽字体
+- **Notes**: 关键文件：lib/core/theme/aeromind_theme.dart、lib/core/widgets/input_dialog.dart、lib/core/widgets/empty_state.dart、lib/core/widgets/search_input.dart、lib/core/widgets/dialog_header.dart
+

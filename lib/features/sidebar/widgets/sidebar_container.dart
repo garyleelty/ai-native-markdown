@@ -16,8 +16,10 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/search_input.dart';
 import '../../../core/widgets/confirm_dialog.dart';
+import '../../../core/widgets/input_dialog.dart';
 import '../../../core/models/note_model.dart';
 import '../../../core/services/search_service.dart';
 import '../../../core/services/task_service.dart';
@@ -193,13 +195,17 @@ class _SidebarContentState extends ConsumerState<_SidebarContent> {
     );
   }
 
-  void _showNewNoteFromHeader(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => _NewNoteDialog(
-        onSubmit: (title) => _createNote(ctx, title),
-      ),
+  void _showNewNoteFromHeader(BuildContext context) async {
+    final title = await showInputDialog(
+      context,
+      title: '新建笔记',
+      hintText: '输入笔记标题...',
+      confirmText: '创建',
+      icon: Icons.note_add,
     );
+    if (title != null) {
+      _createNote(context, title);
+    }
   }
 
   Future<void> _createNote(BuildContext ctx, String title) async {
@@ -224,7 +230,6 @@ class _SidebarContentState extends ConsumerState<_SidebarContent> {
       final saved = await repo.saveNote(note);
       await ref.read(sidebarProvider.notifier).loadNoteTree();
       if (ctx.mounted) {
-        Navigator.pop(ctx);
         ref.read(paneStackProvider.notifier).openPane(saved.id, saved.title);
       }
     } catch (e) {
@@ -619,64 +624,6 @@ class _ResizerState extends State<_Resizer> {
   }
 }
 
-class _NewNoteDialog extends StatefulWidget {
-  final void Function(String title) onSubmit;
-
-  const _NewNoteDialog({required this.onSubmit});
-
-  @override
-  State<_NewNoteDialog> createState() => _NewNoteDialogState();
-}
-
-class _NewNoteDialogState extends State<_NewNoteDialog> {
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    widget.onSubmit(_controller.text);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: AeroColors.bgElevated,
-      title: const Text('新建笔记', style: TextStyle(color: AeroColors.textPrimary, fontSize: 14)),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        style: const TextStyle(color: AeroColors.textPrimary, fontSize: 13),
-        decoration: const InputDecoration(
-          hintText: '输入笔记标题...',
-          hintStyle: TextStyle(color: AeroColors.textMuted),
-          isDense: true,
-        ),
-        onSubmitted: (_) => _submit(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消', style: TextStyle(color: AeroColors.textMuted)),
-        ),
-        TextButton(
-          onPressed: _submit,
-          child: const Text('创建', style: TextStyle(color: AeroColors.accentBlue)),
-        ),
-      ],
-    );
-  }
-}
-
 /// 笔记树视图
 class _NoteTreeView extends ConsumerStatefulWidget {
   final void Function(String noteId, String title)? onNoteSelected;
@@ -708,20 +655,10 @@ class _NoteTreeViewState extends ConsumerState<_NoteTreeView> {
         // ── 笔记列表 ──
         Expanded(
           child: state.noteTree.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.article_outlined,
-                          size: 32, color: AeroColors.textMuted),
-                      SizedBox(height: 8),
-                      Text(
-                        '暂无笔记',
-                        style: TextStyle(
-                            color: AeroColors.textMuted, fontSize: 12),
-                      ),
-                    ],
-                  ),
+              ? const EmptyState(
+                  icon: Icons.article_outlined,
+                  title: '暂无笔记',
+                  subtitle: '点击上方按钮创建第一篇笔记',
                 )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1052,29 +989,30 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
     }
   }
 
-  void _showRenameDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => _RenameNoteDialog(
-        initialTitle: widget.node.title,
-        onSubmit: (newTitle) => _doRename(ctx, newTitle),
-      ),
+  void _showRenameDialog() async {
+    final newTitle = await showInputDialog(
+      context,
+      title: '重命名笔记',
+      initialValue: widget.node.title,
+      hintText: '新标题...',
+      confirmText: '确定',
+      icon: Icons.edit,
     );
+    if (newTitle != null) {
+      _doRename(context, newTitle);
+    }
   }
 
   Future<void> _doRename(BuildContext ctx, String newTitle) async {
     if (newTitle.trim().isEmpty || newTitle.trim() == widget.node.title) {
-      Navigator.pop(ctx);
       return;
     }
     try {
       await ref
           .read(sidebarProvider.notifier)
           .renameNote(widget.node.id, newTitle.trim());
-      if (ctx.mounted) Navigator.pop(ctx);
     } catch (e) {
       if (ctx.mounted) {
-        Navigator.pop(ctx);
         ScaffoldMessenger.of(ctx).showSnackBar(
           SnackBar(content: Text('重命名失败: $e'), duration: const Duration(seconds: 2)),
         );
@@ -1140,69 +1078,6 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
         }
       }
     }
-  }
-}
-
-class _RenameNoteDialog extends StatefulWidget {
-  final String initialTitle;
-  final void Function(String newTitle) onSubmit;
-
-  const _RenameNoteDialog({
-    required this.initialTitle,
-    required this.onSubmit,
-  });
-
-  @override
-  State<_RenameNoteDialog> createState() => _RenameNoteDialogState();
-}
-
-class _RenameNoteDialogState extends State<_RenameNoteDialog> {
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialTitle);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    widget.onSubmit(_controller.text);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: AeroColors.bgElevated,
-      title: const Text('重命名笔记',
-          style: TextStyle(color: AeroColors.textPrimary, fontSize: 14)),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        style: const TextStyle(color: AeroColors.textPrimary, fontSize: 13),
-        decoration: const InputDecoration(
-          hintText: '新标题...',
-          hintStyle: TextStyle(color: AeroColors.textMuted),
-          isDense: true,
-        ),
-        onSubmitted: (_) => _submit(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消', style: TextStyle(color: AeroColors.textMuted)),
-        ),
-        TextButton(
-          onPressed: _submit,
-          child: const Text('确定', style: TextStyle(color: AeroColors.accentBlue)),
-        ),
-      ],
-    );
   }
 }
 
@@ -1325,20 +1200,10 @@ class _SearchViewState extends ConsumerState<_SearchView> {
           child: state.searchQuery.isNotEmpty &&
                   !state.isSearching &&
                   state.searchResults.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.search_off,
-                          size: 32, color: AeroColors.textMuted),
-                      SizedBox(height: 8),
-                      Text(
-                        '未找到匹配的笔记',
-                        style: TextStyle(
-                            color: AeroColors.textMuted, fontSize: 12),
-                      ),
-                    ],
-                  ),
+              ? const EmptyState(
+                  icon: Icons.search_off,
+                  title: '未找到匹配的笔记',
+                  subtitle: '试试其他关键词',
                 )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -1546,9 +1411,10 @@ class _TagView extends ConsumerWidget {
         if (!context.mounted) return;
         ref.read(sidebarProvider.notifier).showTags();
       });
-      return const Center(
-        child: Text('暂无标签',
-            style: TextStyle(color: AeroColors.textMuted, fontSize: 12)),
+      return const EmptyState(
+        icon: Icons.label_outline,
+        title: '暂无标签',
+        subtitle: '在笔记中使用 #标签 来添加',
       );
     }
 

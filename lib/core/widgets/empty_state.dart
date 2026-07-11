@@ -15,7 +15,7 @@ class EmptyState extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.action,
-    this.iconSize = 28,
+    this.iconSize = AeroIconSize.xl + 8,
     this.iconColor,
   });
 
@@ -24,16 +24,19 @@ class EmptyState extends StatelessWidget {
     final color = iconColor ?? AeroColors.textMuted;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AeroSpacing.xxxl,
+          vertical: AeroSpacing.xxl,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 64,
-              height: 64,
+              width: AeroSpacing.xxxl * 2,
+              height: AeroSpacing.xxxl * 2,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AeroRadius.xl),
               ),
               child: Icon(
                 icon,
@@ -41,7 +44,7 @@ class EmptyState extends StatelessWidget {
                 color: color,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AeroSpacing.lg),
             Text(
               title,
               style: TextStyle(
@@ -52,7 +55,7 @@ class EmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             if (subtitle != null) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: AeroSpacing.xs + 2),
               Text(
                 subtitle!,
                 style: const TextStyle(
@@ -64,7 +67,7 @@ class EmptyState extends StatelessWidget {
               ),
             ],
             if (action != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: AeroSpacing.lg),
               action!,
             ],
           ],

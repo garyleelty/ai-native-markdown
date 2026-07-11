@@ -92,41 +92,41 @@ class _SearchInputState extends State<SearchInput> {
           hintStyle: const TextStyle(color: AeroColors.textMuted),
           prefixIcon: Icon(
             widget.prefixIcon,
-            size: 16,
+            size: AeroIconSize.md,
             color: _isFocused ? AeroColors.accentBlue : AeroColors.textMuted,
           ),
           suffixIcon: widget.showClearButton && _hasText
               ? IconButton(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.close,
-                    size: 14,
+                    size: AeroIconSize.sm,
                     color: AeroColors.textMuted,
                   ),
                   onPressed: _clear,
                   splashRadius: 12,
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(AeroSpacing.xs),
                   constraints: const BoxConstraints(),
                 )
               : null,
           filled: true,
           fillColor: AeroColors.bgDeep,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 8,
+            horizontal: AeroSpacing.md,
+            vertical: AeroSpacing.sm,
           ),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(AeroRadius.md),
             borderSide: const BorderSide(color: AeroColors.border),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(AeroRadius.md),
             borderSide:
-                const BorderSide(color: AeroColors.border, width: 0.5),
+                const BorderSide(color: AeroColors.border, width: AeroBorderWidth.thin),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(AeroRadius.md),
             borderSide:
-                const BorderSide(color: AeroColors.accentBlue, width: 1),
+                const BorderSide(color: AeroColors.accentBlue, width: AeroBorderWidth.base),
           ),
           isDense: true,
         ),
