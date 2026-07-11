@@ -20,6 +20,7 @@ import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/search_input.dart';
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/input_dialog.dart';
+import '../../../core/widgets/icon_text_button.dart';
 import '../../../core/models/note_model.dart';
 import '../../../core/services/search_service.dart';
 import '../../../core/services/task_service.dart';
@@ -696,7 +697,7 @@ class _OpenFileButtons extends ConsumerWidget {
       child: Row(
         children: [
           Expanded(
-            child: _SidebarActionButton(
+            child: IconTextButton(
               icon: Icons.file_open_outlined,
               label: '打开文件',
               tooltip: '直接打开本地 .md 文件',
@@ -705,7 +706,7 @@ class _OpenFileButtons extends ConsumerWidget {
           ),
           const SizedBox(width: 4),
           Expanded(
-            child: _SidebarActionButton(
+            child: IconTextButton(
               icon: Icons.note_add_outlined,
               label: '导入文件',
               tooltip: '导入本地 .md 文件到笔记库',
@@ -738,54 +739,6 @@ class _OpenFileButtons extends ConsumerWidget {
         );
       }
     }
-  }
-}
-
-/// 侧边栏操作按钮
-class _SidebarActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _SidebarActionButton({
-    required this.icon,
-    required this.label,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        child: Container(
-          height: 28,
-          decoration: BoxDecoration(
-            color: AeroColors.bgDeep,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: AeroColors.border, width: 0.5),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 14, color: AeroColors.accentBlue),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: AeroColors.textPrimary,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 

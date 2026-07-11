@@ -16,6 +16,8 @@ import 'package:intl/intl.dart';
 import '../../../core/builtin_plugins/ai_chat_plugin.dart';
 import '../../../core/plugin/plugin_registry.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/toolbar_button.dart';
+import '../../../core/widgets/chip_button.dart';
 import '../../../providers/ai_provider.dart';
 import '../../../providers/pane_provider.dart';
 
@@ -266,15 +268,10 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
 
   /// 头部栏: 图标 + 标题 + 上下文信息 + 清除按钮 + 折叠按钮
   Widget _buildHeader(BuildContext context, int noteCount, int tokens) {
-    return Container(
+    return EditorToolbar(
       height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: const BoxDecoration(
-        color: AeroColors.bgElevated,
-        border: Border(
-            bottom: BorderSide(color: AeroColors.divider, width: 0.5)),
-      ),
-      child: Row(
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 24,
@@ -285,34 +282,38 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(AeroRadius.sm),
             ),
             child: const Icon(Icons.auto_awesome, size: 14, color: Colors.white),
           ),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Text(
-              'AI 助手',
-              style: TextStyle(
-                color: AeroColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
+          const SizedBox(width: AeroSpacing.sm),
+          const Text(
+            'AI 助手',
+            style: TextStyle(
+              color: AeroColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          _IconButton(
-            icon: Icons.delete_outline,
-            tooltip: '清除对话',
-            onTap: _clearConversation,
-          ),
-          if (widget.onToggle != null)
-            _IconButton(
-              icon: Icons.chevron_right,
-              tooltip: '折叠 AI 面板',
-              onTap: widget.onToggle!,
-            ),
         ],
       ),
+      actions: [
+        ToolbarButton(
+          icon: Icons.delete_outline,
+          tooltip: '清除对话',
+          onTap: _clearConversation,
+          size: 26,
+          iconSize: 16,
+        ),
+        if (widget.onToggle != null)
+          ToolbarButton(
+            icon: Icons.chevron_right,
+            tooltip: '折叠 AI 面板',
+            onTap: widget.onToggle!,
+            size: 26,
+            iconSize: 16,
+          ),
+      ],
     );
   }
 
@@ -423,9 +424,10 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
     required String label,
     VoidCallback? onTap,
   }) {
-    return _HoverChip(
+    return ChipButton(
       icon: icon,
       label: label,
+      color: AeroColors.accentPurple,
       onTap: onTap,
     );
   }
@@ -637,136 +639,6 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _IconButton extends StatefulWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _IconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  State<_IconButton> createState() => _IconButtonState();
-}
-
-class _IconButtonState extends State<_IconButton> {
-  bool _isHovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: widget.tooltip,
-      waitDuration: const Duration(milliseconds: 600),
-      decoration: BoxDecoration(
-        color: AeroColors.bgElevated,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AeroColors.border, width: 0.5),
-        boxShadow: const [
-          BoxShadow(
-            color: AeroColors.shadow,
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      textStyle: const TextStyle(
-        color: AeroColors.textPrimary,
-        fontSize: 11,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovering = true),
-        onExit: (_) => setState(() => _isHovering = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            curve: Curves.easeOutCubic,
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              color: _isHovering
-                  ? AeroColors.accentBlue.withValues(alpha: 0.12)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Icon(
-              widget.icon,
-              size: 16,
-              color: _isHovering
-                  ? AeroColors.textPrimary
-                  : AeroColors.textMuted,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 可悬停可点击的快速操作芯片
-class _HoverChip extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  const _HoverChip({
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
-
-  @override
-  State<_HoverChip> createState() => _HoverChipState();
-}
-
-class _HoverChipState extends State<_HoverChip> {
-  bool _isHovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final canTap = widget.onTap != null;
-    return MouseRegion(
-      cursor: canTap ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: canTap ? (_) => setState(() => _isHovering = true) : null,
-      onExit: canTap ? (_) => setState(() => _isHovering = false) : null,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: _isHovering ? AeroColors.bgDeep : AeroColors.bgElevated,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _isHovering ? AeroColors.accentPurple : AeroColors.border,
-              width: 0.5,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(widget.icon, size: 12, color: AeroColors.accentPurple),
-              const SizedBox(width: 6),
-              Text(
-                widget.label,
-                style: const TextStyle(
-                  color: AeroColors.textSecondary,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

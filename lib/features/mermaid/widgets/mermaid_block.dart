@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/toolbar_button.dart';
+import '../../../core/widgets/close_button.dart';
 import '../../../providers/settings_provider.dart';
 import '../services/mermaid_service.dart';
 
@@ -95,7 +97,13 @@ class _MermaidBlockWidgetState extends ConsumerState<MermaidBlockWidget> {
                 settingsProvider.select((s) => s.mermaidEnabled),
               );
               if (!enabled) return const SizedBox.shrink();
-              return _ZoomButton(imageUrl: _imageUrl);
+              return ToolbarButton(
+                icon: Icons.zoom_in,
+                tooltip: '放大查看',
+                onTap: () => _showZoomDialog(context, _imageUrl),
+                size: 24,
+                iconSize: 14,
+              );
             },
           ),
         ],
@@ -302,84 +310,69 @@ class _MermaidBlockWidgetState extends ConsumerState<MermaidBlockWidget> {
   }
 }
 
-class _ZoomButton extends StatelessWidget {
-  final String imageUrl;
-  const _ZoomButton({required this.imageUrl});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => _showZoomDialog(context),
-      borderRadius: BorderRadius.circular(4),
-      child: const Padding(
-        padding: EdgeInsets.all(4),
-        child: Icon(Icons.zoom_in, size: 14, color: AeroColors.textMuted),
+void _showZoomDialog(BuildContext context, String imageUrl) {
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => Dialog(
+      backgroundColor: AeroColors.bgDeep,
+      insetPadding: const EdgeInsets.all(20),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AeroRadius.lg),
       ),
-    );
-  }
-
-  void _showZoomDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: AeroColors.bgDeep,
-        insetPadding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: const BoxDecoration(
-                border: Border(
-                  bottom:
-                      BorderSide(color: AeroColors.divider, width: 0.5),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Text('Mermaid 图表',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AeroColors.textPrimary)),
-                  const Spacer(),
-                  InkWell(
-                    onTap: () => Navigator.of(ctx).pop(),
-                    child: const Icon(Icons.close,
-                        size: 18, color: AeroColors.textMuted),
-                  ),
-                ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom:
+                    BorderSide(color: AeroColors.divider, width: 0.5),
               ),
             ),
-            Flexible(
-              child: InteractiveViewer(
-                maxScale: 5.0,
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (context, child, progress) {
-                    if (progress == null) return child;
-                    return const SizedBox(
-                      height: 200,
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return const SizedBox(
-                      height: 100,
-                      child: Center(
-                        child: Text('加载失败',
-                            style: TextStyle(color: AeroColors.textMuted)),
-                      ),
-                    );
-                  },
+            child: Row(
+              children: [
+                const Text('Mermaid 图表',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AeroColors.textPrimary)),
+                const Spacer(),
+                AeroCloseButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  size: AeroCloseButtonSize.sm,
                 ),
+              ],
+            ),
+          ),
+          Flexible(
+            child: InteractiveViewer(
+              maxScale: 5.0,
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.contain,
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return const SizedBox(
+                    height: 200,
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return const SizedBox(
+                    height: 100,
+                    child: Center(
+                      child: Text('加载失败',
+                          style: TextStyle(color: AeroColors.textMuted)),
+                    ),
+                  );
+                },
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
 }

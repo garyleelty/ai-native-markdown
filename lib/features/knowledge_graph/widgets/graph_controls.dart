@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/icon_text_button.dart';
 import '../../../providers/graph_provider.dart';
 
 /// 知识图谱控制栏
@@ -216,22 +217,24 @@ class _GraphControlsState extends ConsumerState<GraphControls> {
       child: Row(
         children: [
           Expanded(
-            child: _ControlButton(
+            child: IconTextButton(
               icon: Icons.refresh,
               label: '重置布局',
               onTap: () {
                 ref.read(graphProvider.notifier).resetLayout();
               },
+              color: AeroColors.accentPurple,
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: _ControlButton(
+            child: IconTextButton(
               icon: Icons.center_focus_strong,
               label: '重置视图',
               onTap: () {
                 ref.read(graphProvider.notifier).resetView();
               },
+              color: AeroColors.accentPurple,
             ),
           ),
         ],
@@ -449,49 +452,6 @@ class _GraphControlsState extends ConsumerState<GraphControls> {
             color: AeroColors.accentCyan,
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// 控制按钮组件
-class _ControlButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ControlButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-        decoration: BoxDecoration(
-          color: AeroColors.bgElevated,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AeroColors.border, width: 0.5),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 14, color: AeroColors.textSecondary),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                color: AeroColors.textSecondary,
-                fontSize: 11,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

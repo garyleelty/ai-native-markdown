@@ -627,3 +627,86 @@ None. All critical issues resolved. Product is production-ready.
 - 颜色硬编码清理持续推进，语义化命名使用比例提高
 - 89 个测试全部通过，静态分析 0 errors
 
+
+---
+
+## Round 19 (Execution Phase) — 通用按钮组件库完善 + 全应用按钮样式统一
+
+### 完成的工作
+
+#### 1. 新增通用按钮组件
+- **IconTextButton**：图标+文字按钮，支持 4 种变体（subtle/filled/outlined/ghost）
+  - 自带悬停动画、Tooltip、禁用状态
+  - 完全使用设计系统常量（AeroSpacing/AeroRadius/AeroBorderWidth）
+  - 支持自定义颜色、图标尺寸、文字大小、内边距
+- **TextOnlyButton**：纯文字按钮，带悬停效果
+  - 用于"今天"、"查看更多"等文字操作按钮
+- **StatusBadge**：状态徽章（已在 chip_button.dart 中，补充到组件库）
+
+#### 2. 完善 widgets.dart 统一导出
+- 导出所有 10 个通用组件：
+  - toolbar_button.dart (ToolbarButton, ToolbarGroup, ToolbarDivider, EditorToolbar)
+  - chip_button.dart (ChipButton, StatusBadge)
+  - icon_text_button.dart (IconTextButton, TextOnlyButton)
+  - close_button.dart (AeroCloseButton)
+  - confirm_dialog.dart (ConfirmDialog, showConfirmDialog)
+  - input_dialog.dart (InputDialog, showInputDialog)
+  - modal_overlay.dart (ModalOverlay)
+  - dialog_header.dart (DialogHeader)
+  - search_input.dart (SearchInput)
+  - empty_state.dart (EmptyState)
+
+#### 3. 补充设计系统原子
+- 新增 `AeroSpacing.xxs = 2` 极小组间距常量
+- 新增 `AeroAnimation.tooltipWait = 600ms` Tooltip 等待时长
+
+#### 4. 全应用按钮样式统一（4 个模块）
+- **侧边栏**：`_SidebarActionButton` → `IconTextButton` (subtle 变体)
+- **日历视图**：
+  - `_NavButton` → `ToolbarButton` (添加上/下月 tooltip)
+  - `_TodayButton` → `TextOnlyButton` (蓝色主题)
+- **知识图谱**：`_ControlButton` → `IconTextButton` (紫色主题, subtle 变体)
+- **Mermaid 图表**：
+  - `_ZoomButton` → `ToolbarButton` (放大按钮)
+  - 对话框关闭按钮 → `AeroCloseButton` (sm 尺寸)
+  - 对话框添加圆角边框（AeroRadius.lg）
+
+#### 5. 笔记面板模式切换按钮优化
+- 颜色别名清理：`AeroColors.primary` → `AeroColors.accentBlue`
+- 硬编码数值替换为设计系统常量：
+  - `BorderRadius.circular(6)` → `AeroRadius.sm`
+  - `BorderSide(..., width: 0.5)` → `AeroBorderWidth.thin`
+  - `SizedBox(width: 8)` → `AeroSpacing.sm`
+  - `Icon(size: 16)` → `AeroIconSize.md`
+  - 等等...
+
+### 验证结果
+- ✅ `flutter test`: 89 passed, 0 failed
+- ✅ `flutter analyze lib/`: 0 errors, 1 warning (pre-existing), ~10 info
+- ✅ 所有单元测试通过
+- ✅ Widget 测试通过
+
+### 关键设计决策
+1. **按钮组件分层**：ToolbarButton（纯图标工具栏）、IconTextButton（图标+文字）、TextOnlyButton（纯文字）、ChipButton（标签式）、AeroCloseButton（关闭按钮）—— 覆盖 90% 使用场景
+2. **4 种变体设计**：subtle（默认，低调）、filled（强调）、outlined（次强调）、ghost（无背景）—— 适应不同视觉权重需求
+3. **渐进式统一策略**：优先统一行为和交互（悬停、动画、Tooltip），再统一视觉样式，避免一次性改动过大
+4. **保留特色按钮**：AI 发送按钮（渐变效果）、版本恢复按钮（带 loading 态）等功能特殊的按钮保留私有实现，不强行套用通用组件
+
+### 新增文件
+- `lib/core/widgets/icon_text_button.dart` — IconTextButton + TextOnlyButton 通用组件
+
+### 主要修改文件
+- `lib/core/widgets/widgets.dart` — 统一导出所有 10 个组件
+- `lib/core/theme/aeromind_theme.dart` — AeroSpacing.xxs + AeroAnimation.tooltipWait
+- `lib/features/sidebar/widgets/sidebar_container.dart` — 按钮统一 + 删除私有类
+- `lib/features/calendar/widgets/calendar_view.dart` — 按钮统一 + 删除私有类
+- `lib/features/knowledge_graph/widgets/graph_controls.dart` — 按钮统一 + 删除私有类
+- `lib/features/mermaid/widgets/mermaid_block.dart` — 按钮统一 + 对话框优化
+- `lib/features/editor/widgets/note_panel.dart` — 模式切换按钮硬编码清理
+
+### 产品状态
+- 通用按钮组件库从 2 个扩充到 5+ 种类型，覆盖绝大多数使用场景
+- 全应用私有按钮类从 13 个减少到 9 个（减少 30%）
+- 设计系统原子更完整（新增 xxs 间距、tooltip 等待时长）
+- 89 个测试全部通过，静态分析 0 errors
+

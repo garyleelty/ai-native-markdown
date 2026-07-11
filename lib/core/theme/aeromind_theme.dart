@@ -62,6 +62,7 @@ class AeroColors {
 class AeroSpacing {
   AeroSpacing._();
 
+  static const double xxs = 2;
   static const double xs = 4;
   static const double sm = 8;
   static const double md = 12;
@@ -106,6 +107,7 @@ class AeroAnimation {
   static const Duration normal = Duration(milliseconds: 150);
   static const Duration slow = Duration(milliseconds: 200);
   static const Curve curve = Curves.easeOutCubic;
+  static const Duration tooltipWait = Duration(milliseconds: 600);
 }
 
 class AeroShadows {

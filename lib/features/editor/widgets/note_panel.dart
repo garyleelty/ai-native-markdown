@@ -8,6 +8,8 @@ import '../../../core/services/file_service.dart';
 import '../../../core/services/version_service.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../core/widgets/confirm_dialog.dart';
+import '../../../core/widgets/toolbar_button.dart';
+import '../../../core/widgets/chip_button.dart';
 import '../../../providers/ai_provider.dart';
 import '../../../providers/note_provider.dart';
 import '../../../providers/sidebar_provider.dart';
@@ -697,154 +699,147 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   // 工具栏
   // ──────────────────────────────────────────────
   Widget _buildToolbar() {
-    return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: const BoxDecoration(
-        color: AeroColors.bgElevated,
-        border: Border(
-          bottom: BorderSide(color: AeroColors.border, width: 0.5),
-        ),
-      ),
-      child: Row(
+    final entities = ref.watch(entityCacheProvider).getEntities(widget.noteId);
+
+    return EditorToolbar(
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _buildModeSwitchButton(),
-          const SizedBox(width: 8),
-          Container(
-            width: 1,
-            height: 16,
-            color: AeroColors.border,
-          ),
-          const SizedBox(width: 8),
-          if (ref.watch(entityCacheProvider).getEntities(widget.noteId).isNotEmpty)
-            _EntityCountBadge(
-              entities:
-                  ref.watch(entityCacheProvider).getEntities(widget.noteId),
+          const SizedBox(width: AeroSpacing.sm),
+          const ToolbarDivider(),
+          const SizedBox(width: AeroSpacing.sm),
+          if (entities.isNotEmpty)
+            StatusBadge(
+              text: '${entities.length} 个实体',
+              icon: Icons.auto_awesome,
+              color: AeroColors.accentPurple,
             ),
-          const Spacer(),
-          if (_editorMode != EditorMode.preview)
-            _ToolbarGroup(
-              children: [
-                _ToolbarButton(
-                  icon: Icons.undo,
-                  tooltip: '撤销 (Ctrl+Z)',
-                  onTap: _undo,
-                ),
-                _ToolbarButton(
-                  icon: Icons.redo,
-                  tooltip: '重做 (Ctrl+Y)',
-                  onTap: _redo,
-                ),
-              ],
-            ),
-          if (_editorMode != EditorMode.preview)
-            _ToolbarGroup(
-              children: [
-                _ToolbarButton(
-                  icon: Icons.format_bold,
-                  tooltip: '粗体 (Ctrl+B)',
-                  onTap: _applyBold,
-                ),
-                _ToolbarButton(
-                  icon: Icons.format_italic,
-                  tooltip: '斜体 (Ctrl+I)',
-                  onTap: _applyItalic,
-                ),
-                _ToolbarButton(
-                  icon: Icons.strikethrough_s,
-                  tooltip: '删除线',
-                  onTap: _applyStrikethrough,
-                ),
-              ],
-            ),
-          if (_editorMode != EditorMode.preview)
-            _ToolbarGroup(
-              children: [
-                _ToolbarButton(
-                  icon: Icons.looks_one,
-                  tooltip: '标题 1',
-                  onTap: () => _applyHeading(1),
-                ),
-                _ToolbarButton(
-                  icon: Icons.looks_two,
-                  tooltip: '标题 2',
-                  onTap: () => _applyHeading(2),
-                ),
-                _ToolbarButton(
-                  icon: Icons.looks_3,
-                  tooltip: '标题 3',
-                  onTap: () => _applyHeading(3),
-                ),
-              ],
-            ),
-          if (_editorMode != EditorMode.preview)
-            _ToolbarGroup(
-              children: [
-                _ToolbarButton(
-                  icon: Icons.format_list_bulleted,
-                  tooltip: '无序列表',
-                  onTap: _applyUnorderedList,
-                ),
-                _ToolbarButton(
-                  icon: Icons.format_list_numbered,
-                  tooltip: '有序列表',
-                  onTap: _applyOrderedList,
-                ),
-                _ToolbarButton(
-                  icon: Icons.check_box,
-                  tooltip: '任务列表',
-                  onTap: _applyTaskList,
-                ),
-              ],
-            ),
-          if (_editorMode != EditorMode.preview)
-            _ToolbarGroup(
-              children: [
-                _ToolbarButton(
-                  icon: Icons.format_quote,
-                  tooltip: '引用',
-                  onTap: _applyQuote,
-                ),
-                _ToolbarButton(
-                  icon: Icons.code,
-                  tooltip: '行内代码',
-                  onTap: _applyInlineCode,
-                ),
-                _ToolbarButton(
-                  icon: Icons.link,
-                  tooltip: '链接 (Ctrl+Shift+K)',
-                  onTap: _applyLink,
-                ),
-              ],
-            ),
-          if (_editorMode != EditorMode.preview)
-            _ToolbarGroup(
-              children: [
-                _ToolbarButton(
-                  icon: Icons.horizontal_rule,
-                  tooltip: '分割线',
-                  onTap: _applyHorizontalRule,
-                ),
-                _ToolbarButton(
-                  icon: Icons.image,
-                  tooltip: '图片',
-                  onTap: _insertImage,
-                ),
-                _ToolbarButton(
-                  icon: Icons.add_link,
-                  tooltip: 'Wiki 链接',
-                  onTap: _insertWikiLink,
-                ),
-              ],
-            ),
-          const SizedBox(width: 4),
-          _ToolbarButton(
-            icon: Icons.search,
-            tooltip: '搜索替换 (Ctrl+F)',
-            onTap: _toggleSearchBar,
-          ),
         ],
       ),
+      actions: [
+        if (_editorMode != EditorMode.preview)
+          ToolbarGroup(
+            children: [
+              ToolbarButton(
+                icon: Icons.undo,
+                tooltip: '撤销 (Ctrl+Z)',
+                onTap: _undo,
+              ),
+              ToolbarButton(
+                icon: Icons.redo,
+                tooltip: '重做 (Ctrl+Y)',
+                onTap: _redo,
+              ),
+            ],
+          ),
+        if (_editorMode != EditorMode.preview)
+          ToolbarGroup(
+            children: [
+              ToolbarButton(
+                icon: Icons.format_bold,
+                tooltip: '粗体 (Ctrl+B)',
+                onTap: _applyBold,
+              ),
+              ToolbarButton(
+                icon: Icons.format_italic,
+                tooltip: '斜体 (Ctrl+I)',
+                onTap: _applyItalic,
+              ),
+              ToolbarButton(
+                icon: Icons.strikethrough_s,
+                tooltip: '删除线',
+                onTap: _applyStrikethrough,
+              ),
+            ],
+          ),
+        if (_editorMode != EditorMode.preview)
+          ToolbarGroup(
+            children: [
+              ToolbarButton(
+                icon: Icons.looks_one,
+                tooltip: '标题 1',
+                onTap: () => _applyHeading(1),
+              ),
+              ToolbarButton(
+                icon: Icons.looks_two,
+                tooltip: '标题 2',
+                onTap: () => _applyHeading(2),
+              ),
+              ToolbarButton(
+                icon: Icons.looks_3,
+                tooltip: '标题 3',
+                onTap: () => _applyHeading(3),
+              ),
+            ],
+          ),
+        if (_editorMode != EditorMode.preview)
+          ToolbarGroup(
+            children: [
+              ToolbarButton(
+                icon: Icons.format_list_bulleted,
+                tooltip: '无序列表',
+                onTap: _applyUnorderedList,
+              ),
+              ToolbarButton(
+                icon: Icons.format_list_numbered,
+                tooltip: '有序列表',
+                onTap: _applyOrderedList,
+              ),
+              ToolbarButton(
+                icon: Icons.check_box,
+                tooltip: '任务列表',
+                onTap: _applyTaskList,
+              ),
+            ],
+          ),
+        if (_editorMode != EditorMode.preview)
+          ToolbarGroup(
+            children: [
+              ToolbarButton(
+                icon: Icons.format_quote,
+                tooltip: '引用',
+                onTap: _applyQuote,
+              ),
+              ToolbarButton(
+                icon: Icons.code,
+                tooltip: '行内代码',
+                onTap: _applyInlineCode,
+              ),
+              ToolbarButton(
+                icon: Icons.link,
+                tooltip: '链接 (Ctrl+Shift+K)',
+                onTap: _applyLink,
+              ),
+            ],
+          ),
+        if (_editorMode != EditorMode.preview)
+          ToolbarGroup(
+            children: [
+              ToolbarButton(
+                icon: Icons.horizontal_rule,
+                tooltip: '分割线',
+                onTap: _applyHorizontalRule,
+              ),
+              ToolbarButton(
+                icon: Icons.image,
+                tooltip: '图片',
+                onTap: _insertImage,
+              ),
+              ToolbarButton(
+                icon: Icons.add_link,
+                tooltip: 'Wiki 链接',
+                onTap: _insertWikiLink,
+              ),
+            ],
+          ),
+        const SizedBox(width: AeroSpacing.xs),
+        ToolbarButton(
+          icon: Icons.search,
+          tooltip: '搜索替换 (Ctrl+F)',
+          onTap: _toggleSearchBar,
+        ),
+      ],
     );
   }
 
@@ -868,8 +863,8 @@ class _NotePanelState extends ConsumerState<NotePanel> {
       position: PopupMenuPosition.under,
       color: AeroColors.bgElevated,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-        side: const BorderSide(color: AeroColors.border, width: 0.5),
+        borderRadius: BorderRadius.circular(AeroRadius.sm),
+        side: const BorderSide(color: AeroColors.border, width: AeroBorderWidth.thin),
       ),
       itemBuilder: (context) => EditorMode.values.map((mode) {
         final isSelected = mode == _editorMode;
@@ -878,18 +873,18 @@ class _NotePanelState extends ConsumerState<NotePanel> {
           height: 32,
           child: Row(
             children: [
-              Icon(modeIcons[mode], size: 16,
-                  color: isSelected ? AeroColors.primary : AeroColors.textSecondary),
-              const SizedBox(width: 8),
+              Icon(modeIcons[mode], size: AeroIconSize.md,
+                  color: isSelected ? AeroColors.accentBlue : AeroColors.textSecondary),
+              const SizedBox(width: AeroSpacing.sm),
               Text(modeLabels[mode]!,
                   style: TextStyle(
                     fontSize: 13,
-                    color: isSelected ? AeroColors.primary : AeroColors.textPrimary,
+                    color: isSelected ? AeroColors.accentBlue : AeroColors.textPrimary,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   )),
               if (isSelected) ...[
                 const Spacer(),
-                const Icon(Icons.check, size: 14, color: AeroColors.primary),
+                Icon(Icons.check, size: AeroIconSize.sm, color: AeroColors.accentBlue),
               ],
             ],
           ),
@@ -898,17 +893,17 @@ class _NotePanelState extends ConsumerState<NotePanel> {
       onSelected: _switchToMode,
       child: Container(
         height: 28,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.sm),
         decoration: BoxDecoration(
           color: AeroColors.bgHover,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AeroColors.border, width: 0.5),
+          borderRadius: BorderRadius.circular(AeroRadius.sm),
+          border: Border.all(color: AeroColors.border, width: AeroBorderWidth.thin),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(modeIcons[_editorMode], size: 15, color: AeroColors.primary),
-            const SizedBox(width: 4),
+            Icon(modeIcons[_editorMode], size: AeroIconSize.md, color: AeroColors.accentBlue),
+            const SizedBox(width: AeroSpacing.xs),
             Text(
               modeLabels[_editorMode]!,
               style: const TextStyle(
@@ -917,8 +912,8 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(width: 2),
-            const Icon(Icons.arrow_drop_down, size: 14, color: AeroColors.textMuted),
+            const SizedBox(width: AeroSpacing.xxs),
+            Icon(Icons.arrow_drop_down, size: AeroIconSize.sm, color: AeroColors.textMuted),
           ],
         ),
       ),
@@ -1361,10 +1356,13 @@ class _NotePanelState extends ConsumerState<NotePanel> {
           Flexible(
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.xs, vertical: AeroSpacing.xs),
               itemCount: links.length,
-              itemBuilder: (_, i) => _PredictiveLinkChip(
-                link: links[i],
+              itemBuilder: (_, i) => ChipButton(
+                icon: Icons.link,
+                label: links[i].targetTitle,
+                subtitle: '${(links[i].relevance * 100).toInt()}% 匹配',
+                color: AeroColors.accentPurple,
                 onTap: () => _insertLink(links[i]),
               ),
             ),
@@ -1410,7 +1408,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
 
   Widget _buildSearchBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.sm, vertical: AeroSpacing.sm),
       color: AeroColors.bgElevated,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1430,17 +1428,17 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 6),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(AeroRadius.sm),
                         borderSide:
                             const BorderSide(color: AeroColors.border),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(AeroRadius.sm),
                         borderSide:
                             const BorderSide(color: AeroColors.border),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(AeroRadius.sm),
                         borderSide:
                             const BorderSide(color: AeroColors.accentBlue),
                       ),
@@ -1466,26 +1464,32 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
-              _SearchMiniButton(
+              const SizedBox(width: AeroSpacing.xs),
+              ToolbarButton(
                 icon: Icons.arrow_upward,
                 tooltip: '上一个',
                 onTap: _findPrevious,
+                size: 24,
+                iconSize: 14,
               ),
-              _SearchMiniButton(
+              ToolbarButton(
                 icon: Icons.arrow_downward,
                 tooltip: '下一个',
                 onTap: _findNext,
+                size: 24,
+                iconSize: 14,
               ),
-              _SearchMiniButton(
+              ToolbarButton(
                 icon: Icons.close,
                 tooltip: '关闭',
                 onTap: _toggleSearchBar,
+                size: 24,
+                iconSize: 14,
               ),
             ],
           ),
           if (_showReplace) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: AeroSpacing.xs),
             Row(
               children: [
                 Expanded(
@@ -1501,17 +1505,17 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 6),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(AeroRadius.sm),
                           borderSide:
                               const BorderSide(color: AeroColors.border),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(AeroRadius.sm),
                           borderSide:
                               const BorderSide(color: AeroColors.border),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(AeroRadius.sm),
                           borderSide:
                               const BorderSide(color: AeroColors.accentBlue),
                         ),
@@ -1519,21 +1523,25 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
-                _SearchMiniButton(
+                const SizedBox(width: AeroSpacing.xs),
+                ToolbarButton(
                   icon: Icons.find_replace,
                   tooltip: '替换',
                   onTap: _replaceOne,
+                  size: 24,
+                  iconSize: 14,
                 ),
-                _SearchMiniButton(
+                ToolbarButton(
                   icon: Icons.select_all,
                   tooltip: '全部替换',
                   onTap: _replaceAll,
+                  size: 24,
+                  iconSize: 14,
                 ),
               ],
             ),
           ],
-          const SizedBox(height: 4),
+          const SizedBox(height: AeroSpacing.xs / 2),
           Row(
             children: [
               InkWell(
@@ -1809,138 +1817,6 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   }
 }
 
-// ──────────────────────────────────────────────
-// 子组件
-// ──────────────────────────────────────────────
-
-class _ToolbarGroup extends StatelessWidget {
-  final List<Widget> children;
-
-  const _ToolbarGroup({required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: children,
-      ),
-    );
-  }
-}
-
-class _ToolbarButton extends StatefulWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _ToolbarButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  State<_ToolbarButton> createState() => _ToolbarButtonState();
-}
-
-class _ToolbarButtonState extends State<_ToolbarButton> {
-  bool _isHovering = false;
-  bool _isPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final bgColor = _isPressed
-        ? AeroColors.accentBlue.withValues(alpha: 0.2)
-        : _isHovering
-            ? AeroColors.accentBlue.withValues(alpha: 0.12)
-            : Colors.transparent;
-
-    final iconColor = _isHovering
-        ? AeroColors.textPrimary
-        : AeroColors.textSecondary;
-
-    return Tooltip(
-      message: widget.tooltip,
-      waitDuration: const Duration(milliseconds: 600),
-      verticalOffset: 28,
-      decoration: BoxDecoration(
-        color: AeroColors.bgElevated,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AeroColors.border, width: 0.5),
-        boxShadow: const [
-          BoxShadow(
-            color: AeroColors.shadow,
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      textStyle: const TextStyle(
-        color: AeroColors.textPrimary,
-        fontSize: 11,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovering = true),
-        onExit: (_) => setState(() {
-          _isHovering = false;
-          _isPressed = false;
-        }),
-        child: GestureDetector(
-          onTapDown: (_) => setState(() => _isPressed = true),
-          onTapUp: (_) => setState(() => _isPressed = false),
-          onTapCancel: () => setState(() => _isPressed = false),
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            curve: Curves.easeOutCubic,
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(
-              widget.icon,
-              size: 16,
-              color: iconColor,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 实体计数徽标
-class _EntityCountBadge extends StatelessWidget {
-  final List<EntityHighlight> entities;
-
-  const _EntityCountBadge({required this.entities});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: AeroColors.accentPurple.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Builder(
-        builder: (context) => Text(
-          '${entities.length} 个实体',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                fontSize: 10,
-                color: AeroColors.accentPurple,
-              ),
-        ),
-      ),
-    );
-  }
-}
-
 /// AI 联想卡片 (点击实体后弹出)
 class _EntityAssociationCard extends ConsumerWidget {
   final EntityHighlight entity;
@@ -2102,93 +1978,6 @@ class _LinkedNotePreview extends StatelessWidget {
   }
 }
 
-class _PredictiveLinkChip extends StatefulWidget {
-  final PredictiveLink link;
-  final VoidCallback onTap;
-
-  const _PredictiveLinkChip({
-    required this.link,
-    required this.onTap,
-  });
-
-  @override
-  State<_PredictiveLinkChip> createState() => _PredictiveLinkChipState();
-}
-
-class _PredictiveLinkChipState extends State<_PredictiveLinkChip> {
-  bool _isHovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovering = true),
-        onExit: (_) => setState(() => _isHovering = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: _isHovering
-                  ? AeroColors.accentGreen.withValues(alpha: 0.12)
-                  : AeroColors.bgSurface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: _isHovering
-                    ? AeroColors.accentGreen.withValues(alpha: 0.5)
-                    : AeroColors.accentGreen.withValues(alpha: 0.25),
-                width: 0.5,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.link,
-                    size: 13,
-                    color: _isHovering
-                        ? AeroColors.accentGreen
-                        : AeroColors.accentGreen),
-                const SizedBox(width: 6),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      widget.link.targetTitle,
-                      style:
-                          Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: _isHovering
-                                    ? AeroColors.accentGreen
-                                    : AeroColors.textPrimary,
-                                fontSize: 12,
-                                fontWeight: _isHovering
-                                    ? FontWeight.w500
-                                    : FontWeight.w400,
-                              ),
-                    ),
-                    Text(
-                      widget.link.reason,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontSize: 9,
-                          ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ── 历史记录项 ──
 
 class _HistoryItem {
@@ -2199,61 +1988,6 @@ class _HistoryItem {
     required this.value,
     required this.timestamp,
   });
-}
-
-// ── 搜索栏小按钮 ──
-
-class _SearchMiniButton extends StatefulWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _SearchMiniButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  State<_SearchMiniButton> createState() => _SearchMiniButtonState();
-}
-
-class _SearchMiniButtonState extends State<_SearchMiniButton> {
-  bool _isHovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: widget.tooltip,
-      waitDuration: const Duration(milliseconds: 500),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovering = true),
-        onExit: (_) => setState(() => _isHovering = false),
-        child: InkWell(
-          onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(4),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: _isHovering
-                  ? AeroColors.accentBlue.withValues(alpha: 0.12)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Icon(
-              widget.icon,
-              size: 14,
-              color: _isHovering
-                  ? AeroColors.accentBlue
-                  : AeroColors.textSecondary,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ── 编辑器模式 ──

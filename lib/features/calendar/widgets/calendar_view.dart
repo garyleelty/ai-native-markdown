@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/toolbar_button.dart';
+import '../../../core/widgets/icon_text_button.dart';
 import '../../../providers/template_provider.dart';
 import '../../../providers/pane_provider.dart';
 import '../../../providers/note_provider.dart';
@@ -314,7 +316,11 @@ class _MonthHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.sm),
       child: Row(
         children: [
-          _NavButton(icon: Icons.chevron_left, onTap: onPrev),
+          ToolbarButton(
+            icon: Icons.chevron_left,
+            tooltip: '上一月',
+            onTap: onPrev,
+          ),
           const Spacer(),
           Text(
             '$year 年 $month 月',
@@ -328,93 +334,19 @@ class _MonthHeader extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _TodayButton(onTap: onToday),
+              TextOnlyButton(
+                label: '今天',
+                onTap: onToday,
+              ),
               const SizedBox(width: AeroSpacing.xs),
-              _NavButton(icon: Icons.chevron_right, onTap: onNext),
+              ToolbarButton(
+                icon: Icons.chevron_right,
+                tooltip: '下一月',
+                onTap: onNext,
+              ),
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _NavButton extends StatefulWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _NavButton({required this.icon, required this.onTap});
-
-  @override
-  State<_NavButton> createState() => _NavButtonState();
-}
-
-class _NavButtonState extends State<_NavButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: AeroAnimation.fast,
-          curve: AeroAnimation.curve,
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: _isHovered ? AeroColors.bgHover : Colors.transparent,
-            borderRadius: BorderRadius.circular(AeroRadius.sm),
-          ),
-          child: Icon(
-            widget.icon,
-            size: AeroIconSize.lg,
-            color: _isHovered ? AeroColors.textPrimary : AeroColors.textSecondary,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TodayButton extends StatefulWidget {
-  final VoidCallback onTap;
-  const _TodayButton({required this.onTap});
-
-  @override
-  State<_TodayButton> createState() => _TodayButtonState();
-}
-
-class _TodayButtonState extends State<_TodayButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: AeroAnimation.fast,
-          curve: AeroAnimation.curve,
-          padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.sm, vertical: AeroSpacing.xs),
-          decoration: BoxDecoration(
-            color: _isHovered
-                ? AeroColors.accentBlue.withValues(alpha: 0.2)
-                : AeroColors.accentBlue.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(AeroRadius.xs),
-          ),
-          child: Text(
-            '今天',
-            style: TextStyle(
-              fontSize: 11,
-              color: AeroColors.accentBlue,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
       ),
     );
   }

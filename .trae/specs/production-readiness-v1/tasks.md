@@ -848,3 +848,36 @@ Task 5 (插件系统) ──────┼── Task 7 (Git备份) ───�
   - lib/features/editor/widgets/version_history_panel.dart
   - lib/features/calendar/widgets/calendar_view.dart
 
+---
+
+## [x] Task 23: 通用按钮组件库完善 + 全应用按钮样式统一
+- **Priority**: high
+- **Depends On**: Task 22
+- **Description**:
+  - 新增 `IconTextButton` 通用组件（图标+文字按钮，4 种变体：subtle/filled/outlined/ghost）
+  - 新增 `TextOnlyButton` 通用组件（纯文字按钮，带悬停效果）
+  - 新增 `StatusBadge` 组件（状态徽章）
+  - 完善 `widgets.dart` 导出所有通用组件
+  - 补充 `AeroSpacing.xxs` 设计原子
+  - 侧边栏 `_SidebarActionButton` → `IconTextButton`
+  - 日历视图 `_NavButton` → `ToolbarButton`，`_TodayButton` → `TextOnlyButton`
+  - 知识图谱 `_ControlButton` → `IconTextButton`（紫色主题）
+  - Mermaid `_ZoomButton` → `ToolbarButton`，对话框关闭按钮 → `AeroCloseButton`
+  - 笔记面板模式切换按钮硬编码清理（颜色别名替换 + 设计常量应用）
+  - 删除 4 个私有按钮类，消除重复实现
+- **Acceptance Criteria Addressed**: 设计系统一致性、组件复用率、代码质量
+- **Test Requirements**:
+  - `programmatic` TR-23.1: 所有 89 个测试通过
+  - `programmatic` TR-23.2: flutter analyze 0 errors
+  - `human-judgment` TR-23.3: 各模块按钮视觉风格一致
+  - `programmatic` TR-23.4: 私有按钮类数量从 13 减少到 9
+- **Notes**: 关键文件：
+  - lib/core/widgets/icon_text_button.dart（新增）
+  - lib/core/widgets/widgets.dart
+  - lib/core/theme/aeromind_theme.dart
+  - lib/features/sidebar/widgets/sidebar_container.dart
+  - lib/features/calendar/widgets/calendar_view.dart
+  - lib/features/knowledge_graph/widgets/graph_controls.dart
+  - lib/features/mermaid/widgets/mermaid_block.dart
+  - lib/features/editor/widgets/note_panel.dart
+
