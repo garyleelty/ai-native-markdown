@@ -567,3 +567,63 @@ None. All critical issues resolved. Product is production-ready.
 - 源码编辑器使用等宽字体，更符合 Markdown 编辑器专业定位
 - 89 个测试全部通过，macOS 构建成功
 
+---
+
+## Round 17 (Execution Phase) — 侧边栏面板 UI 统一 + 颜色硬编码深度清理
+
+### 完成的工作
+
+#### 1. 反向链接面板空状态统一
+- 自定义空状态替换为 `EmptyState` 通用组件
+- 使用 `link_off` 图标 + accentBlue 主题色
+- 文案："暂无反向链接" / "其他笔记引用此笔记时会显示在这里"
+
+#### 2. 大纲面板空状态统一
+- 自定义空状态替换为 `EmptyState` 通用组件
+- 使用 `list_alt` 图标 + accentCyan 主题色
+- 文案："暂无大纲" / "在笔记中添加标题 (#)"
+
+#### 3. 版本历史面板 UI 全面优化
+- **标题栏升级**：高度 44px → 40px，背景 bgElevated，与其他面板一致
+- **颜色语义化**：
+  - `surface` → `bgSurface`
+  - `surfaceVariant` → `bgElevated`
+  - `primary` → `accentPurple`（版本历史用紫色主题，与活动栏图标色一致）
+- **设计系统常量全面应用**：所有 padding/spacing/radius/border/iconSize 全部替换为 AeroSpacing/AeroRadius/AeroBorderWidth/AeroIconSize
+- **恢复按钮优化**：使用 accentPurple 主题色，与面板整体风格统一
+- **时间线圆点**：最新版本用 accentPurple，旧版本用 textMuted
+- **"最新"标签**：紫色背景 + 紫色文字，视觉层次清晰
+
+#### 4. 日历视图 UI 优化
+- 新增统一头部栏（图标 + 月份年份标题 + 前后导航按钮）
+- 日期网格样式优化，添加 hover 效果
+- 设计系统常量全面应用
+- 修复未使用的 import 警告
+
+#### 5. 颜色硬编码深度清理
+- 版本历史面板：所有旧的颜色别名替换为语义化命名
+- 日历视图：Colors.transparent → AeroColors.transparent
+
+### 验证结果
+- ✅ `flutter test`: 89 passed, 0 failed
+- ✅ `dart analyze lib/`: 0 errors, 1 warning (pre-existing), 7 info
+- ✅ 所有单元测试通过
+- ✅ Widget 测试通过
+
+### 关键设计决策
+1. **版本历史用紫色主题**：版本/历史属于时间维度，紫色（accentPurple）与知识图谱/AI 同色系，视觉上形成功能区色系区分
+2. **空状态组件全面推广**：新增面板优先使用 EmptyState，保证全应用空状态视觉一致
+3. **渐进式颜色清理**：从最显眼的面板开始逐步清理向后兼容的颜色别名，最终目标是移除 surface/surfaceVariant/primary 等别名
+
+### 主要修改文件
+- `lib/features/backlinks/widgets/backlinks_panel.dart` — 空状态统一
+- `lib/features/outline/widgets/outline_panel.dart` — 空状态统一
+- `lib/features/editor/widgets/version_history_panel.dart` — UI 全面优化 + 设计系统常量
+- `lib/features/calendar/widgets/calendar_view.dart` — UI 优化 + lint 修复
+
+### 产品状态
+- 侧边栏主要面板（反向链接、大纲、版本历史、日历）UI 风格全面统一
+- 空状态组件覆盖率进一步提升
+- 颜色硬编码清理持续推进，语义化命名使用比例提高
+- 89 个测试全部通过，静态分析 0 errors
+

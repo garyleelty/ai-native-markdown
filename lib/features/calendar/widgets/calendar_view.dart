@@ -123,6 +123,9 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
       color: AeroColors.bgSurface,
       child: Column(
         children: [
+          // ── 头部栏（与其他侧边栏视图统一）──
+          _buildHeader(),
+          const Divider(height: 1, thickness: 0.5),
           // ── 月份导航 ──
           _MonthHeader(
             year: _displayMonth.year,
@@ -131,7 +134,6 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
             onNext: _nextMonth,
             onToday: _goToToday,
           ),
-          const Divider(height: 1, thickness: 0.5),
           // ── 星期标题 ──
           _WeekdayHeader(),
           // ── 日期网格 ──
@@ -153,6 +155,45 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
             totalDays: _daysWithNotes.length,
             daysWithNotes: _daysWithNotes,
             isCurrentMonth: isCurrentMonth,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md),
+      decoration: const BoxDecoration(
+        color: AeroColors.bgElevated,
+        border: Border(
+          bottom: BorderSide(color: AeroColors.divider, width: AeroBorderWidth.thin),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.calendar_today,
+            size: AeroIconSize.sm,
+            color: AeroColors.accentCyan,
+          ),
+          const SizedBox(width: AeroSpacing.sm),
+          const Text(
+            '日历',
+            style: TextStyle(
+              color: AeroColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '${_daysWithNotes.length} 天',
+            style: const TextStyle(
+              color: AeroColors.textMuted,
+              fontSize: 11,
+            ),
           ),
         ],
       ),
@@ -201,7 +242,7 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
                             : hasNote
                                 ? AeroColors.accentCyan.withValues(alpha: 0.08)
                                 : Colors.transparent,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(AeroRadius.md),
                         border: isToday
                             ? Border.all(
                                 color: AeroColors.accentBlue, width: 0.8)
@@ -269,8 +310,8 @@ class _MonthHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.sm),
       child: Row(
         children: [
           _NavButton(icon: Icons.chevron_left, onTap: onPrev),
@@ -278,7 +319,7 @@ class _MonthHeader extends StatelessWidget {
           Text(
             '$year 年 $month 月',
             style: const TextStyle(
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
               color: AeroColors.textPrimary,
             ),
@@ -288,7 +329,7 @@ class _MonthHeader extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               _TodayButton(onTap: onToday),
-              const SizedBox(width: 4),
+              const SizedBox(width: AeroSpacing.xs),
               _NavButton(icon: Icons.chevron_right, onTap: onNext),
             ],
           ),
@@ -298,45 +339,80 @@ class _MonthHeader extends StatelessWidget {
   }
 }
 
-class _NavButton extends StatelessWidget {
+class _NavButton extends StatefulWidget {
   final IconData icon;
   final VoidCallback onTap;
   const _NavButton({required this.icon, required this.onTap});
 
   @override
+  State<_NavButton> createState() => _NavButtonState();
+}
+
+class _NavButtonState extends State<_NavButton> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Icon(icon, size: 18, color: AeroColors.textSecondary),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: AeroAnimation.fast,
+          curve: AeroAnimation.curve,
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: _isHovered ? AeroColors.bgHover : Colors.transparent,
+            borderRadius: BorderRadius.circular(AeroRadius.sm),
+          ),
+          child: Icon(
+            widget.icon,
+            size: AeroIconSize.lg,
+            color: _isHovered ? AeroColors.textPrimary : AeroColors.textSecondary,
+          ),
+        ),
       ),
     );
   }
 }
 
-class _TodayButton extends StatelessWidget {
+class _TodayButton extends StatefulWidget {
   final VoidCallback onTap;
   const _TodayButton({required this.onTap});
 
   @override
+  State<_TodayButton> createState() => _TodayButtonState();
+}
+
+class _TodayButtonState extends State<_TodayButton> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: AeroColors.accentBlue.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(3),
-        ),
-        child: const Text(
-          '今天',
-          style: TextStyle(
-            fontSize: 10,
-            color: AeroColors.accentBlue,
-            fontWeight: FontWeight.w500,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: AeroAnimation.fast,
+          curve: AeroAnimation.curve,
+          padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.sm, vertical: AeroSpacing.xs),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? AeroColors.accentBlue.withValues(alpha: 0.2)
+                : AeroColors.accentBlue.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(AeroRadius.xs),
+          ),
+          child: Text(
+            '今天',
+            style: TextStyle(
+              fontSize: 11,
+              color: AeroColors.accentBlue,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ),

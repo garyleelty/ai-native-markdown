@@ -8,6 +8,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/empty_state.dart';
 import '../../../core/models/backlink_info.dart';
 import '../../../providers/sidebar_provider.dart';
 
@@ -28,23 +29,11 @@ class BacklinksPanel extends ConsumerWidget {
     final hasOutgoing = analysis.outgoingLinks.isNotEmpty;
 
     if (!hasBacklinks && !hasUnlinked && !hasOutgoing) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.link_off, size: 32, color: AeroColors.textMuted),
-            SizedBox(height: 8),
-            Text(
-              '暂无反向链接',
-              style: TextStyle(color: AeroColors.textMuted, fontSize: 12),
-            ),
-            SizedBox(height: 4),
-            Text(
-              '其他笔记引用此笔记时会显示在这里',
-              style: TextStyle(color: AeroColors.textMuted, fontSize: 10),
-            ),
-          ],
-        ),
+      return const EmptyState(
+        icon: Icons.link_off,
+        title: '暂无反向链接',
+        subtitle: '其他笔记引用此笔记时会显示在这里',
+        iconColor: AeroColors.accentBlue,
       );
     }
 

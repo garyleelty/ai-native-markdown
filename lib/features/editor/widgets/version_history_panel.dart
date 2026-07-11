@@ -71,7 +71,7 @@ class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
           SnackBar(
             content: Text('已恢复到 ${_dateFormatter.format(version.savedAt)} 的版本'),
             duration: const Duration(seconds: 2),
-            backgroundColor: AeroColors.surfaceVariant,
+            backgroundColor: AeroColors.bgElevated,
           ),
         );
       }
@@ -81,7 +81,7 @@ class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
           SnackBar(
             content: Text('恢复失败：$e'),
             duration: const Duration(seconds: 3),
-            backgroundColor: AeroColors.surfaceVariant,
+            backgroundColor: AeroColors.bgElevated,
           ),
         );
       }
@@ -95,7 +95,7 @@ class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AeroColors.surface,
+      color: AeroColors.bgSurface,
       child: Column(
         children: [
           _buildTitleBar(),
@@ -106,7 +106,7 @@ class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const Center(
                     child: CircularProgressIndicator(
-                      color: AeroColors.primary,
+                      color: AeroColors.accentBlue,
                       strokeWidth: 2,
                     ),
                   );
@@ -120,6 +120,7 @@ class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
                     icon: Icons.history,
                     title: '暂无历史版本',
                     subtitle: '保存笔记后会自动生成历史快照',
+                    iconColor: AeroColors.accentPurple,
                   );
                 }
                 return _buildTimeline(versions);
@@ -134,33 +135,33 @@ class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
   // ── 标题栏 ────────────────────────────────────────
   Widget _buildTitleBar() {
     return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md),
       decoration: const BoxDecoration(
-        color: AeroColors.surfaceVariant,
+        color: AeroColors.bgElevated,
         border: Border(
-          bottom: BorderSide(color: AeroColors.border, width: 0.5),
+          bottom: BorderSide(color: AeroColors.divider, width: AeroBorderWidth.thin),
         ),
       ),
       child: Row(
         children: [
           const Icon(
             Icons.history,
-            size: 16,
-            color: AeroColors.primary,
+            size: AeroIconSize.md,
+            color: AeroColors.accentPurple,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AeroSpacing.sm),
           const Text(
             '版本历史',
             style: TextStyle(
               color: AeroColors.textPrimary,
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(Icons.close, size: 18, color: AeroColors.textPrimary),
+            icon: const Icon(Icons.close, size: AeroIconSize.md, color: AeroColors.textSecondary),
             tooltip: '关闭',
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -175,9 +176,9 @@ class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
   // ── 时间线 ────────────────────────────────────────
   Widget _buildTimeline(List<VersionSnapshot> versions) {
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.md),
       itemCount: versions.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, __) => const SizedBox(height: AeroSpacing.sm),
       itemBuilder: (context, index) {
         final version = versions[index];
         final isExpanded = _expandedVersionId == version.id;
@@ -256,25 +257,25 @@ class _VersionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AeroColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(6),
+        color: AeroColors.bgElevated,
+        borderRadius: BorderRadius.circular(AeroRadius.md),
         border: Border.all(
-          color: isExpanded ? AeroColors.primary : AeroColors.border,
-          width: isExpanded ? 1 : 0.5,
+          color: isExpanded ? AeroColors.accentPurple : AeroColors.border,
+          width: isExpanded ? AeroBorderWidth.base : AeroBorderWidth.thin,
         ),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(AeroRadius.md),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm + 2),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(),
-                const SizedBox(height: 6),
+                const SizedBox(height: AeroSpacing.xs + 2),
                 Text(
                   _preview,
                   maxLines: isExpanded ? null : 2,
@@ -286,7 +287,7 @@ class _VersionTile extends StatelessWidget {
                   ),
                 ),
                 if (isExpanded) ...[
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AeroSpacing.sm + 2),
                   _buildExpandedContent(),
                 ],
               ],
@@ -305,32 +306,32 @@ class _VersionTile extends StatelessWidget {
           width: 8,
           height: 8,
           decoration: BoxDecoration(
-            color: isLatest ? AeroColors.primary : AeroColors.textMuted,
+            color: isLatest ? AeroColors.accentPurple : AeroColors.textMuted,
             shape: BoxShape.circle,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: AeroSpacing.sm),
         // 时间
         Text(
           dateFormatter.format(version.savedAt),
           style: TextStyle(
-            color: isLatest ? AeroColors.primary : AeroColors.textSecondary,
+            color: isLatest ? AeroColors.accentPurple : AeroColors.textSecondary,
             fontSize: 12,
             fontWeight: isLatest ? FontWeight.w600 : FontWeight.w500,
           ),
         ),
         if (isLatest) ...[
-          const SizedBox(width: 6),
+          const SizedBox(width: AeroSpacing.xs + 2),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
-              color: AeroColors.primary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(4),
+              color: AeroColors.accentPurple.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(AeroRadius.xs),
             ),
             child: const Text(
               '最新',
               style: TextStyle(
-                color: AeroColors.primary,
+                color: AeroColors.accentPurple,
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
               ),
@@ -350,11 +351,11 @@ class _VersionTile extends StatelessWidget {
   Widget _buildExpandedContent() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(AeroSpacing.sm + 2),
       decoration: BoxDecoration(
-        color: AeroColors.surface,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: AeroColors.border, width: 0.5),
+        color: AeroColors.bgSurface,
+        borderRadius: BorderRadius.circular(AeroRadius.sm),
+        border: Border.all(color: AeroColors.border, width: AeroBorderWidth.thin),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -377,7 +378,7 @@ class _VersionTile extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: AeroSpacing.xs + 2),
           Text(
             version.content,
             style: const TextStyle(
@@ -414,18 +415,18 @@ class _RestoreButton extends StatelessWidget {
                 height: 12,
                 child: CircularProgressIndicator(
                   strokeWidth: 1.5,
-                  color: AeroColors.primary,
+                  color: AeroColors.accentPurple,
                 ),
               )
             : const Icon(
                 Icons.restore,
                 size: 13,
-                color: AeroColors.primary,
+                color: AeroColors.accentPurple,
               ),
         label: Text(
           isRestoring ? '恢复中' : '恢复',
           style: const TextStyle(
-            color: AeroColors.primary,
+            color: AeroColors.accentPurple,
             fontSize: 11,
             fontWeight: FontWeight.w500,
           ),
@@ -435,10 +436,10 @@ class _RestoreButton extends StatelessWidget {
           minimumSize: const Size(0, 26),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(AeroRadius.sm),
             side: BorderSide(
-              color: AeroColors.primary.withValues(alpha: onPressed == null ? 0.3 : 0.5),
-              width: 0.5,
+              color: AeroColors.accentPurple.withValues(alpha: onPressed == null ? 0.3 : 0.5),
+              width: AeroBorderWidth.thin,
             ),
           ),
         ),

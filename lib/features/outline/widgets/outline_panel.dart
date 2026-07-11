@@ -9,6 +9,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../core/widgets/empty_state.dart';
 import '../../../providers/sidebar_provider.dart';
 import '../../editor/services/editor_service.dart';
 
@@ -26,7 +27,12 @@ class OutlinePanel extends ConsumerWidget {
 
     // 空状态
     if (headings.isEmpty) {
-      return const _EmptyOutline();
+      return const EmptyState(
+        icon: Icons.list_alt,
+        title: '暂无大纲',
+        subtitle: '在笔记中添加标题 (#)',
+        iconColor: AeroColors.accentCyan,
+      );
     }
 
     return Column(
@@ -79,33 +85,6 @@ class OutlinePanel extends ConsumerWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// 空状态
-class _EmptyOutline extends StatelessWidget {
-  const _EmptyOutline();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.list_alt, size: 32, color: AeroColors.textMuted),
-          SizedBox(height: 8),
-          Text(
-            '暂无大纲',
-            style: TextStyle(color: AeroColors.textMuted, fontSize: 12),
-          ),
-          SizedBox(height: 4),
-          Text(
-            '在笔记中添加标题 (#)',
-            style: TextStyle(color: AeroColors.textMuted, fontSize: 10),
-          ),
-        ],
-      ),
     );
   }
 }

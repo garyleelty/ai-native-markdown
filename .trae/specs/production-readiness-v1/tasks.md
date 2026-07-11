@@ -819,3 +819,32 @@ Task 5 (插件系统) ──────┼── Task 7 (Git备份) ───�
   - `human-judgment` TR-21.5: 源码模式编辑器使用等宽字体
 - **Notes**: 关键文件：lib/core/theme/aeromind_theme.dart、lib/core/widgets/input_dialog.dart、lib/core/widgets/empty_state.dart、lib/core/widgets/search_input.dart、lib/core/widgets/dialog_header.dart
 
+---
+
+## [x] Task 22: 侧边栏面板 UI 统一 + 颜色硬编码清理
+- **Priority**: medium
+- **Depends On**: Task 21
+- **Description**:
+  - 反向链接面板空状态统一为 EmptyState 组件
+  - 大纲面板空状态统一为 EmptyState 组件
+  - 版本历史面板 UI 全面优化（设计系统常量 + 语义化颜色）
+    - 标题栏高度 44px → 40px，背景 bgElevated
+    - 颜色从 surface/surfaceVariant/primary → bgSurface/bgElevated/accentPurple
+    - 所有硬编码数值替换为 AeroSpacing/AeroRadius/AeroBorderWidth/AeroIconSize
+    - 恢复按钮使用 accentPurple 主题色
+  - 日历视图 UI 优化
+    - 新增统一头部栏（图标+标题+导航按钮）
+    - 日期网格样式优化，hover 效果
+    - 设计系统常量全面应用
+  - 清理向后兼容的颜色别名使用（surface → bgSurface, surfaceVariant → bgElevated, primary → accentBlue/accentPurple）
+- **Acceptance Criteria Addressed**: 设计系统一致性、UI 精致度
+- **Test Requirements**:
+  - `programmatic` TR-22.1: 所有 89 个测试通过
+  - `programmatic` TR-22.2: flutter analyze issues 数量不增加
+  - `human-judgment` TR-22.3: 反向链接/大纲/版本历史/日历面板视觉风格统一
+- **Notes**: 关键文件：
+  - lib/features/backlinks/widgets/backlinks_panel.dart
+  - lib/features/outline/widgets/outline_panel.dart
+  - lib/features/editor/widgets/version_history_panel.dart
+  - lib/features/calendar/widgets/calendar_view.dart
+
