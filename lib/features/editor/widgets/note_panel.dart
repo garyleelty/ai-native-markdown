@@ -46,6 +46,8 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   late final FocusNode _focusNode;
   late final ScrollController _scrollController;
   final GlobalKey _editorKey = GlobalKey();
+  final GlobalKey<LiveMarkdownEditorState> _liveEditorKey =
+      GlobalKey<LiveMarkdownEditorState>();
   EditorMode _editorMode = EditorMode.source;
   String _rawMarkdown = '';
   DateTime? _lastHandledScrollRequest;
@@ -242,11 +244,13 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     final textLength = _textController.text.length;
     final clampedOffset = charOffset.clamp(0, textLength);
 
-    // 编辑模式：通过移动光标来触发滚动
-    if (_editorMode == EditorMode.source) {
+    // 编辑模式和实时预览模式：通过移动光标来触发滚动
+    if (_editorMode == EditorMode.source || _editorMode == EditorMode.livePreview) {
       _textController.selection = TextSelection.collapsed(offset: clampedOffset);
-      _focusNode.requestFocus();
-      // 给一帧时间让 TextField 响应 selection 变化并自动滚动
+      if (_editorMode == EditorMode.source) {
+        _focusNode.requestFocus();
+      }
+      // 给一帧时间让编辑器响应 selection 变化并自动滚动
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_scrollController.hasClients) return;
         final pos = _scrollController.position;
@@ -470,7 +474,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   // ──────────────────────────────────────────────
 
   void _checkWikiLinkTrigger(String text) {
-    if (_editorMode != EditorMode.source) {
+    if (_editorMode == EditorMode.preview) {
       if (_wikiLinkVisible) setState(() => _dismissWikiLinkCompleter());
       return;
     }
@@ -582,8 +586,8 @@ class _NotePanelState extends ConsumerState<NotePanel> {
       if (text[i] == '\n') line++;
     }
 
-    final lineHeight = fontSize * 1.5;
-    const padding = 16.0;
+    final lineHeight = fontSize * 1.6;
+    final padding = _editorMode == EditorMode.source ? 20.0 : 16.0;
     double y = line * lineHeight + padding + lineHeight;
 
     if (_scrollController.hasClients) {
@@ -608,7 +612,9 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   void _applyWikiLinkCompletion(String title) {
     if (_wikiLinkStart < 0 || title.isEmpty) {
       setState(() => _dismissWikiLinkCompleter());
-      _focusNode.requestFocus();
+      if (_editorMode == EditorMode.source) {
+        _focusNode.requestFocus();
+      }
       return;
     }
 
@@ -628,7 +634,10 @@ class _NotePanelState extends ConsumerState<NotePanel> {
       selection: TextSelection.collapsed(offset: newCursor),
     );
     _onTextChanged(newText);
-    _focusNode.requestFocus();
+
+    if (_editorMode == EditorMode.source) {
+      _focusNode.requestFocus();
+    }
   }
 
   void _wikiLinkMoveUp() {
@@ -661,7 +670,9 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     }
     if (title.isEmpty) {
       setState(() => _dismissWikiLinkCompleter());
-      _focusNode.requestFocus();
+      if (_editorMode == EditorMode.source) {
+        _focusNode.requestFocus();
+      }
       return;
     }
     _applyWikiLinkCompletion(title);
@@ -670,7 +681,12 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   bool _handleHardwareKey(KeyEvent event) {
     if (event is! KeyDownEvent) return false;
     if (!_wikiLinkVisible) return false;
-    if (!_focusNode.hasFocus) return false;
+
+    final bool hasFocus = _editorMode == EditorMode.source
+        ? _focusNode.hasFocus
+        : _editorMode == EditorMode.livePreview;
+
+    if (!hasFocus) return false;
 
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       setState(() => _dismissWikiLinkCompleter());
@@ -925,9 +941,9 @@ class _NotePanelState extends ConsumerState<NotePanel> {
       _editorMode = mode;
       if (mode == EditorMode.preview) {
         _focusNode.unfocus();
-      }
-      if (mode != EditorMode.source && _wikiLinkVisible) {
-        _dismissWikiLinkCompleter();
+        if (_wikiLinkVisible) {
+          _dismissWikiLinkCompleter();
+        }
       }
     });
   }
@@ -1037,7 +1053,8 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   void _prependToLine(String prefix) {
     final selection = _textController.selection;
     final text = _textController.text;
-    final cursorPos = selection.baseOffset;
+    if (!selection.isValid) return;
+    final cursorPos = selection.baseOffset.clamp(0, text.length);
 
     int lineStart = cursorPos;
     while (lineStart > 0 && text[lineStart - 1] != '\n') {
@@ -1048,7 +1065,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
         text.substring(0, lineStart) + prefix + text.substring(lineStart);
     _textController.value = TextEditingValue(
       text: newText,
-      selection: TextSelection.collapsed(offset: cursorPos + prefix.length),
+      selection: TextSelection.collapsed(offset: lineStart + prefix.length),
     );
     _onTextChanged(newText);
   }
@@ -1056,7 +1073,8 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   void _insertAtCursor(String insertText) {
     final selection = _textController.selection;
     final text = _textController.text;
-    final cursorPos = selection.baseOffset;
+    if (!selection.isValid) return;
+    final cursorPos = selection.baseOffset.clamp(0, text.length);
 
     final newText =
         text.substring(0, cursorPos) +
@@ -1073,14 +1091,17 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   void _replaceSelection(String replacement) {
     final selection = _textController.selection;
     final text = _textController.text;
+    if (!selection.isValid) return;
+    final start = selection.start.clamp(0, text.length);
+    final end = selection.end.clamp(0, text.length);
 
-    final newText = text.substring(0, selection.start) +
+    final newText = text.substring(0, start) +
         replacement +
-        text.substring(selection.end);
+        text.substring(end);
     _textController.value = TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(
-        offset: selection.start + replacement.length,
+        offset: start + replacement.length,
       ),
     );
     _onTextChanged(newText);
@@ -1090,20 +1111,108 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   // 编辑器区域
   // ──────────────────────────────────────────────
   Widget _buildEditorArea(List<EntityHighlight> entities) {
-    switch (_editorMode) {
-      case EditorMode.source:
-        return _buildEditMode(entities);
-      case EditorMode.livePreview:
-        return _buildLivePreviewMode();
-      case EditorMode.preview:
-        return _buildReadMode(entities);
+    final editorWidget = switch (_editorMode) {
+      EditorMode.source => _buildEditMode(entities),
+      EditorMode.livePreview => _buildLivePreviewMode(),
+      EditorMode.preview => _buildReadMode(entities),
+    };
+
+    if (_editorMode == EditorMode.preview) {
+      return editorWidget;
     }
+
+    return Shortcuts(
+      shortcuts: <ShortcutActivator, Intent>{
+        const SingleActivator(LogicalKeyboardKey.keyB, control: true, meta: true):
+            const _FormatBoldIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyI, control: true, meta: true):
+            const _FormatItalicIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true, meta: true, shift: true):
+            const _InsertLinkIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyZ, control: true, meta: true):
+            const _UndoIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyY, control: true, meta: true):
+            const _RedoIntent(),
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true, meta: true):
+            const _SearchIntent(),
+        const SingleActivator(LogicalKeyboardKey.escape):
+            const _CloseSearchIntent(),
+        const SingleActivator(LogicalKeyboardKey.enter, shift: true, alt: true):
+            const _FindPreviousIntent(),
+        const SingleActivator(LogicalKeyboardKey.enter, alt: true):
+            const _FindNextIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          _FormatBoldIntent: CallbackAction<_FormatBoldIntent>(
+            onInvoke: (_) => _applyBold(),
+          ),
+          _FormatItalicIntent: CallbackAction<_FormatItalicIntent>(
+            onInvoke: (_) => _applyItalic(),
+          ),
+          _InsertLinkIntent: CallbackAction<_InsertLinkIntent>(
+            onInvoke: (_) => _applyLink(),
+          ),
+          _UndoIntent: CallbackAction<_UndoIntent>(
+            onInvoke: (_) => _undo(),
+          ),
+          _RedoIntent: CallbackAction<_RedoIntent>(
+            onInvoke: (_) => _redo(),
+          ),
+          _SearchIntent: CallbackAction<_SearchIntent>(
+            onInvoke: (_) {
+              if (!_showSearchBar) _toggleSearchBar();
+              return null;
+            },
+          ),
+          _CloseSearchIntent: CallbackAction<_CloseSearchIntent>(
+            onInvoke: (_) {
+              if (_wikiLinkVisible) {
+                setState(() => _dismissWikiLinkCompleter());
+                return null;
+              }
+              if (_showSearchBar) _toggleSearchBar();
+              return null;
+            },
+          ),
+          _FindPreviousIntent: CallbackAction<_FindPreviousIntent>(
+            onInvoke: (_) => _findPrevious(),
+          ),
+          _FindNextIntent: CallbackAction<_FindNextIntent>(
+            onInvoke: (_) => _findNext(),
+          ),
+        },
+        child: Stack(
+          children: [
+            editorWidget,
+            if (_wikiLinkVisible)
+              Positioned(
+                left: _editorMode == EditorMode.source ? 20 : 16,
+                top: _getCaretLocalY(),
+                child: Material(
+                  color: Colors.transparent,
+                  child: WikiLinkCompleter(
+                    query: _wikiLinkQuery,
+                    selectedIndex: _wikiLinkSelectedIndex,
+                    suggestions: _wikiLinkSuggestions,
+                    loading: _wikiLinkLoading,
+                    onSelected: _applyWikiLinkCompletion,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildLivePreviewMode() {
     return LiveMarkdownEditor(
+      key: _liveEditorKey,
       controller: _textController,
       scrollController: _scrollController,
+      initialCursorOffset: _textController.selection.baseOffset,
+      onWikiLinkTap: _openWikiLink,
     );
   }
 
@@ -1114,122 +1223,45 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   // 编辑模式仅使用 TextField，实体高亮仅在阅读模式显示。
   // 编辑模式下通过 toolbar 的实体计数徽标提示 AI 识别状态。
   Widget _buildEditMode(List<EntityHighlight> entities) {
-    return Shortcuts(
-        shortcuts: <ShortcutActivator, Intent>{
-          const SingleActivator(LogicalKeyboardKey.keyB, control: true, meta: true):
-              const _FormatBoldIntent(),
-          const SingleActivator(LogicalKeyboardKey.keyI, control: true, meta: true):
-              const _FormatItalicIntent(),
-          const SingleActivator(LogicalKeyboardKey.keyK, control: true, meta: true, shift: true):
-              const _InsertLinkIntent(),
-          const SingleActivator(LogicalKeyboardKey.keyZ, control: true, meta: true):
-              const _UndoIntent(),
-          const SingleActivator(LogicalKeyboardKey.keyY, control: true, meta: true):
-              const _RedoIntent(),
-          const SingleActivator(LogicalKeyboardKey.keyF, control: true, meta: true):
-              const _SearchIntent(),
-          const SingleActivator(LogicalKeyboardKey.escape):
-              const _CloseSearchIntent(),
-          const SingleActivator(LogicalKeyboardKey.enter, shift: true, alt: true):
-              const _FindPreviousIntent(),
-          const SingleActivator(LogicalKeyboardKey.enter, alt: true):
-              const _FindNextIntent(),
-        },
-        child: Actions(
-          actions: <Type, Action<Intent>>{
-            _FormatBoldIntent: CallbackAction<_FormatBoldIntent>(
-              onInvoke: (_) => _applyBold(),
-            ),
-            _FormatItalicIntent: CallbackAction<_FormatItalicIntent>(
-              onInvoke: (_) => _applyItalic(),
-            ),
-            _InsertLinkIntent: CallbackAction<_InsertLinkIntent>(
-              onInvoke: (_) => _applyLink(),
-            ),
-            _UndoIntent: CallbackAction<_UndoIntent>(
-              onInvoke: (_) => _undo(),
-            ),
-            _RedoIntent: CallbackAction<_RedoIntent>(
-              onInvoke: (_) => _redo(),
-            ),
-            _SearchIntent: CallbackAction<_SearchIntent>(
-              onInvoke: (_) {
-                if (!_showSearchBar) _toggleSearchBar();
-                return null;
-              },
-            ),
-            _CloseSearchIntent: CallbackAction<_CloseSearchIntent>(
-              onInvoke: (_) {
-                if (_wikiLinkVisible) {
-                  setState(() => _dismissWikiLinkCompleter());
-                  return null;
-                }
-                if (_showSearchBar) _toggleSearchBar();
-                return null;
-              },
-            ),
-            _FindPreviousIntent: CallbackAction<_FindPreviousIntent>(
-              onInvoke: (_) => _findPrevious(),
-            ),
-            _FindNextIntent: CallbackAction<_FindNextIntent>(
-              onInvoke: (_) => _findNext(),
-            ),
-          },
-          child: ClipRect(
-            child: Stack(
-              key: _editorKey,
-              children: [
-                TextField(
-                  controller: _textController,
-                  focusNode: _focusNode,
-                  scrollController: _scrollController,
-                  maxLines: null,
-                  expands: true,
-                  cursorColor: AeroColors.primary,
-                  cursorWidth: 1.5,
-                  style: Theme.of(context)
-                      .extension<AeroTextTheme>()!
-                      .codeMedium
-                      .copyWith(
-                        fontSize:
-                            ref.watch(settingsProvider.select((s) => s.fontSize)),
-                        height: 1.6,
-                      ),
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.all(20),
-                    hintText: '开始书写...',
-                    hintStyle: Theme.of(context)
-                        .extension<AeroTextTheme>()!
-                        .codeMedium
-                        .copyWith(
-                          color: AeroColors.textMuted,
-                          fontSize: ref
-                              .watch(settingsProvider.select((s) => s.fontSize)),
-                          height: 1.6,
-                        ),
-                  ),
-                  onChanged: _onTextChanged,
+    return ClipRect(
+      child: Stack(
+        key: _editorKey,
+        children: [
+          TextField(
+            controller: _textController,
+            focusNode: _focusNode,
+            scrollController: _scrollController,
+            maxLines: null,
+            expands: true,
+            textAlignVertical: TextAlignVertical.top,
+            cursorColor: AeroColors.primary,
+            cursorWidth: 1.5,
+            style: Theme.of(context)
+                .extension<AeroTextTheme>()!
+                .codeMedium
+                .copyWith(
+                  fontSize:
+                      ref.watch(settingsProvider.select((s) => s.fontSize)),
+                  height: 1.6,
                 ),
-                if (_wikiLinkVisible)
-                  Positioned(
-                    left: 20,
-                    top: _getCaretLocalY(),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: WikiLinkCompleter(
-                        query: _wikiLinkQuery,
-                        selectedIndex: _wikiLinkSelectedIndex,
-                        suggestions: _wikiLinkSuggestions,
-                        loading: _wikiLinkLoading,
-                        onSelected: _applyWikiLinkCompletion,
-                      ),
-                    ),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.all(20),
+              hintText: '开始书写...',
+              hintStyle: Theme.of(context)
+                  .extension<AeroTextTheme>()!
+                  .codeMedium
+                  .copyWith(
+                    color: AeroColors.textMuted,
+                    fontSize: ref
+                        .watch(settingsProvider.select((s) => s.fontSize)),
+                    height: 1.6,
                   ),
-              ],
             ),
+            onChanged: _onTextChanged,
           ),
-        ),
+        ],
+      ),
     );
   }
 
@@ -1644,6 +1676,8 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     final selection = _textController.selection;
     final cursorLine = _getCursorLine(selection);
     final cursorCol = _getCursorColumn(selection);
+    final showCursorInfo = _editorMode == EditorMode.source ||
+        _editorMode == EditorMode.livePreview;
 
     return Container(
       height: 26,
@@ -1663,7 +1697,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
           _buildModeIndicator(),
           const Spacer(),
           // 右侧：光标位置
-          if (_editorMode == EditorMode.source && selection.isValid && selection.isCollapsed)
+          if (showCursorInfo && selection.isValid && selection.isCollapsed)
             Text(
               '行 $cursorLine, 列 $cursorCol',
               style: const TextStyle(
@@ -1671,7 +1705,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                 fontSize: 10,
               ),
             ),
-          if (_editorMode == EditorMode.source && selection.isValid && !selection.isCollapsed)
+          if (showCursorInfo && selection.isValid && !selection.isCollapsed)
             Text(
               '已选择 ${selection.end - selection.start} 字符',
               style: const TextStyle(
@@ -1679,7 +1713,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                 fontSize: 10,
               ),
             ),
-          if (_editorMode == EditorMode.source) const SizedBox(width: 12),
+          if (showCursorInfo) const SizedBox(width: 12),
           // 统计信息
           Text(
             '${stats.wordCount} 字',

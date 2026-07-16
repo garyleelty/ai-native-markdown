@@ -710,3 +710,82 @@ None. All critical issues resolved. Product is production-ready.
 - 设计系统原子更完整（新增 xxs 间距、tooltip 等待时长）
 - 89 个测试全部通过，静态分析 0 errors
 
+---
+
+## Round 20 (Execution Phase) — 设置页/AI面板/日记面板设计系统深度统一 + 代码质量修复
+
+### 完成的工作
+
+#### 1. 设置页面设计系统常量全面应用
+- 左侧导航：padding 从 14px/6px → AeroSpacing.md/AeroSpacing.xs
+- 分组标题：SizedBox 从 8px → AeroSpacing.sm
+- 分组容器：圆角从 6px → AeroRadius.sm，边框从 0.5px → AeroBorderWidth.thin
+- 设置项：padding 从 14px/10px → AeroSpacing.md/AeroSpacing.sm
+- 文本间距：SizedBox 从 2px → AeroSpacing.xxs
+- DropdownButton：圆角从 6px → AeroRadius.sm，边框从 0.5px → AeroBorderWidth.thin
+- 所有 SizedBox 硬编码值替换为 AeroSpacing 常量
+- 所有 BorderRadius 硬编码值替换为 AeroRadius 常量
+- 所有 BorderSide width 替换为 AeroBorderWidth 常量
+- 所有 Icon size 替换为 AeroIconSize 常量
+
+#### 2. 设置页 AI 配置区域优化
+- 输入框统一样式：bgSurface 背景、border 边框、accentBlue 聚焦边框
+- 所有文本字段使用 _buildTextField 统一方法
+
+#### 3. 设置页存储区域优化
+- Git 备份配置输入框统一样式
+- 备份/恢复按钮使用 OutlinedButton，统一边框样式
+- 错误信息和上次备份时间统一样式
+- "清除所有数据" 对话框从 AlertDialog 改为 ConfirmDialog（danger + isDestructive）
+
+#### 4. AI 聊天面板设计系统常量全面应用
+- 折叠把手：间距从 8px → AeroSpacing.sm，padding 从 8/4 → AeroSpacing.sm/xs
+- 圆角从 4px → AeroRadius.sm，边框从 0.5px → AeroBorderWidth.thin
+- 图标尺寸从 12/16 → AeroIconSize.sm/md
+- 未激活提示：padding 从 16px → AeroSpacing.lg，间距从 8/4 → AeroSpacing.sm/xs
+- 空状态：padding 从 20px → AeroSpacing.xl，圆角从 12px → AeroRadius.xl
+- 消息气泡：padding 从 12/8 → AeroSpacing.md/sm，圆角从 8/4 → AeroRadius.lg/sm
+- 边框从 0.5px → AeroBorderWidth.thin，分隔线从 2px → AeroBorderWidth.thick
+- 加载气泡、输入区域统一样式
+- 发送按钮动画从 150ms → AeroAnimation.normal，曲线从 easeOutCubic → AeroAnimation.curve
+
+#### 5. 日记面板设计系统常量全面应用
+- 外层容器：圆角从 8px → AeroRadius.lg，边框从 0.5px → AeroBorderWidth.thin
+- 分割线厚度从 0.5 → AeroBorderWidth.thin
+- 标题栏：padding 从 12px → AeroSpacing.md，图标尺寸从 14 → AeroIconSize.sm
+- "今天"按钮：padding 从 8/2 → AeroSpacing.sm/xxs，圆角从 4 → AeroRadius.sm
+- 日历区域：padding 从 12 → AeroSpacing.md，导航图标从 18 → AeroIconSize.lg
+- 日期单元格：圆角从 4 → AeroRadius.sm，边框从 0.5 → AeroBorderWidth.thin
+- 日记预览区域：padding 从 12 → AeroSpacing.md
+- 打开日记按钮：padding 从 10/12 → AeroSpacing.sm+xs/md，圆角从 6 → AeroRadius.md
+- 统计芯片：padding 从 8/3 → AeroSpacing.sm/xxs+1，圆角从 4 → AeroRadius.sm
+
+#### 6. 代码质量修复
+- 修复 sidebar_container.dart 两处 use_build_context_synchronously info
+  - _TreeNodeState._showRenameDialog：context.mounted → mounted（State 类使用 mounted 属性）
+  - _SidebarContentState._showNewNoteFromHeader：添加 context.mounted 检查
+
+### 验证结果
+- ✅ `flutter test`: 89 passed, 0 failed
+- ✅ `dart analyze lib/`: 0 errors, 1 warning (pre-existing: non_const_argument_for_const_parameter), ~10 info (prefer_const_constructors 等优化建议)
+- ✅ `flutter build macos --debug`: 构建成功
+- ✅ 所有单元测试通过
+- ✅ Widget 测试通过
+
+### 关键设计决策
+1. **渐进式设计系统推广**：从核心组件 → 主要面板 → 次要面板，逐步推进，每轮都有可验证的成果
+2. **State.mounted vs BuildContext.mounted**：State 类中异步回调后使用 `mounted` 而非 `context.mounted`，避免 lint 警告
+3. **ConfirmDialog 统一确认对话框**：破坏性操作（清除数据、删除等）统一使用 ConfirmDialog + danger + isDestructive，保证用户体验一致
+
+### 主要修改文件
+- `lib/features/settings/widgets/settings_page.dart` — 设计系统常量全面应用 + ConfirmDialog 统一
+- `lib/features/ai_chat/widgets/ai_chat_panel.dart` — 设计系统常量全面应用
+- `lib/features/daily_notes/widgets/daily_note_panel.dart` — 设计系统常量全面应用
+- `lib/features/sidebar/widgets/sidebar_container.dart` — use_build_context_synchronously 修复
+
+### 产品状态
+- 设置页、AI 聊天面板、日记面板硬编码值全部替换为设计系统常量
+- 代码质量进一步提升，lint info 数量减少
+- 所有 89 个测试通过，macOS 构建成功
+- 产品已达到生产级 UI/UX 质量和代码质量标准
+

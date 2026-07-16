@@ -187,7 +187,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
       decoration: const BoxDecoration(
         color: AeroColors.bgSurface,
         border:
-            Border(left: BorderSide(color: AeroColors.divider, width: 0.5)),
+            Border(left: BorderSide(color: AeroColors.divider, width: AeroBorderWidth.thin)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -215,27 +215,27 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
           decoration: const BoxDecoration(
             color: AeroColors.bgSurface,
             border: Border(
-                left: BorderSide(color: AeroColors.divider, width: 0.5)),
+                left: BorderSide(color: AeroColors.divider, width: AeroBorderWidth.thin)),
           ),
           child: Column(
             children: [
-              const SizedBox(height: 8),
+              const SizedBox(height: AeroSpacing.sm),
               RotatedBox(
                 quarterTurns: 3,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      const EdgeInsets.symmetric(horizontal: AeroSpacing.sm, vertical: AeroSpacing.xs),
                   decoration: BoxDecoration(
                     color: AeroColors.bgElevated,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: AeroColors.border, width: 0.5),
+                    borderRadius: BorderRadius.circular(AeroRadius.sm),
+                    border: Border.all(color: AeroColors.border, width: AeroBorderWidth.thin),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.chat,
-                          size: 12, color: AeroColors.accentPurple),
-                      SizedBox(width: 4),
+                          size: AeroIconSize.sm, color: AeroColors.accentPurple),
+                      SizedBox(width: AeroSpacing.xs),
                       Text(
                         'AI 对话',
                         style: TextStyle(
@@ -248,10 +248,10 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AeroSpacing.sm),
               IconButton(
                 icon: const Icon(Icons.chevron_left,
-                    size: 16, color: AeroColors.textMuted),
+                    size: AeroIconSize.md, color: AeroColors.textMuted),
                 onPressed: widget.onToggle,
                 splashRadius: 14,
                 tooltip: '展开 AI 面板',
@@ -321,20 +321,20 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
   Widget _buildNotActivated(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AeroSpacing.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.warning_amber_rounded,
                 size: 32, color: AeroColors.accentOrange),
-            const SizedBox(height: 8),
+            const SizedBox(height: AeroSpacing.sm),
             Text(
               'AI 对话插件未激活',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AeroColors.textSecondary,
                   ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: AeroSpacing.xs),
             Text(
               '按 Cmd/Ctrl+Shift+P 打开插件管理',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -353,7 +353,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
     if (_messages.isEmpty) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(AeroSpacing.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -362,15 +362,15 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
                 height: 48,
                 decoration: BoxDecoration(
                   color: AeroColors.accentPurple.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AeroRadius.xl),
                 ),
                 child: const Icon(
                   Icons.auto_awesome,
-                  size: 24,
+                  size: AeroIconSize.xl + 4,
                   color: AeroColors.accentPurple,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AeroSpacing.md),
               Text(
                 'AI 对话助手',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -379,7 +379,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
                       fontSize: 13,
                     ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: AeroSpacing.xs + AeroSpacing.xxs),
               Text(
                 '基于当前打开的笔记内容\n回答问题、总结要点、生成想法',
                 textAlign: TextAlign.center,
@@ -388,13 +388,13 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
                       height: 1.5,
                     ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AeroSpacing.lg),
               _buildQuickActionChip(
                 icon: Icons.summarize,
                 label: '总结当前笔记',
                 onTap: () => _sendQuickAction('请总结当前笔记的主要内容'),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: AeroSpacing.xs + AeroSpacing.xxs),
               _buildQuickActionChip(
                 icon: Icons.lightbulb_outline,
                 label: '生成相关想法',
@@ -408,7 +408,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(AeroSpacing.sm),
       itemCount: _messages.length + (_isLoading ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == _messages.length && _isLoading) {
@@ -437,7 +437,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
     final isUser = msg.role == 'user';
     final timeStr = DateFormat('HH:mm').format(msg.timestamp);
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: AeroSpacing.sm + AeroSpacing.xs),
       child: Row(
         mainAxisAlignment:
             isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -445,8 +445,8 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
         children: [
           if (!isUser) ...[
             const Icon(Icons.smart_toy_outlined,
-                size: 14, color: AeroColors.accentCyan),
-            const SizedBox(width: 4),
+                size: AeroIconSize.sm, color: AeroColors.accentCyan),
+            const SizedBox(width: AeroSpacing.xs),
           ],
           Flexible(
             child: Column(
@@ -456,7 +456,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
               children: [
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
                   decoration: BoxDecoration(
                     gradient: isUser
                         ? const LinearGradient(
@@ -467,14 +467,14 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
                         : null,
                     color: isUser ? null : AeroColors.bgElevated,
                     borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(isUser ? 8 : 4),
-                      topRight: Radius.circular(isUser ? 4 : 8),
-                      bottomLeft: const Radius.circular(8),
-                      bottomRight: const Radius.circular(8),
+                      topLeft: Radius.circular(isUser ? AeroRadius.lg : AeroRadius.sm),
+                      topRight: Radius.circular(isUser ? AeroRadius.sm : AeroRadius.lg),
+                      bottomLeft: const Radius.circular(AeroRadius.lg),
+                      bottomRight: const Radius.circular(AeroRadius.lg),
                     ),
                     border: isUser
                         ? null
-                        : Border.all(color: AeroColors.border, width: 0.5),
+                        : Border.all(color: AeroColors.border, width: AeroBorderWidth.thin),
                   ),
                   child: Container(
                     decoration: BoxDecoration(
@@ -483,13 +483,13 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
                           : const Border(
                               left: BorderSide(
                                 color: AeroColors.accentCyan,
-                                width: 2,
+                                width: AeroBorderWidth.thick,
                               ),
                             ),
                     ),
                     padding: isUser
                         ? EdgeInsets.zero
-                        : const EdgeInsets.only(left: 8),
+                        : const EdgeInsets.only(left: AeroSpacing.sm),
                     child: SelectableText(
                       msg.content,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -501,7 +501,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
                     ),
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: AeroSpacing.xxs),
                 Text(
                   timeStr,
                   style: const TextStyle(
@@ -513,9 +513,9 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
             ),
           ),
           if (isUser) ...[
-            const SizedBox(width: 4),
+            const SizedBox(width: AeroSpacing.xs),
             const Icon(Icons.person_outline,
-                size: 14, color: AeroColors.accentBlue),
+                size: AeroIconSize.sm, color: AeroColors.accentBlue),
           ],
         ],
       ),
@@ -525,34 +525,34 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
   /// 加载中气泡
   Widget _buildLoadingBubble(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: AeroSpacing.sm),
       child: Row(
         children: [
           const Icon(Icons.smart_toy_outlined,
-              size: 14, color: AeroColors.accentCyan),
-          const SizedBox(width: 4),
+              size: AeroIconSize.sm, color: AeroColors.accentCyan),
+          const SizedBox(width: AeroSpacing.xs),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
             decoration: BoxDecoration(
               color: AeroColors.bgElevated,
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(4),
-                topRight: Radius.circular(8),
-                bottomLeft: Radius.circular(8),
-                bottomRight: Radius.circular(8),
+                topLeft: Radius.circular(AeroRadius.sm),
+                topRight: Radius.circular(AeroRadius.lg),
+                bottomLeft: Radius.circular(AeroRadius.lg),
+                bottomRight: Radius.circular(AeroRadius.lg),
               ),
-              border: Border.all(color: AeroColors.border, width: 0.5),
+              border: Border.all(color: AeroColors.border, width: AeroBorderWidth.thin),
             ),
             child: Container(
               decoration: const BoxDecoration(
                 border: Border(
                   left: BorderSide(
                     color: AeroColors.accentCyan,
-                    width: 2,
+                    width: AeroBorderWidth.thick,
                   ),
                 ),
               ),
-              padding: const EdgeInsets.only(left: 8),
+              padding: const EdgeInsets.only(left: AeroSpacing.sm),
               child: _TypingIndicator(controller: _typingController),
             ),
           ),
@@ -565,10 +565,10 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
   /// Enter 发送, Shift+Enter 换行
   Widget _buildInputArea(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(AeroSpacing.sm),
       decoration: const BoxDecoration(
         color: AeroColors.bgElevated,
-        border: Border(top: BorderSide(color: AeroColors.divider, width: 0.5)),
+        border: Border(top: BorderSide(color: AeroColors.divider, width: AeroBorderWidth.thin)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -605,23 +605,23 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
                             ),
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 8),
+                        horizontal: AeroSpacing.sm, vertical: AeroSpacing.sm),
                     filled: true,
                     fillColor: AeroColors.bgSurface,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(AeroRadius.sm),
                       borderSide: const BorderSide(
-                          color: AeroColors.border, width: 0.5),
+                          color: AeroColors.border, width: AeroBorderWidth.thin),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(AeroRadius.sm),
                       borderSide: const BorderSide(
-                          color: AeroColors.border, width: 0.5),
+                          color: AeroColors.border, width: AeroBorderWidth.thin),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(AeroRadius.sm),
                       borderSide: const BorderSide(
-                          color: AeroColors.accentPurple, width: 0.5),
+                          color: AeroColors.accentPurple, width: AeroBorderWidth.thin),
                     ),
                     constraints: const BoxConstraints(
                       minHeight: 32,
@@ -633,7 +633,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
             ),
           ),
           if (_hasInputText && !_isLoading) ...[
-            const SizedBox(width: 4),
+            const SizedBox(width: AeroSpacing.xs),
             _SendButton(
               onTap: _sendMessage,
             ),
@@ -659,9 +659,9 @@ class _TypingIndicator extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildDot(0),
-            const SizedBox(width: 3),
+            const SizedBox(width: AeroSpacing.xxs + 1),
             _buildDot(1),
-            const SizedBox(width: 3),
+            const SizedBox(width: AeroSpacing.xxs + 1),
             _buildDot(2),
           ],
         );
@@ -718,8 +718,8 @@ class _SendButtonState extends State<_SendButton> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOutCubic,
+          duration: AeroAnimation.normal,
+          curve: AeroAnimation.curve,
           width: 32,
           height: 32,
           decoration: BoxDecoration(
@@ -731,11 +731,11 @@ class _SendButtonState extends State<_SendButton> {
                   )
                 : null,
             color: _isHovering ? null : AeroColors.accentPurple.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(AeroRadius.sm),
           ),
           child: Icon(
             Icons.send,
-            size: 14,
+            size: AeroIconSize.sm,
             color: _isHovering ? Colors.white : AeroColors.accentPurple,
           ),
         ),

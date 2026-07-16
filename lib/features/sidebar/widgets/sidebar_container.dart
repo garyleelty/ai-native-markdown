@@ -36,8 +36,9 @@ import 'trash_panel.dart';
 /// 侧边栏主容器 — VS Code 风格：左侧纵向活动栏 + 可拖拽宽度的内容面板
 class SidebarContainer extends ConsumerStatefulWidget {
   final void Function(String noteId, String title)? onNoteSelected;
+  final VoidCallback? onOpenSettings;
 
-  const SidebarContainer({super.key, this.onNoteSelected});
+  const SidebarContainer({super.key, this.onNoteSelected, this.onOpenSettings});
 
   @override
   ConsumerState<SidebarContainer> createState() => _SidebarContainerState();
@@ -64,6 +65,7 @@ class _SidebarContainerState extends ConsumerState<SidebarContainer> {
             isExpanded: sidebarState.isExpanded,
             currentView: sidebarState.currentView,
             onToggle: () => ref.read(sidebarProvider.notifier).toggleExpanded(),
+            onOpenSettings: widget.onOpenSettings,
           ),
 
           // ── 内容面板 (展开时可见) ──
@@ -305,11 +307,13 @@ class _ActivityBar extends ConsumerWidget {
   final bool isExpanded;
   final SidebarView currentView;
   final VoidCallback onToggle;
+  final VoidCallback? onOpenSettings;
 
   const _ActivityBar({
     required this.isExpanded,
     required this.currentView,
     required this.onToggle,
+    this.onOpenSettings,
   });
 
   @override
@@ -434,6 +438,12 @@ class _ActivityBar extends ConsumerWidget {
             },
           ),
           const Spacer(),
+          _ActivityIcon(
+            icon: Icons.settings_outlined,
+            isActive: false,
+            tooltip: '设置',
+            onTap: () => onOpenSettings?.call(),
+          ),
           _ActivityIcon(
             icon: Icons.chevron_left,
             isActive: false,

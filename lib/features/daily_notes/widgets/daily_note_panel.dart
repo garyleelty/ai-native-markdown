@@ -104,8 +104,8 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
     return Container(
       decoration: BoxDecoration(
         color: AeroColors.bgSurface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AeroColors.border, width: 0.5),
+        borderRadius: BorderRadius.circular(AeroRadius.lg),
+        border: Border.all(color: AeroColors.border, width: AeroBorderWidth.thin),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -113,10 +113,10 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
         children: [
           // ── 标题栏 ──
           _buildHeader(),
-          const Divider(height: 1, thickness: 0.5),
+          const Divider(height: 1, thickness: AeroBorderWidth.thin),
           // ── 日历视图 ──
           _buildCalendar(today),
-          const Divider(height: 1, thickness: 0.5),
+          const Divider(height: 1, thickness: AeroBorderWidth.thin),
           // ── 今日日记预览 ──
           _buildTodayPreview(today),
         ],
@@ -127,11 +127,11 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
   Widget _buildHeader() {
     return Container(
       height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md),
       child: Row(
         children: [
-          const Icon(Icons.calendar_today, size: 14, color: AeroColors.accentBlue),
-          const SizedBox(width: 6),
+          const Icon(Icons.calendar_today, size: AeroIconSize.sm, color: AeroColors.accentBlue),
+          const SizedBox(width: AeroSpacing.xs + AeroSpacing.xxs),
           const Text(
             '日记',
             style: TextStyle(
@@ -145,10 +145,10 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
           GestureDetector(
             onTap: _goToToday,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.sm, vertical: AeroSpacing.xxs),
               decoration: BoxDecoration(
                 color: AeroColors.accentBlue.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(AeroRadius.sm),
               ),
               child: const Text(
                 '今天',
@@ -175,7 +175,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
         year == today.year && month == today.month;
 
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AeroSpacing.md),
       child: Column(
         children: [
           // 月份导航
@@ -185,7 +185,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
               GestureDetector(
                 onTap: _prevMonth,
                 child: const Icon(Icons.chevron_left,
-                    size: 18, color: AeroColors.textSecondary),
+                    size: AeroIconSize.lg, color: AeroColors.textSecondary),
               ),
               Text(
                 '$year 年 $month 月',
@@ -198,11 +198,11 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
               GestureDetector(
                 onTap: _nextMonth,
                 child: const Icon(Icons.chevron_right,
-                    size: 18, color: AeroColors.textSecondary),
+                    size: AeroIconSize.lg, color: AeroColors.textSecondary),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AeroSpacing.sm),
 
           // 星期标题行
           Row(
@@ -221,7 +221,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
                     ))
                 .toList(),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AeroSpacing.xs),
 
           // 日期网格
           ..._buildWeekRows(year, month, daysInMonth, firstWeekday,
@@ -274,10 +274,10 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
                     color: isToday
                         ? AeroColors.accentBlue.withValues(alpha: 0.2)
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(AeroRadius.sm),
                     border: isToday
                         ? Border.all(
-                            color: AeroColors.accentBlue, width: 0.5)
+                            color: AeroColors.accentBlue, width: AeroBorderWidth.thin)
                         : null,
                   ),
                   child: Stack(
@@ -299,10 +299,10 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
                       // 有日记的日期下方显示小圆点
                       if (hasNote)
                         Positioned(
-                          bottom: 2,
+                          bottom: AeroSpacing.xxs,
                           child: Container(
-                            width: 4,
-                            height: 4,
+                            width: AeroSpacing.xs,
+                            height: AeroSpacing.xs,
                             decoration: BoxDecoration(
                               color: isToday
                                   ? AeroColors.accentBlue
@@ -330,7 +330,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
 
   Widget _buildTodayPreview(DateTime today) {
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AeroSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -345,7 +345,7 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
                   color: AeroColors.textPrimary,
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: AeroSpacing.xs + AeroSpacing.xxs),
               Text(
                 _weekdayName(today.weekday),
                 style: const TextStyle(
@@ -355,22 +355,22 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AeroSpacing.sm),
 
           // 打开今天日记的按钮
           GestureDetector(
             onTap: () => _openDailyNote(today),
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              padding: const EdgeInsets.symmetric(vertical: AeroSpacing.sm + AeroSpacing.xs, horizontal: AeroSpacing.md),
               decoration: BoxDecoration(
                 color: AeroColors.bgElevated,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AeroColors.border, width: 0.5),
+                borderRadius: BorderRadius.circular(AeroRadius.md),
+                border: Border.all(color: AeroColors.border, width: AeroBorderWidth.thin),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.edit_note, size: 16, color: AeroColors.accentBlue),
-                  SizedBox(width: 8),
+                  Icon(Icons.edit_note, size: AeroIconSize.md, color: AeroColors.accentBlue),
+                  SizedBox(width: AeroSpacing.sm),
                   Text(
                     '打开今天的日记',
                     style: TextStyle(
@@ -381,13 +381,13 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
                   ),
                   Spacer(),
                   Icon(Icons.arrow_forward_ios,
-                      size: 10, color: AeroColors.textMuted),
+                      size: AeroIconSize.sm - 4, color: AeroColors.textMuted),
                 ],
               ),
             ),
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: AeroSpacing.sm),
 
           // 日记统计
           Row(
@@ -410,16 +410,16 @@ class _DailyNotePanelState extends ConsumerState<DailyNotePanel> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.sm, vertical: AeroSpacing.xxs + 1),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(AeroRadius.sm),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 10, color: color),
-          const SizedBox(width: 4),
+          Icon(icon, size: AeroIconSize.sm - 4, color: color),
+          const SizedBox(width: AeroSpacing.xs),
           Text(
             label,
             style: TextStyle(

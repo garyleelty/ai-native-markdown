@@ -38,178 +38,34 @@ class SlidingPanesContainer extends ConsumerStatefulWidget {
 }
 
 class _SlidingPanesContainerState
-    extends ConsumerState<SlidingPanesContainer>
-    with TickerProviderStateMixin {
-  late final ScrollController _scrollController;
-
-  /// 堆叠标题的动画控制器 (回弹时使用)
-  late final AnimationController _bounceController;
-
-  /// 记录上次布局宽度，避免重复计算
-  double _lastLayoutWidth = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController = ScrollController()
-      ..addListener(_onScroll);
-    _bounceController = AnimationController(
-      vsync: this,
-      duration: PaneLayout.bounceDuration,
-    );
-  }
-
-  @override
-  void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
-    _bounceController.dispose();
-    super.dispose();
-  }
-
-  // ── 滚动监听: 判断哪些面板应被折叠 ──
-  // 修复: 将 updateScrollX 和 updateStackedStates 合并为一次通知
-  void _onScroll() {
-    final offset = _scrollController.offset;
-    _recalculateStackedPanes(offset);
-  }
-
-  /// 根据容器横向滚动偏移，计算哪些面板应该被堆叠
-  ///
-  /// 核心逻辑:
-  ///   面板 i 的左边缘 = 堆叠栏总宽 + i * (panelWidth + gap)
-  ///   如果 (左边缘 + panelWidth - scrollOffset) < 0，即完全滚出左侧，
-  ///   则该面板标记为 isStacked
-  void _recalculateStackedPanes(double scrollOffset) {
-    final paneState = ref.read(paneStackProvider);
-    final count = paneState.panes.length;
-    if (count == 0 || _lastLayoutWidth == 0) return;
-
-    final panelWidth = _getPanelWidth(_lastLayoutWidth);
-
-    final flags = <bool>[];
-    double cursorX = 0;
-
-    for (int i = 0; i < count; i++) {
-      if (paneState.panes[i].isStacked) {
-        // 已堆叠的面板: 游标推进 stackedTitleWidth，保持堆叠状态
-        flags.add(true);
-        cursorX += PaneLayout.stackedTitleWidth + PaneLayout.stackedTitleGap;
-        continue;
-      }
-
-      final panelRight = cursorX + panelWidth;
-      // 面板右边缘在视口左侧之外 → 堆叠
-      final shouldStack =
-          panelRight < scrollOffset + PaneLayout.stackThreshold;
-      flags.add(shouldStack);
-
-      if (!shouldStack) {
-        cursorX += panelWidth + PaneLayout.paneGap;
-      }
-    }
-
-    // 仅当状态实际变化时才通知 provider (合并 scrollX + stackStates 为一次通知)
-    final currentFlags =
-        paneState.panes.map((p) => p.isStacked).toList();
-    if (!_listEquals(currentFlags, flags)) {
-      final notifier = ref.read(paneStackProvider.notifier);
-      notifier.updateStackedStates(flags);
-    }
-    // scrollX 的更新延迟到 build 中通过 ref.watch 统一触发，避免二次 rebuild
-  }
-
-  /// 响应式面板宽度计算
-  /// 修复: 增加 tablet 断点，渐进式宽度计算避免跳跃
-  double _getPanelWidth(double containerWidth) {
-    if (containerWidth >= PaneLayout.tabletBreakpoint) {
-      // 桌面: 固定 400px
-      return PaneLayout.desktopWidth;
-    } else if (containerWidth >= PaneLayout.mobileBreakpoint) {
-      // 平板: 在 400px ~ 80% 宽度之间线性插值
-      final t = (containerWidth - PaneLayout.mobileBreakpoint) /
-          (PaneLayout.tabletBreakpoint - PaneLayout.mobileBreakpoint);
-      return PaneLayout.desktopWidth +
-          (containerWidth * PaneLayout.mobileWidthRatio - PaneLayout.desktopWidth) *
-              (1 - t);
-    } else {
-      // 手机: 80% 宽度
-      return containerWidth * PaneLayout.mobileWidthRatio;
-    }
-  }
-
-  /// 点击堆叠标题 → 平滑滚动回到对应面板
-  /// 修复:
-  ///   1. targetOffset 需要考虑堆叠栏总宽作为偏移基线
-  ///   2. 先计算偏移再一次性更新 state，避免 activatePane 触发
-  ///      rebuild 后 ScrollController 失效
-  ///   3. 删除冗余的直接 state 赋值，activatePane 已包含 activeIndex
+    extends ConsumerState<SlidingPanesContainer> {
+  /// 点击堆叠标题 → 激活对应面板
   void _bounceBackToPane(int index) {
     final paneState = ref.read(paneStackProvider);
-    final count = paneState.panes.length;
-    if (index < 0 || index >= count) return;
-
-    final panelWidth = _getPanelWidth(_lastLayoutWidth);
-
-    // 计算回弹后堆叠栏将缩小到的宽度:
-    //   index 之前的面板将全部解除堆叠，堆叠栏仅保留 index 之后的已堆叠面板
-    final remainingStackedCount =
-        paneState.panes.skip(index + 1).where((p) => p.isStacked).length;
-    final newStackedWidth = remainingStackedCount *
-            PaneLayout.stackedTitleWidth +
-        (remainingStackedCount > 0
-            ? (remainingStackedCount - 1) * PaneLayout.stackedTitleGap
-            : 0);
-
-    // 目标偏移 = 目标面板在视口中的起始位置
-    //   index 之前有 index 个面板 (解除堆叠后全部变为可见)
-    double targetOffset =
-        index * (panelWidth + PaneLayout.paneGap) - newStackedWidth;
-    targetOffset = targetOffset.clamp(
-      0.0,
-      _scrollController.position.maxScrollExtent,
-    );
-
-    // 1) 一次性更新 state (解除堆叠 + 激活面板)
+    if (index < 0 || index >= paneState.panes.length) return;
     ref.read(paneStackProvider.notifier).activatePane(index);
-
-    // 2) 在下一帧执行滚动动画，避免 rebuild 导致 ScrollController 失效
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        targetOffset,
-        duration: PaneLayout.bounceDuration,
-        curve: Curves.easeOutCubic,
-      );
-    });
-  }
-
-  bool _listEquals(List<bool> a, List<bool> b) {
-    if (a.length != b.length) return false;
-    for (int i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
   }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        _lastLayoutWidth = constraints.maxWidth;
         final paneState = ref.watch(paneStackProvider);
-        final panelWidth = _getPanelWidth(constraints.maxWidth);
 
-        return Row(
+        return Column(
           children: [
-            // ── 左侧: 垂直堆叠的标题栏 ──
-            _buildStackedTitles(paneState),
+            // ── 顶部: 所有已打开面板的横向标签栏 ──
+            _buildTabBar(paneState),
 
-            // ── 右侧: 横向滚动的面板流 ──
+            // ── 下方: 可见面板区域 ──
             Expanded(
-              child: _buildScrollablePanelStream(
-                paneState,
-                panelWidth,
+              child: LayoutBuilder(
+                builder: (context, innerConstraints) {
+                  return _buildPanelArea(
+                    paneState,
+                    innerConstraints.maxWidth,
+                  );
+                },
               ),
             ),
           ],
@@ -219,38 +75,37 @@ class _SlidingPanesContainerState
   }
 
   // ──────────────────────────────────────────────
-  // 左侧堆叠标题栏
+  // 顶部横向标签栏 (Chrome 风格)
   // ──────────────────────────────────────────────
-  Widget _buildStackedTitles(PaneStackState paneState) {
-    final stackedPanes = paneState.panes
-        .asMap()
-        .entries
-        .where((e) => e.value.isStacked)
-        .toList();
+  Widget _buildTabBar(PaneStackState paneState) {
+    if (paneState.panes.isEmpty) return const SizedBox.shrink();
 
-    if (stackedPanes.isEmpty) return const SizedBox.shrink();
+    return Container(
+      height: PaneLayout.tabBarHeight,
+      decoration: const BoxDecoration(
+        color: AeroColors.bgElevated,
+        border: Border(
+          bottom: BorderSide(color: AeroColors.divider, width: 0.5),
+        ),
+      ),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: PaneLayout.paneGap),
+        itemCount: paneState.panes.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 2),
+        itemBuilder: (context, index) {
+          final pane = paneState.panes[index];
+          final isActive = index == paneState.activeIndex;
 
-    return AnimatedContainer(
-      duration: PaneLayout.stackDuration,
-      curve: Curves.easeInOut,
-      width: stackedPanes.length * PaneLayout.stackedTitleWidth +
-          (stackedPanes.length - 1) * PaneLayout.stackedTitleGap,
-      child: Column(
-        children: stackedPanes.map((entry) {
-          final originalIndex = entry.key;
-          final pane = entry.value;
-          final isActive = originalIndex == paneState.activeIndex;
-
-          return Padding(
-            padding: const EdgeInsets.only(
-                bottom: PaneLayout.stackedTitleGap),
-            child: _StackedTitleBar(
-              title: pane.title,
-              isActive: isActive,
-              onTap: () => _bounceBackToPane(originalIndex),
-            ),
+          return _PaneTab(
+            title: pane.title,
+            isActive: isActive,
+            onTap: () => _bounceBackToPane(index),
+            onClose: () => ref
+                .read(paneStackProvider.notifier)
+                .closePane(index),
           );
-        }).toList(),
+        },
       ),
     );
   }
@@ -404,17 +259,16 @@ class _SlidingPanesContainerState
   }
 
   // ──────────────────────────────────────────────
-  // 横向滚动面板流
+  // 可见面板区域 (Chrome 风格分屏)
   // ──────────────────────────────────────────────
-  Widget _buildScrollablePanelStream(
-    PaneStackState paneState,
-    double panelWidth,
-  ) {
+  // - 0 个面板: 显示欢迎页
+  // - 1 个面板: 占满整个可用宽度
+  // - 2 个面板: 左右并排，中间可拖拽分隔条调整宽度
+  Widget _buildPanelArea(PaneStackState paneState, double containerWidth) {
     if (paneState.panes.isEmpty) {
       return _buildEmptyWelcome(context);
     }
 
-    // 只渲染未堆叠的面板
     final visiblePanes = paneState.panes
         .asMap()
         .entries
@@ -433,44 +287,89 @@ class _SlidingPanesContainerState
       );
     }
 
-    return SingleChildScrollView(
-      controller: _scrollController,
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(
-        horizontal: PaneLayout.paneGap,
-        vertical: PaneLayout.paneGap,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: visiblePanes.map((entry) {
-          final originalIndex = entry.key;
-          final pane = entry.value;
-          final isActive =
-              originalIndex == paneState.activeIndex;
+    const padding = EdgeInsets.all(PaneLayout.paneGap);
 
-          return Padding(
-            padding: const EdgeInsets.only(
-                right: PaneLayout.paneGap),
-            child: SizedBox(
-              width: panelWidth,
-              child: _PaneFrame(
-                isActive: isActive,
-                title: pane.title,
-                noteId: pane.noteId,
-                index: originalIndex,
-                onClose: () => ref
-                    .read(paneStackProvider.notifier)
-                    .closePane(originalIndex),
-                child: widget.paneBuilder(
-                  context,
-                  pane.noteId,
-                  originalIndex,
-                ),
+    if (visiblePanes.length == 1) {
+      final entry = visiblePanes.first;
+      return Padding(
+        padding: padding,
+        child: _PaneFrame(
+          isActive: true,
+          title: entry.value.title,
+          noteId: entry.value.noteId,
+          index: entry.key,
+          onClose: () => ref
+              .read(paneStackProvider.notifier)
+              .closePane(entry.key),
+          child: widget.paneBuilder(
+            context,
+            entry.value.noteId,
+            entry.key,
+          ),
+        ),
+      );
+    }
+
+    // 两个可见面板: 左右分屏，可拖拽调整
+    final left = visiblePanes[0];
+    final right = visiblePanes[1];
+    final availableWidth = containerWidth -
+        PaneLayout.splitterWidth -
+        PaneLayout.paneGap * 2;
+    final minRatio = PaneLayout.minPanelWidth / availableWidth;
+    final maxRatio = 1 - minRatio;
+    final ratio = paneState.splitRatio.clamp(minRatio, maxRatio);
+    final leftWidth = availableWidth * ratio;
+    final rightWidth = availableWidth - leftWidth;
+
+    return Padding(
+      padding: padding,
+      child: Row(
+        children: [
+          SizedBox(
+            width: leftWidth,
+            child: _PaneFrame(
+              isActive: left.key == paneState.activeIndex,
+              title: left.value.title,
+              noteId: left.value.noteId,
+              index: left.key,
+              onClose: () => ref
+                  .read(paneStackProvider.notifier)
+                  .closePane(left.key),
+              child: widget.paneBuilder(
+                context,
+                left.value.noteId,
+                left.key,
               ),
             ),
-          );
-        }).toList(),
+          ),
+          _PaneSplitter(
+            onUpdate: (delta) {
+              final newRatio = ((leftWidth + delta) / availableWidth)
+                  .clamp(minRatio, maxRatio);
+              ref
+                  .read(paneStackProvider.notifier)
+                  .setSplitRatio(newRatio);
+            },
+          ),
+          SizedBox(
+            width: rightWidth,
+            child: _PaneFrame(
+              isActive: right.key == paneState.activeIndex,
+              title: right.value.title,
+              noteId: right.value.noteId,
+              index: right.key,
+              onClose: () => ref
+                  .read(paneStackProvider.notifier)
+                  .closePane(right.key),
+              child: widget.paneBuilder(
+                context,
+                right.value.noteId,
+                right.key,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -553,67 +452,144 @@ class _QuickActionCard extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════
-// 堆叠标题栏 Widget (旋转 90° 的垂直文字)
+// 分屏拖拽分隔条
 // ══════════════════════════════════════════════════
-class _StackedTitleBar extends StatelessWidget {
+class _PaneSplitter extends StatelessWidget {
+  final ValueChanged<double> onUpdate;
+
+  const _PaneSplitter({required this.onUpdate});
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (details) => onUpdate(details.delta.dx),
+        child: Container(
+          width: PaneLayout.splitterWidth,
+          color: Colors.transparent,
+          child: Center(
+            child: Container(
+              width: 2,
+              height: double.infinity,
+              color: AeroColors.border,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════
+// 顶部标签项 Widget (Chrome 风格)
+// ══════════════════════════════════════════════════
+class _PaneTab extends StatefulWidget {
   final String title;
   final bool isActive;
   final VoidCallback onTap;
+  final VoidCallback onClose;
 
-  const _StackedTitleBar({
+  const _PaneTab({
     required this.title,
     required this.isActive,
     required this.onTap,
+    required this.onClose,
   });
+
+  @override
+  State<_PaneTab> createState() => _PaneTabState();
+}
+
+class _PaneTabState extends State<_PaneTab> {
+  bool _isHovering = false;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: '返回面板: $title',
+      label: '切换面板: ${widget.title}',
       child: GestureDetector(
-        onTap: onTap,
+        onTap: widget.onTap,
         behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-        duration: PaneLayout.stackDuration,
-        width: PaneLayout.stackedTitleWidth,
-        height: double.infinity, // 填满容器高度
-        decoration: AeroTheme.stackedTitleDecoration.copyWith(
-          color: isActive
-              ? AeroColors.bgHover
-              : AeroColors.bgElevated,
-          border: Border(
-            right: BorderSide(
-              color: isActive
-                  ? AeroColors.accentBlue
-                  : AeroColors.border,
-              width: isActive ? 1.5 : 0.5,
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _isHovering = true),
+          onExit: (_) => setState(() => _isHovering = false),
+          child: AnimatedContainer(
+            duration: PaneLayout.hoverDuration,
+            constraints: const BoxConstraints(
+              minWidth: PaneLayout.tabMinWidth,
             ),
-            bottom: const BorderSide(
-              color: AeroColors.border,
-              width: 0.5,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: widget.isActive
+                  ? AeroColors.bgSurface
+                  : _isHovering
+                      ? AeroColors.bgHover
+                      : Colors.transparent,
+              border: Border(
+                bottom: BorderSide(
+                  color: widget.isActive
+                      ? AeroColors.accentBlue
+                      : Colors.transparent,
+                  width: 2,
+                ),
+              ),
             ),
-          ),
-        ),
-        child: Center(
-          // RotatedBox 顺时针旋转 90° → 文字从下往上阅读
-          child: RotatedBox(
-            quarterTurns: 1,
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: isActive
-                        ? AeroColors.accentBlue
-                        : AeroColors.textSecondary,
-                    fontSize: 11,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.note_outlined,
+                  size: 14,
+                  color: widget.isActive
+                      ? AeroColors.textPrimary
+                      : AeroColors.textSecondary,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: widget.isActive
+                          ? AeroColors.textPrimary
+                          : AeroColors.textSecondary,
+                    ),
                   ),
+                ),
+                const SizedBox(width: 6),
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: AnimatedOpacity(
+                    opacity: _isHovering ? 1.0 : 0.0,
+                    duration: PaneLayout.hoverDuration,
+                    child: Material(
+                      color: Colors.transparent,
+                      type: MaterialType.circle,
+                      child: InkWell(
+                        onTap: widget.onClose,
+                        customBorder: const CircleBorder(),
+                        child: Icon(
+                          Icons.close,
+                          size: 14,
+                          color: widget.isActive
+                              ? AeroColors.textPrimary
+                              : AeroColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ),
-    ),
     );
   }
 }

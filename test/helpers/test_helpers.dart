@@ -1,15 +1,14 @@
 /// 测试辅助工具
 /// 提供测试中常用的数据构建和 Provider override 辅助函数
 
+library;
+
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:aeromind/core/models/note_model.dart';
-import 'package:aeromind/core/models/predictive_link.dart';
 import 'package:aeromind/core/plugin/plugin_manifest.dart';
-import 'package:aeromind/core/plugin/base_plugin.dart';
-import 'package:aeromind/core/plugin/plugin_api.dart';
-import 'package:aeromind/core/plugin/plugin_storage.dart';
+import 'package:aeromind/providers/note_provider.dart';
 
 /// 创建测试用 NoteModel
 NoteModel createTestNote({
@@ -61,4 +60,55 @@ PluginManifest createTestManifest({
     version: version,
     description: '用于测试的示例插件',
   );
+}
+
+/// 内存中的 NoteRepository 实现，用于测试
+class InMemoryNoteRepository implements NoteRepository {
+  final Map<String, NoteModel> _notes = {};
+  final _changesController = StreamController<NoteChangeEvent>.broadcast();
+  int _idCounter = 0;
+
+  @override
+  Stream<NoteChangeEvent> get changes => _changesController.stream;
+
+  @override
+  Future<NoteModel?> getNote(String id) async => _notes[id];
+
+  @override
+  Future<List<NoteModel>> getAllNotes() async => _notes.values.toList();
+
+  @override
+  Future<NoteModel> saveNote(NoteModel note) async {
+    final id = note.id.isEmpty ? generateId() : note.id;
+    final saved = note.copyWith(id: id);
+    _notes[id] = saved;
+    _changesController.add(NoteChangeEvent(NoteChangeType.saved, id));
+    return saved;
+  }
+
+  @override
+  Future<void> deleteNote(String id) async {
+    _notes.remove(id);
+    _changesController.add(NoteChangeEvent(NoteChangeType.deleted, id));
+  }
+
+  @override
+  Future<List<NoteModel>> searchBySemantic(String query) async => [];
+
+  @override
+  Future<int> getNoteCount() async => _notes.length;
+
+  @override
+  Future<bool> noteExists(String id) async => _notes.containsKey(id);
+
+  @override
+  String generateId() {
+    _idCounter++;
+    return 'note-$_idCounter';
+  }
+
+  @override
+  void dispose() {
+    _changesController.close();
+  }
 }

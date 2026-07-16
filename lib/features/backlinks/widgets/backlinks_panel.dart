@@ -10,6 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/models/backlink_info.dart';
+import '../../../core/models/note_model.dart';
+import '../../../providers/note_provider.dart';
 import '../../../providers/sidebar_provider.dart';
 
 /// 反向链接面板
@@ -94,20 +96,9 @@ class BacklinksPanel extends ConsumerWidget {
               spacing: 6,
               runSpacing: 4,
               children: analysis.outgoingLinks.map((link) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AeroColors.accentBlue.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    link,
-                    style: const TextStyle(
-                      color: AeroColors.accentBlue,
-                      fontSize: 11,
-                    ),
-                  ),
+                return _OutgoingLinkChip(
+                  title: link,
+                  onTap: () => _openOutgoingLink(ref, link),
                 );
               }).toList(),
             ),
@@ -164,6 +155,60 @@ class BacklinksPanel extends ConsumerWidget {
       grouped[ref.noteId]!.add(ref);
     }
     return grouped;
+  }
+
+  /// 根据标题查找对应笔记并触发跳转
+  Future<void> _openOutgoingLink(WidgetRef ref, String title) async {
+    final repo = ref.read(noteRepositoryProvider);
+    final allNotes = await repo.getAllNotes();
+    final lowerTitle = title.toLowerCase().trim();
+    NoteModel? target;
+    for (final note in allNotes) {
+      if (note.title.toLowerCase().trim() == lowerTitle) {
+        target = note;
+        break;
+      }
+    }
+    if (target != null) {
+      onNoteTap?.call(target.id, target.title);
+    }
+  }
+}
+
+/// 前向链接 Chip
+class _OutgoingLinkChip extends StatelessWidget {
+  final String title;
+  final VoidCallback onTap;
+
+  const _OutgoingLinkChip({
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(4),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AeroColors.accentBlue.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: AeroColors.accentBlue,
+              fontSize: 11,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

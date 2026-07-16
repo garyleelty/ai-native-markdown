@@ -61,8 +61,26 @@ class SidebarNotifier extends Notifier<SidebarState> {
     state = state.copyWith(currentView: SidebarView.plugins);
   }
 
-  /// 切换到大纲视图
-  void showOutline() {
+  /// 切换到大纲视图，并自动加载当前活动笔记的大纲
+  Future<void> showOutline() async {
+    final activeNoteId = ref.read(paneStackProvider).activeNoteId;
+    if (activeNoteId != null) {
+      try {
+        final repo = ref.read(noteRepositoryProvider);
+        final note = await repo.getNote(activeNoteId);
+        if (note != null) {
+          final headings = EditorService.extractHeadings(note.rawMarkdown);
+          state = state.copyWith(
+            currentView: SidebarView.outline,
+            outlineHeadings: headings,
+            outlineNoteId: activeNoteId,
+          );
+          return;
+        }
+      } catch (e) {
+        debugPrint('Error loading outline: $e');
+      }
+    }
     state = state.copyWith(currentView: SidebarView.outline);
   }
 
@@ -77,13 +95,15 @@ class SidebarNotifier extends Notifier<SidebarState> {
   }
 
   /// 切换到指定视图（通用方法）
-  void switchView(SidebarView view) {
+  Future<void> switchView(SidebarView view) async {
     if (view == SidebarView.tasks) {
-      showTasks();
+      await showTasks();
     } else if (view == SidebarView.tags) {
       showTags();
     } else if (view == SidebarView.recent) {
       showRecent();
+    } else if (view == SidebarView.outline) {
+      await showOutline();
     } else {
       state = state.copyWith(currentView: view);
     }

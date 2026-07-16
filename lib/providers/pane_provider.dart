@@ -13,12 +13,14 @@ class PaneStackState {
   final int activeIndex;             // 当前激活面板索引
   final double containerScrollX;     // 容器横向滚动偏移
   final ScrollRequest? scrollRequest; // 滚动请求 (一次性)
+  final double splitRatio;           // 双面板时左侧面板占比 (0~1)
 
   const PaneStackState({
     this.panes = const [],
     this.activeIndex = 0,
     this.containerScrollX = 0.0,
     this.scrollRequest,
+    this.splitRatio = 0.5,
   });
 
   /// 获取当前所有可见 (未堆叠) 面板 ID 列表
@@ -39,6 +41,7 @@ class PaneStackState {
     double? containerScrollX,
     ScrollRequest? scrollRequest,
     bool clearScrollRequest = false,
+    double? splitRatio,
   }) {
     return PaneStackState(
       panes: panes ?? this.panes,
@@ -47,6 +50,7 @@ class PaneStackState {
       scrollRequest: clearScrollRequest
           ? null
           : (scrollRequest ?? this.scrollRequest),
+      splitRatio: splitRatio ?? this.splitRatio,
     );
   }
 }
@@ -69,6 +73,7 @@ class PaneStackNotifier extends Notifier<PaneStackState> {
   PaneStackState build() => const PaneStackState();
 
   // ── 打开新面板 ──
+  // 限制最多同时显示 2 个面板，超出时把最早的可见面板堆叠
   void openPane(String noteId, String title) {
     // 检查是否已打开，如已打开则直接激活
     final existingIndex =
@@ -78,10 +83,14 @@ class PaneStackNotifier extends Notifier<PaneStackState> {
       return;
     }
     final newPane = PaneState(noteId: noteId, title: title);
-    final updatedPanes = [...state.panes, newPane];
+    var updatedPanes = [...state.panes, newPane];
+    final newIndex = updatedPanes.length - 1;
+
+    updatedPanes = _ensureMaxVisiblePanes(updatedPanes, newIndex);
+
     state = state.copyWith(
       panes: updatedPanes,
-      activeIndex: updatedPanes.length - 1,
+      activeIndex: newIndex,
     );
   }
 
@@ -116,14 +125,13 @@ class PaneStackNotifier extends Notifier<PaneStackState> {
   }
 
   // ── 激活面板 (用于从堆栈回弹) ──
+  // 解除目标面板的堆叠状态，并保证最多 2 个可见面板
   void activatePane(int index) {
     if (index < 0 || index >= state.panes.length) return;
 
-    // 如果该面板是堆叠状态，先解除堆叠
-    final updatedPanes = [...state.panes];
-    if (updatedPanes[index].isStacked) {
-      updatedPanes[index] = updatedPanes[index].copyWith(isStacked: false);
-    }
+    var updatedPanes = [...state.panes];
+    updatedPanes[index] = updatedPanes[index].copyWith(isStacked: false);
+    updatedPanes = _ensureMaxVisiblePanes(updatedPanes, index);
     state = state.copyWith(panes: updatedPanes, activeIndex: index);
   }
 
@@ -133,6 +141,43 @@ class PaneStackNotifier extends Notifier<PaneStackState> {
     final updatedPanes = [...state.panes];
     updatedPanes[index] = updatedPanes[index].copyWith(isStacked: true);
     state = state.copyWith(panes: updatedPanes);
+  }
+
+  // ── 保证最多 2 个可见面板 ──
+  // keepIndex 必须保持可见，其余按打开时间保留最新的
+  List<PaneState> _ensureMaxVisiblePanes(
+      List<PaneState> panes, int keepIndex) {
+    final visibleIndices = panes
+        .asMap()
+        .entries
+        .where((e) => !e.value.isStacked)
+        .map((e) => e.key)
+        .toList();
+
+    if (visibleIndices.length <= 2) return panes;
+
+    final keepVisible = <int>{keepIndex};
+    // 优先保留当前激活面板
+    if (state.activeIndex != keepIndex &&
+        state.activeIndex >= 0 &&
+        state.activeIndex < panes.length &&
+        !panes[state.activeIndex].isStacked) {
+      keepVisible.add(state.activeIndex);
+    }
+
+    // 按打开时间从晚到早排序，保留最新的面板
+    visibleIndices.sort((a, b) =>
+        panes[a].openedAt.compareTo(panes[b].openedAt));
+    for (final idx in visibleIndices.reversed) {
+      if (keepVisible.length >= 2) break;
+      keepVisible.add(idx);
+    }
+
+    return panes
+        .asMap()
+        .entries
+        .map((e) => e.value.copyWith(isStacked: !keepVisible.contains(e.key)))
+        .toList();
   }
 
   // ── 批量更新堆叠状态 (由 SlidingPanesContainer 的滚动回调触发) ──
@@ -148,6 +193,13 @@ class PaneStackNotifier extends Notifier<PaneStackState> {
   // ── 更新容器横向滚动偏移 ──
   void updateScrollX(double offsetX) {
     state = state.copyWith(containerScrollX: offsetX);
+  }
+
+  // ── 调整双面板分屏比例 ──
+  void setSplitRatio(double ratio) {
+    state = state.copyWith(
+      splitRatio: ratio.clamp(0.05, 0.95),
+    );
   }
 
   // ── 更新某面板的内部纵向滚动偏移 ──

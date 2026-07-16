@@ -156,8 +156,15 @@ class EditorToolbar extends StatelessWidget {
       child: Row(
         children: [
           leading,
-          const Spacer(),
-          ...actions,
+          const SizedBox(width: AeroSpacing.sm),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: actions,
+              ),
+            ),
+          ),
         ],
       ),
     );

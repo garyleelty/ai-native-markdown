@@ -931,6 +931,7 @@ class _AppShellState extends ConsumerState<_AppShell>
                               .read(paneStackProvider.notifier)
                               .openPane(noteId, title);
                         },
+                        onOpenSettings: () => _showOverlay(OverlayType.settings),
                       ),
 
                       // ── 中间: Sliding Panes 笔记流 ──

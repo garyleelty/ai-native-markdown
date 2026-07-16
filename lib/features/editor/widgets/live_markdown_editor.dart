@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,25 +15,31 @@ import '../services/syntax_highlighter.dart';
 class LiveMarkdownEditor extends ConsumerStatefulWidget {
   final TextEditingController controller;
   final ScrollController? scrollController;
+  final int? initialCursorOffset;
+  final ValueChanged<String>? onWikiLinkTap;
 
   const LiveMarkdownEditor({
     super.key,
     required this.controller,
     this.scrollController,
+    this.initialCursorOffset,
+    this.onWikiLinkTap,
   });
 
   @override
-  ConsumerState<LiveMarkdownEditor> createState() => _LiveMarkdownEditorState();
+  ConsumerState<LiveMarkdownEditor> createState() => LiveMarkdownEditorState();
 }
 
-class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
+class LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
   late final ScrollController _scrollController;
 
   int _cursorLine = 0;
   final List<TextEditingController> _lineControllers = [];
   final List<FocusNode> _lineFocusNodes = [];
+  final List<TapGestureRecognizer> _wikiLinkRecognizers = [];
   bool _updatingFromLines = false;
   bool _updatingFromController = false;
+  bool _pendingRebuild = false;
 
   double get _fontSize => ref.watch(settingsProvider.select((s) => s.fontSize));
 
@@ -42,6 +49,41 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
     _scrollController = widget.scrollController ?? ScrollController();
     _rebuildLineControllers();
     widget.controller.addListener(_onControllerChanged);
+
+    if (widget.initialCursorOffset != null) {
+      _cursorLine = _getLineFromOffset(widget.initialCursorOffset!);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          focusLine(_cursorLine,
+              offset: _getOffsetInLine(widget.initialCursorOffset!, _cursorLine));
+        }
+      });
+    }
+  }
+
+  int _getLineFromOffset(int offset) {
+    final text = widget.controller.text;
+    if (offset <= 0) return 0;
+    if (offset >= text.length) {
+      return '\n'.allMatches(text).length;
+    }
+    return '\n'.allMatches(text.substring(0, offset)).length;
+  }
+
+  int _getOffsetInLine(int globalOffset, int lineIndex) {
+    final text = widget.controller.text;
+    int currentLine = 0;
+    int lineStart = 0;
+    for (int i = 0; i < text.length; i++) {
+      if (text[i] == '\n') {
+        if (currentLine == lineIndex) {
+          return globalOffset - lineStart;
+        }
+        currentLine++;
+        lineStart = i + 1;
+      }
+    }
+    return globalOffset - lineStart;
   }
 
   @override
@@ -54,6 +96,10 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
     for (final lc in _lineControllers) {
       lc.dispose();
     }
+    for (final recognizer in _wikiLinkRecognizers) {
+      recognizer.dispose();
+    }
+    _wikiLinkRecognizers.clear();
     super.dispose();
   }
 
@@ -72,8 +118,34 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
         }
       }
     }
+
+    final sel = widget.controller.selection;
+    if (sel.isValid) {
+      final newCursorLine = _getLineFromOffset(sel.baseOffset);
+      if (newCursorLine != _cursorLine && newCursorLine < _lineControllers.length) {
+        _cursorLine = newCursorLine;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          focusLine(newCursorLine,
+              offset: _getOffsetInLine(sel.baseOffset, newCursorLine));
+        });
+      } else if (newCursorLine < _lineControllers.length) {
+        final offsetInLine = _getOffsetInLine(sel.baseOffset, newCursorLine);
+        final lineCtrl = _lineControllers[newCursorLine];
+        if (lineCtrl.selection.baseOffset != offsetInLine) {
+          lineCtrl.selection = TextSelection.collapsed(offset: offsetInLine);
+        }
+      }
+    }
+
     _updatingFromController = false;
-    if (mounted) setState(() {});
+    if (mounted && !_pendingRebuild) {
+      _pendingRebuild = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pendingRebuild = false;
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   void _rebuildLineControllers() {
@@ -82,18 +154,34 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
       fn.dispose();
     }
     for (final lc in _lineControllers) {
+      lc.removeListener(_onLineControllerChanged);
       lc.dispose();
     }
     _lineFocusNodes.clear();
     _lineControllers.clear();
     for (int i = 0; i < lines.length; i++) {
-      _lineControllers.add(TextEditingController(text: lines[i]));
-      _lineFocusNodes.add(FocusNode());
+      final lc = TextEditingController(text: lines[i]);
+      lc.addListener(_onLineControllerChanged);
+      _lineControllers.add(lc);
+      _lineFocusNodes.add(_createLineFocusNode(i));
     }
     if (_cursorLine >= lines.length) {
       _cursorLine = lines.length - 1;
     }
     if (_cursorLine < 0) _cursorLine = 0;
+  }
+
+  FocusNode _createLineFocusNode(int lineIndex) {
+    return FocusNode(
+      onKeyEvent: (node, event) {
+        final handled = _handleLineKeyEvent(lineIndex, event);
+        return handled ? KeyEventResult.handled : KeyEventResult.ignored;
+      },
+    );
+  }
+
+  void _onLineControllerChanged() {
+    _syncToController();
   }
 
   void _syncToController() {
@@ -103,11 +191,47 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
       _lineControllers.length,
       (i) => _lineControllers[i].text,
     ).join('\n');
-    widget.controller.text = text;
+
+    int globalBase = 0;
+    int globalExtent = 0;
+    for (int i = 0; i < _cursorLine && i < _lineControllers.length; i++) {
+      globalBase += _lineControllers[i].text.length + 1;
+      globalExtent += _lineControllers[i].text.length + 1;
+    }
+    if (_cursorLine < _lineControllers.length) {
+      final sel = _lineControllers[_cursorLine].selection;
+      globalBase += sel.baseOffset;
+      globalExtent += sel.extentOffset;
+    }
+
+    widget.controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection(
+        baseOffset: globalBase,
+        extentOffset: globalExtent,
+      ),
+    );
     _updatingFromLines = false;
   }
 
-  void _focusLine(int lineIndex, {int? offset}) {
+  int get currentCursorLine => _cursorLine;
+
+  int get currentGlobalOffset {
+    int offset = 0;
+    for (int i = 0; i < _cursorLine && i < _lineControllers.length; i++) {
+      offset += _lineControllers[i].text.length + 1;
+    }
+    if (_cursorLine < _lineControllers.length) {
+      offset += _lineControllers[_cursorLine].selection.baseOffset;
+    }
+    return offset;
+  }
+
+  void focusLine(int lineIndex, {int? offset}) {
+    if (lineIndex < 0) lineIndex = 0;
+    if (lineIndex >= _lineControllers.length) {
+      lineIndex = _lineControllers.length - 1;
+    }
     setState(() {
       _cursorLine = lineIndex;
     });
@@ -196,7 +320,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
         lineIndex + 1,
         TextEditingController(text: newLineText),
       );
-      _lineFocusNodes.insert(lineIndex + 1, FocusNode());
+      _lineFocusNodes.insert(lineIndex + 1, _createLineFocusNode(lineIndex + 1));
 
       setState(() {
         _cursorLine = lineIndex + 1;
@@ -251,7 +375,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       if (lineIndex > 0) {
         final off = selection.baseOffset;
-        _focusLine(lineIndex - 1, offset: off);
+        focusLine(lineIndex - 1, offset: off);
         return true;
       }
       return false;
@@ -261,7 +385,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       if (lineIndex < _lineControllers.length - 1) {
         final off = selection.baseOffset;
-        _focusLine(lineIndex + 1, offset: off);
+        focusLine(lineIndex + 1, offset: off);
         return true;
       }
       return false;
@@ -273,7 +397,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
         selection.baseOffset == 0) {
       if (lineIndex > 0) {
         final prevLen = _lineControllers[lineIndex - 1].text.length;
-        _focusLine(lineIndex - 1, offset: prevLen);
+        focusLine(lineIndex - 1, offset: prevLen);
         return true;
       }
       return false;
@@ -284,7 +408,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
         selection.isCollapsed &&
         selection.baseOffset == ctrl.text.length) {
       if (lineIndex < _lineControllers.length - 1) {
-        _focusLine(lineIndex + 1, offset: 0);
+        focusLine(lineIndex + 1, offset: 0);
         return true;
       }
       return false;
@@ -333,7 +457,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
       behavior: HitTestBehavior.translucent,
       onTap: () {
         if (_lineControllers.isNotEmpty) {
-          _focusLine(_cursorLine);
+          focusLine(_cursorLine);
         }
       },
       child: SingleChildScrollView(
@@ -367,7 +491,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
     // 在代码块中（非起始/结束围栏行）应用语法高亮
     if (inCodeBlock && !isCodeFence && !isEditing) {
       return GestureDetector(
-        onTap: () => _focusLine(lineIndex),
+        onTap: () => focusLine(lineIndex),
         child: MouseRegion(
           cursor: SystemMouseCursors.text,
           child: Padding(
@@ -390,7 +514,7 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
     if (isCodeFence && !isEditing) {
       final lang = lineText.trimLeft().substring(3).trim();
       return GestureDetector(
-        onTap: () => _focusLine(lineIndex),
+        onTap: () => focusLine(lineIndex),
         child: MouseRegion(
           cursor: SystemMouseCursors.text,
           child: Container(
@@ -421,33 +545,24 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
     }
 
     if (isEditing) {
-      return Focus(
+      return TextField(
+        controller: _lineControllers[lineIndex],
         focusNode: _lineFocusNodes[lineIndex],
-        onKeyEvent: (node, event) {
-          final handled = _handleLineKeyEvent(lineIndex, event);
-          return handled ? KeyEventResult.handled : KeyEventResult.ignored;
-        },
-        child: TextField(
-          controller: _lineControllers[lineIndex],
-          focusNode: _lineFocusNodes[lineIndex],
-          maxLines: null,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontSize: _fontSize,
-                fontFamily: inCodeBlock ? 'monospace' : null,
-              ),
-          decoration: const InputDecoration(
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 2),
-            isDense: true,
-          ),
-          onChanged: (value) {
-            _syncToController();
-          },
+        maxLines: null,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontSize: _fontSize,
+              fontFamily: inCodeBlock ? 'monospace' : null,
+            ),
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(vertical: 2),
+          isDense: true,
         ),
+        onTapOutside: (_) {},
       );
     } else {
       return GestureDetector(
-        onTap: () => _focusLine(lineIndex),
+        onTap: () => focusLine(lineIndex),
         child: MouseRegion(
           cursor: SystemMouseCursors.text,
           child: Padding(
@@ -702,6 +817,12 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
   }
 
   TextSpan _parseInlineMarkdownImpl(String text, TextStyle defaultStyle) {
+    // 清理旧的 wiki link recognizer，避免内存泄漏
+    for (final recognizer in _wikiLinkRecognizers) {
+      recognizer.dispose();
+    }
+    _wikiLinkRecognizers.clear();
+
     final spans = <InlineSpan>[];
     int cursor = 0;
 
@@ -787,8 +908,14 @@ class _LiveMarkdownEditorState extends ConsumerState<LiveMarkdownEditor> {
           ));
           break;
         case _InlineType.wikiLink:
+          final recognizer = TapGestureRecognizer()
+            ..onTap = () {
+              widget.onWikiLinkTap?.call(content);
+            };
+          _wikiLinkRecognizers.add(recognizer);
           spans.add(TextSpan(
             text: content,
+            recognizer: recognizer,
             style: TextStyle(
               color: AeroColors.accentGreen,
               decoration: TextDecoration.underline,

@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../core/widgets/dialog_header.dart';
 import '../../../core/widgets/modal_overlay.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/plugin/plugin_registry.dart';
 import '../../../features/ai_engine/services/entity_recognizer.dart';
 import '../../../providers/settings_provider.dart';
@@ -66,11 +67,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     decoration: const BoxDecoration(
                       color: AeroColors.bgSurface,
                       border: Border(
-                        right: BorderSide(color: AeroColors.divider, width: 0.5),
+                        right: BorderSide(color: AeroColors.divider, width: AeroBorderWidth.thin),
                       ),
                     ),
                     child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(vertical: AeroSpacing.sm),
                       itemCount: _sections.length,
                       itemBuilder: (context, index) {
                         final section = _sections[index];
@@ -79,18 +80,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           onTap: () => setState(() => _selectedSection = index),
                           child: Container(
                             height: 36,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.lg),
                             color: isSelected
                                 ? AeroColors.accentBlue.withValues(alpha: 0.08)
                                 : Colors.transparent,
                             child: Row(
                               children: [
                                 Icon(section.icon,
-                                    size: 16,
+                                    size: AeroIconSize.md,
                                     color: isSelected
                                         ? AeroColors.accentBlue
                                         : AeroColors.textSecondary),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: AeroSpacing.md),
                                 Text(
                                   section.label,
                                   style: TextStyle(
@@ -151,7 +152,7 @@ class _GeneralSection extends ConsumerWidget {
     final notifier = ref.read(settingsProvider.notifier);
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AeroSpacing.xl),
       children: [
         _SettingsGroup(
           title: '编辑器',
@@ -182,7 +183,7 @@ class _GeneralSection extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.remove, size: 16),
+                    icon: const Icon(Icons.remove, size: AeroIconSize.md),
                     onPressed: () {
                       final newSize = (settings.fontSize - 1).clamp(10.0, 24.0);
                       notifier.setFontSize(newSize);
@@ -190,7 +191,7 @@ class _GeneralSection extends ConsumerWidget {
                     splashRadius: 16,
                   ),
                   IconButton(
-                    icon: const Icon(Icons.add, size: 16),
+                    icon: const Icon(Icons.add, size: AeroIconSize.md),
                     onPressed: () {
                       final newSize = (settings.fontSize + 1).clamp(10.0, 24.0);
                       notifier.setFontSize(newSize);
@@ -202,7 +203,7 @@ class _GeneralSection extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AeroSpacing.lg),
         _SettingsGroup(
           title: '图表渲染',
           children: [
@@ -217,7 +218,7 @@ class _GeneralSection extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AeroSpacing.lg),
         const _SettingsGroup(
           title: '外观',
           children: [
@@ -267,7 +268,7 @@ class _AISectionState extends ConsumerState<_AISection> {
     final notifier = ref.read(settingsProvider.notifier);
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AeroSpacing.xl),
       children: [
         _SettingsGroup(
           title: '实体识别',
@@ -302,7 +303,7 @@ class _AISectionState extends ConsumerState<_AISection> {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AeroSpacing.lg),
         _SettingsGroup(
           title: '远程 LLM (OpenAI 兼容)',
           children: [
@@ -323,7 +324,7 @@ class _AISectionState extends ConsumerState<_AISection> {
                   _obscureKey
                       ? Icons.visibility_outlined
                       : Icons.visibility_off_outlined,
-                  size: 14,
+                  size: AeroIconSize.sm,
                   color: AeroColors.textMuted,
                 ),
                 splashRadius: 12,
@@ -338,12 +339,12 @@ class _AISectionState extends ConsumerState<_AISection> {
               onSubmitted: notifier.setLlmModel,
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
               child: Row(
                 children: [
                   const Icon(Icons.info_outline,
-                      size: 12, color: AeroColors.textMuted),
-                  const SizedBox(width: 6),
+                      size: AeroIconSize.sm, color: AeroColors.textMuted),
+                  const SizedBox(width: AeroSpacing.sm),
                   Expanded(
                     child: Text(
                       settings.llmApiEndpoint.isEmpty
@@ -390,7 +391,7 @@ class _AISectionState extends ConsumerState<_AISection> {
     bool obscureText = false,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.xs),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -401,7 +402,7 @@ class _AISectionState extends ConsumerState<_AISection> {
               fontSize: 12,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AeroSpacing.xs),
           TextField(
             controller: controller,
             onSubmitted: onSubmitted,
@@ -417,21 +418,21 @@ class _AISectionState extends ConsumerState<_AISection> {
                 fontSize: 12,
               ),
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  const EdgeInsets.symmetric(horizontal: AeroSpacing.sm, vertical: AeroSpacing.sm),
               isDense: true,
               filled: true,
               fillColor: AeroColors.bgSurface,
               suffixIcon: suffixIcon,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(AeroRadius.sm),
                 borderSide: const BorderSide(color: AeroColors.border),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(AeroRadius.sm),
                 borderSide: const BorderSide(color: AeroColors.border),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(AeroRadius.sm),
                 borderSide: const BorderSide(color: AeroColors.accentBlue),
               ),
             ),
@@ -461,7 +462,7 @@ class _PluginSection extends ConsumerWidget {
     final manifests = registry.allManifests;
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AeroSpacing.xl),
       children: [
         _SettingsGroup(
           title: '已安装插件 (${manifests.length})',
@@ -529,7 +530,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
   Widget build(BuildContext context) {
     final gitState = ref.watch(gitBackupProvider);
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AeroSpacing.xl),
       children: [
         _SettingsGroup(
           title: '本地存储',
@@ -553,7 +554,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AeroSpacing.lg),
         _SettingsGroup(
           title: 'Git 远程备份',
           children: [
@@ -617,9 +618,9 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
                 activeThumbColor: AeroColors.accentBlue,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AeroSpacing.sm),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
               child: Row(
                 children: [
                   Expanded(
@@ -648,7 +649,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
                                   strokeWidth: 2,
                                   color: AeroColors.textMuted),
                             )
-                          : const Icon(Icons.cloud_upload, size: 16),
+                          : const Icon(Icons.cloud_upload, size: AeroIconSize.md),
                       label: const Text('立即备份'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AeroColors.textPrimary,
@@ -657,7 +658,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AeroSpacing.md),
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: gitState.enabled &&
@@ -677,7 +678,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
                               }
                             }
                           : null,
-                      icon: const Icon(Icons.cloud_download, size: 16),
+                      icon: const Icon(Icons.cloud_download, size: AeroIconSize.md),
                       label: const Text('从远程恢复'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AeroColors.textPrimary,
@@ -692,7 +693,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
             if (gitState.lastError != null)
               Padding(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
                 child: Text(
                   '错误: ${gitState.lastError}',
                   style: const TextStyle(
@@ -704,7 +705,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
             if (gitState.lastBackupTime != null)
               Padding(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.xs),
                 child: Text(
                   '上次备份: ${_formatTime(gitState.lastBackupTime!)}',
                   style: const TextStyle(
@@ -727,7 +728,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
     bool enabled = true,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.xs),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -740,7 +741,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
               fontSize: 12,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AeroSpacing.xs),
           TextField(
             controller: controller,
             onChanged: onChanged,
@@ -752,22 +753,22 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
                 fontSize: 12,
               ),
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  const EdgeInsets.symmetric(horizontal: AeroSpacing.sm, vertical: AeroSpacing.sm),
               isDense: true,
               filled: true,
               fillColor: AeroColors.bgSurface,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(AeroRadius.sm),
                 borderSide:
                     const BorderSide(color: AeroColors.border),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(AeroRadius.sm),
                 borderSide:
                     const BorderSide(color: AeroColors.border),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(AeroRadius.sm),
                 borderSide:
                     const BorderSide(color: AeroColors.accentBlue),
               ),
@@ -794,45 +795,31 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
 
-  void _confirmClearAll(BuildContext context, WidgetRef ref) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AeroColors.bgElevated,
-        title: const Text('清除所有数据', style: TextStyle(fontSize: 14)),
-        content: const Text(
-          '此操作将永久删除：\n'
+  void _confirmClearAll(BuildContext context, WidgetRef ref) async {
+    final result = await showConfirmDialog(
+      context,
+      type: ConfirmDialogType.danger,
+      isDestructive: true,
+      title: '清除所有数据',
+      content: '此操作将永久删除：\n'
           '• 所有笔记\n'
           '• 所有版本历史\n'
           '• 回收站中的内容\n'
           '• 应用设置\n\n'
           '此操作不可撤销，确定继续吗？',
-          style: TextStyle(color: AeroColors.textSecondary, fontSize: 12),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消', style: TextStyle(color: AeroColors.textMuted)),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              await ref.read(settingsProvider.notifier).clearAllData();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('已清除所有数据'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-            child: const Text('确定清除',
-                style: TextStyle(color: AeroColors.accentRed)),
-          ),
-        ],
-      ),
+      confirmText: '确定清除',
     );
+    if (result == true) {
+      await ref.read(settingsProvider.notifier).clearAllData();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('已清除所有数据'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -853,7 +840,7 @@ class _AboutSection extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AeroRadius.xl),
             ),
             child: const Center(
               child: Text(
@@ -866,7 +853,7 @@ class _AboutSection extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AeroSpacing.lg),
           const Text(
             'AeroMind',
             style: TextStyle(
@@ -875,17 +862,17 @@ class _AboutSection extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AeroSpacing.xs),
           const Text(
             'v0.1.0',
             style: TextStyle(color: AeroColors.textMuted, fontSize: 12),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AeroSpacing.sm),
           const Text(
             'AI Native 笔记应用',
             style: TextStyle(color: AeroColors.textSecondary, fontSize: 13),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AeroSpacing.xxl),
           const Text(
             'Sliding Panes · 实体识别 · 语义上下文 · 插件系统',
             style: TextStyle(color: AeroColors.textMuted, fontSize: 11),
@@ -916,12 +903,12 @@ class _SettingsGroup extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AeroSpacing.sm),
         Container(
           decoration: BoxDecoration(
             color: AeroColors.bgSurface,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AeroColors.border, width: 0.5),
+            borderRadius: BorderRadius.circular(AeroRadius.sm),
+            border: Border.all(color: AeroColors.border, width: AeroBorderWidth.thin),
           ),
           child: Column(children: children),
         ),
@@ -945,7 +932,7 @@ class _SettingsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(color: AeroColors.divider, width: 0.3),
@@ -965,7 +952,7 @@ class _SettingsTile extends StatelessWidget {
                   ),
                 ),
                 if (subtitle != null) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AeroSpacing.xxs),
                   Text(
                     subtitle!,
                     style: const TextStyle(

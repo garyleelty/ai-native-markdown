@@ -70,4 +70,14 @@ class PaneLayout {
   // ── 响应式断点 ──
   static const double mobileBreakpoint = 600;
   static const double tabletBreakpoint = 900;
+
+  // ── 分屏布局常量 ──
+  static const double minPanelWidth = 240.0;
+  static const double splitterWidth = 6.0;
+
+  /// 顶部标签栏高度
+  static const double tabBarHeight = 36.0;
+
+  /// 标签项最小宽度
+  static const double tabMinWidth = 120.0;
 }
