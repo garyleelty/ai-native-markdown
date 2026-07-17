@@ -350,7 +350,7 @@ class AeroTheme {
             }
             return 6;
           }),
-          radius: Radius.circular(AeroRadius.xs),
+          radius: const Radius.circular(AeroRadius.xs),
         ),
         splashFactory: InkRipple.splashFactory,
         snackBarTheme: const SnackBarThemeData(

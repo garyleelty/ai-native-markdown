@@ -97,7 +97,7 @@ class _SearchInputState extends State<SearchInput> {
           ),
           suffixIcon: widget.showClearButton && _hasText
               ? IconButton(
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.close,
                     size: AeroIconSize.sm,
                     color: AeroColors.textMuted,

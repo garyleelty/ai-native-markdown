@@ -325,7 +325,7 @@ void _showZoomDialog(BuildContext context, String imageUrl) {
           Container(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               border: Border(
                 bottom:
                     BorderSide(color: AeroColors.divider, width: 0.5),

@@ -20,7 +20,7 @@ import '../../../core/plugin/plugin_storage.dart';
 import '../../../providers/plugin_provider.dart';
 import 'plugin_settings_form.dart';
 
-// ignore: non_const_argument_for_const_parameter
+// ignore_for_file: non_const_argument_for_const_parameter
 IconData _pluginIcon(int codePoint) =>
     IconData(codePoint, fontFamily: 'MaterialIcons');
 

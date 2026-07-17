@@ -166,7 +166,7 @@ class _SidebarContentState extends ConsumerState<_SidebarContent> {
               onEnter: (_) => setState(() => _isNewNoteHovered = true),
               onExit: (_) => setState(() => _isNewNoteHovered = false),
               child: GestureDetector(
-                onTap: () => _showNewNoteFromHeader(context),
+                onTap: () => _showNewNoteFromHeader(),
                 child: Tooltip(
                   message: '新建笔记',
                   preferBelow: false,
@@ -198,7 +198,7 @@ class _SidebarContentState extends ConsumerState<_SidebarContent> {
     );
   }
 
-  void _showNewNoteFromHeader(BuildContext context) async {
+  void _showNewNoteFromHeader() async {
     final title = await showInputDialog(
       context,
       title: '新建笔记',
@@ -206,14 +206,14 @@ class _SidebarContentState extends ConsumerState<_SidebarContent> {
       confirmText: '创建',
       icon: Icons.note_add,
     );
-    if (title != null) {
-      _createNote(context, title);
+    if (title != null && mounted) {
+      _createNote(title);
     }
   }
 
-  Future<void> _createNote(BuildContext ctx, String title) async {
+  Future<void> _createNote(String title) async {
     if (title.trim().isEmpty) {
-      ScaffoldMessenger.of(ctx).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('标题不能为空'), duration: Duration(seconds: 2)),
       );
       return;
@@ -232,12 +232,12 @@ class _SidebarContentState extends ConsumerState<_SidebarContent> {
       );
       final saved = await repo.saveNote(note);
       await ref.read(sidebarProvider.notifier).loadNoteTree();
-      if (ctx.mounted) {
+      if (mounted) {
         ref.read(paneStackProvider.notifier).openPane(saved.id, saved.title);
       }
     } catch (e) {
-      if (ctx.mounted) {
-        ScaffoldMessenger.of(ctx).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('创建笔记失败: $e'), duration: const Duration(seconds: 2)),
         );
       }
@@ -554,9 +554,9 @@ class _ActivityIconState extends State<_ActivityIcon> {
                     bottom: 9,
                     child: Container(
                       width: 2,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: AeroColors.accentBlue,
-                        borderRadius: const BorderRadius.horizontal(
+                        borderRadius: BorderRadius.horizontal(
                           right: Radius.circular(2),
                         ),
                       ),
@@ -961,12 +961,12 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
       confirmText: '确定',
       icon: Icons.edit,
     );
-    if (newTitle != null) {
-      _doRename(context, newTitle);
+    if (newTitle != null && mounted) {
+      _doRename(newTitle);
     }
   }
 
-  Future<void> _doRename(BuildContext ctx, String newTitle) async {
+  Future<void> _doRename(String newTitle) async {
     if (newTitle.trim().isEmpty || newTitle.trim() == widget.node.title) {
       return;
     }
@@ -975,8 +975,8 @@ class _NoteTreeTileState extends ConsumerState<_NoteTreeTile> {
           .read(sidebarProvider.notifier)
           .renameNote(widget.node.id, newTitle.trim());
     } catch (e) {
-      if (ctx.mounted) {
-        ScaffoldMessenger.of(ctx).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('重命名失败: $e'), duration: const Duration(seconds: 2)),
         );
       }

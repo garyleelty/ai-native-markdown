@@ -900,7 +900,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                   )),
               if (isSelected) ...[
                 const Spacer(),
-                Icon(Icons.check, size: AeroIconSize.sm, color: AeroColors.accentBlue),
+                const Icon(Icons.check, size: AeroIconSize.sm, color: AeroColors.accentBlue),
               ],
             ],
           ),
@@ -929,7 +929,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
               ),
             ),
             const SizedBox(width: AeroSpacing.xxs),
-            Icon(Icons.arrow_drop_down, size: AeroIconSize.sm, color: AeroColors.textMuted),
+            const Icon(Icons.arrow_drop_down, size: AeroIconSize.sm, color: AeroColors.textMuted),
           ],
         ),
       ),
