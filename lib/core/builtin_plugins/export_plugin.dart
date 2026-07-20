@@ -27,6 +27,7 @@ class ExportPlugin extends BasePlugin {
         extensionTypes: ['command', 'exporter'],
         category: '工具',
         iconCodePoint: 0xe2c6, // Icons.file_download
+        isBuiltIn: true,
       );
 
   @override

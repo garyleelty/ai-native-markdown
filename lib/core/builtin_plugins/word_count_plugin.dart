@@ -27,6 +27,7 @@ class WordCountPlugin extends BasePlugin {
         extensionTypes: ['command', 'statusBarItem'],
         category: '工具',
         iconCodePoint: 0xe873, // Icons.format_size
+        isBuiltIn: true,
         // 插件设置项：声明后齿轮按钮可见，设置 UI 渲染这些控件
         settings: [
           PluginSettingDef(

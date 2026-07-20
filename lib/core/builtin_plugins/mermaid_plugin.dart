@@ -47,6 +47,7 @@ class MermaidRenderPlugin extends BasePlugin {
         iconCodePoint: 0xe3c4,
         category: 'editor',
         enabledByDefault: true,
+        isBuiltIn: true,
       );
 
   @override

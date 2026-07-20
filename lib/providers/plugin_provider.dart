@@ -134,6 +134,25 @@ class PluginManagerNotifier extends Notifier<PluginManagerState> {
     _refreshPluginList();
   }
 
+  /// 卸载（销毁）指定插件，从注册表与列表中移除
+  ///
+  /// 内置插件不允许卸载，调用此方法会被忽略。
+  Future<void> uninstallPlugin(String pluginId) async {
+    final registry = PluginRegistry.instance;
+    final plugin = registry.getPlugin(pluginId);
+
+    if (plugin == null) return;
+    if (plugin.manifest.isBuiltIn) return;
+
+    // 如果当前正在查看该插件设置，先返回列表
+    if (state.selectedPluginId == pluginId) {
+      state = state.copyWith(clearSelectedPluginId: true);
+    }
+
+    await registry.disposePlugin(pluginId);
+    _refreshPluginList();
+  }
+
   /// 刷新插件列表
   void _refreshPluginList() {
     final registry = PluginRegistry.instance;

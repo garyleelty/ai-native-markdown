@@ -13,6 +13,7 @@ import '../../../core/theme/aeromind_theme.dart';
 import '../../../core/widgets/dialog_header.dart';
 import '../../../core/widgets/modal_overlay.dart';
 import '../../../core/widgets/search_input.dart';
+import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/plugin/plugin_manifest.dart';
 import '../../../core/plugin/base_plugin.dart';
 import '../../../core/plugin/plugin_registry.dart';
@@ -143,6 +144,24 @@ class _PluginManagerDialog extends ConsumerWidget {
                                   .read(pluginManagerProvider.notifier)
                                   .openSettings(plugin.manifest.id);
                             },
+                            onUninstall: plugin.manifest.isBuiltIn
+                                ? null
+                                : () async {
+                                    final confirmed = await showConfirmDialog(
+                                      context,
+                                      title: '卸载插件',
+                                      content:
+                                          '确定要卸载「${plugin.manifest.name}」吗？卸载后将从插件列表中移除，相关存储也会被关闭。',
+                                      confirmText: '卸载',
+                                      cancelText: '取消',
+                                      isDestructive: true,
+                                    );
+                                    if (confirmed == true && context.mounted) {
+                                      ref
+                                          .read(pluginManagerProvider.notifier)
+                                          .uninstallPlugin(plugin.manifest.id);
+                                    }
+                                  },
                           );
                         },
                       ))
@@ -237,12 +256,14 @@ class _PluginTile extends StatelessWidget {
   final PluginState state;
   final VoidCallback onToggle;
   final VoidCallback onOpenSettings;
+  final VoidCallback? onUninstall;
 
   const _PluginTile({
     required this.manifest,
     required this.state,
     required this.onToggle,
     required this.onOpenSettings,
+    this.onUninstall,
   });
 
   @override
@@ -372,6 +393,18 @@ class _PluginTile extends StatelessWidget {
                   size: 16, color: AeroColors.textSecondary),
               onPressed: onOpenSettings,
               tooltip: '设置',
+              splashRadius: 14,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            ),
+
+          // 卸载按钮（仅非内置插件）
+          if (onUninstall != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline,
+                  size: 16, color: AeroColors.textSecondary),
+              onPressed: onUninstall,
+              tooltip: '卸载',
               splashRadius: 14,
               padding: const EdgeInsets.all(4),
               constraints: const BoxConstraints(minWidth: 28, minHeight: 28),

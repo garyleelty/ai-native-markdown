@@ -51,6 +51,7 @@ class AiChatPlugin extends BasePlugin {
         extensionTypes: ['command'],
         category: 'AI',
         iconCodePoint: 0xe0b0, // Icons.chat
+        isBuiltIn: true,
         settings: [
           PluginSettingDef(
             key: 'llm_endpoint',

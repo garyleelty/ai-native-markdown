@@ -23,6 +23,7 @@ class MarkdownEnhancePlugin extends BasePlugin {
         extensionTypes: ['contentProcessor'],
         category: '编辑器',
         iconCodePoint: 0xe3c9, // Icons.auto_fix_normal
+        isBuiltIn: true,
       );
 
   @override

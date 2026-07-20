@@ -45,6 +45,9 @@ class PluginManifest {
   /// 是否默认启用 (新安装时自动激活)
   final bool enabledByDefault;
 
+  /// 是否为内置插件 (内置插件不可卸载，只能暂停)
+  final bool isBuiltIn;
+
   /// 允许插件自定义的设置项列表
   final List<PluginSettingDef> settings;
 
@@ -61,6 +64,7 @@ class PluginManifest {
     this.iconCodePoint = 0xe8b7, // Icons.extension
     this.category = '通用',
     this.enabledByDefault = true,
+    this.isBuiltIn = false,
     this.settings = const [],
   });
 
