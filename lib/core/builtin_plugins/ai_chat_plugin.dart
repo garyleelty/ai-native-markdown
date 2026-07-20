@@ -87,7 +87,10 @@ class AiChatPlugin extends BasePlugin {
           pluginId: manifest.id,
           category: 'AI',
           action: () async {
-            context?.api.showStatusMessage('AI 对话面板已就绪');
+            context?.api.showNotification(
+              'AI 对话面板位于右侧边栏；发送消息前请先在插件设置中配置 LLM API。',
+              type: NotificationType.info,
+            );
           },
         ),
       ];
@@ -100,11 +103,10 @@ class AiChatPlugin extends BasePlugin {
   /// 核心对话方法
   ///
   /// 流程:
-  /// 1. 读取上下文骨架 + 异步获取笔记内容填充
-  /// 2. 构建 system prompt
-  /// 3. 添加用户消息到历史
-  /// 4. 调用 LLM (携带完整对话历史)
-  /// 5. 返回响应
+  /// 1. 读取 LLM 配置 (从插件存储,不依赖应用全局设置)
+  /// 2. 构建 system prompt (含笔记上下文)
+  /// 3. 调用 LLM (携带完整对话历史)
+  /// 4. 返回响应并更新历史
   Future<String> chat(String userMessage) async {
     final ctx = context;
     if (ctx == null) {
@@ -125,17 +127,7 @@ class AiChatPlugin extends BasePlugin {
     // 2. 构建系统提示 (含笔记上下文)
     final systemPrompt = await _buildSystemPrompt(api);
 
-    // 3. 添加用户消息到历史
-    _history.add(ChatMessage(
-      role: 'user',
-      content: userMessage,
-      timestamp: DateTime.now(),
-    ));
-
-    // 4. 构建完整 prompt (系统提示 + 对话历史,OpenAI 消息格式)
-    final fullPrompt = _buildFullPrompt(systemPrompt);
-
-    // 5. 调用 LLM
+    // 3. 调用 LLM
     try {
       final client = createLlmClient();
       final response = await client.callLlm(
@@ -144,14 +136,23 @@ class AiChatPlugin extends BasePlugin {
         model: model,
         maxTokens: 1024,
         temperature: 0.7,
-        prompt: fullPrompt,
+        systemPrompt: systemPrompt,
+        userPrompt: userMessage,
+        history: _history
+            .map((m) => {'role': m.role, 'content': m.content})
+            .toList(),
       );
 
       if (response == null || response.isEmpty) {
         return 'AI 响应失败: 未获得有效响应，请检查 API 配置或网络连接';
       }
 
-      // 6. 添加助手响应到历史
+      // 4. 更新对话历史
+      _history.add(ChatMessage(
+        role: 'user',
+        content: userMessage,
+        timestamp: DateTime.now(),
+      ));
       _history.add(ChatMessage(
         role: 'assistant',
         content: response,
@@ -166,13 +167,9 @@ class AiChatPlugin extends BasePlugin {
 
   /// 构建系统提示 (含笔记上下文)
   ///
-  /// 1. 读取 api.aiContextPrompt 骨架 (fragment.content 为空)
-  /// 2. 异步 getNote() 填充内容 (每篇截断至 2000 字符)
-  /// 3. 总上下文超过 6000 字符时,只保留活跃笔记 + 前 2 篇参考
+  /// 1. 异步 getNote() 填充内容 (每篇截断至 2000 字符)
+  /// 2. 总上下文超过 6000 字符时,只保留活跃笔记 + 前 2 篇参考
   Future<String> _buildSystemPrompt(PluginApi api) async {
-    // 读取上下文骨架 (fragment.content 为空,仅含面板结构信息)
-    api.aiContextPrompt;
-
     final buffer = StringBuffer();
     buffer.writeln('你是一个智能笔记助手。用户正在 AeroMind 笔记应用中查看以下笔记，');
     buffer.writeln('请基于笔记内容回答问题或参与讨论。如问题与笔记无关，可正常对话但优先结合笔记上下文。');
@@ -235,22 +232,9 @@ class AiChatPlugin extends BasePlugin {
     return buffer.toString();
   }
 
-  /// 构建完整 prompt (系统提示 + 对话历史,OpenAI 消息格式)
-  ///
-  /// 由于 LlmClient.callLlm 接受单一 prompt 字符串,
-  /// 将系统提示与多轮对话历史打包为结构化文本。
-  String _buildFullPrompt(String systemPrompt) {
-    final buffer = StringBuffer();
-    buffer.writeln(systemPrompt);
-    buffer.writeln();
-    buffer.writeln('=== 对话历史 ===');
-    for (final msg in _history) {
-      final roleLabel = msg.role == 'user' ? '用户' : '助手';
-      buffer.writeln('$roleLabel: ${msg.content}');
-    }
-    buffer.writeln();
-    buffer.writeln('请以助手身份回复用户最后一条消息:');
-    return buffer.toString();
+  /// 将一条消息加入历史（用于从 UI 恢复上下文）
+  void addMessage(ChatMessage message) {
+    _history.add(message);
   }
 }
 

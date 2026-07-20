@@ -9,6 +9,8 @@ abstract class LlmClientPlatform {
     required String model,
     required int maxTokens,
     required double temperature,
-    required String prompt,
+    String? systemPrompt,
+    required String userPrompt,
+    List<Map<String, String>>? history,
   });
 }

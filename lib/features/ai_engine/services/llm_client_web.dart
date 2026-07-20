@@ -7,7 +7,9 @@ class LlmClient {
     required String model,
     required int maxTokens,
     required double temperature,
-    required String prompt,
+    String? systemPrompt,
+    required String userPrompt,
+    List<Map<String, String>>? history,
   }) async {
     // Web 端暂不支持远程 LLM 调用，返回 null 触发本地回退
     return null;

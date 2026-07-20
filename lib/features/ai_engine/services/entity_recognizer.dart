@@ -327,7 +327,8 @@ $truncated
         model: llmConfig!.model,
         maxTokens: llmConfig!.maxTokens,
         temperature: llmConfig!.temperature,
-        prompt: prompt,
+        systemPrompt: '你是一个实体识别助手，只返回 JSON 数组。',
+        userPrompt: prompt,
       );
     } catch (e) {
       if (kDebugMode) {
