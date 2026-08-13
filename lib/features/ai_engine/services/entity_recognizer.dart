@@ -1,3 +1,15 @@
+/// ══════════════════════════════════════════════════
+/// EntityRecognizer — 实体识别引擎
+/// ══════════════════════════════════════════════════
+/// 三种策略（RecognitionStrategy）：
+///   - local   本地正则（7 条规则 → 5 种实体类型）
+///   - remote  OpenAI 兼容 API（4000 字符截断，失败回退本地）
+///   - hybrid  本地 + 远程合并去重（远程优先 + 偏移去重）
+/// 500ms 防抖（debounceRecognize）；远程仅原生平台可用。
+/// ──────────────────────────────────────────────────
+
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';

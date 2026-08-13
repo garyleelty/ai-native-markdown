@@ -1,3 +1,15 @@
+/// ══════════════════════════════════════════════════
+/// main.dart — 应用入口
+/// ══════════════════════════════════════════════════
+/// 职责：
+///   - 初始化 Hive（notes/meta/versions/trash/plugin_* 等 box）
+///   - 启动引导（首次运行创建示例笔记、写 welcome_shown 标记）
+///   - 全局错误处理（Zone + 崩溃兜底）
+///   - 挂载 App Shell 进入主界面
+/// ──────────────────────────────────────────────────
+
+library;
+
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

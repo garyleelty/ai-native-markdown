@@ -1,3 +1,15 @@
+/// ══════════════════════════════════════════════════
+/// AI Provider — AI 引擎状态
+/// ══════════════════════════════════════════════════
+///   - entityCacheProvider      按 noteId 缓存识别结果（最多 200 条）
+///   - entityRecognizerProvider 实体识别器（策略来自设置，500ms 防抖）
+///   - aiContextProvider        可见面板聚合 → AI 上下文
+///   - aiContextPromptProvider  AI prompt + token 估算
+///   - predictiveLinksProvider  预测链接推荐（最多 5 条）
+/// ──────────────────────────────────────────────────
+
+library;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/note_model.dart';
 import '../core/models/predictive_link.dart';

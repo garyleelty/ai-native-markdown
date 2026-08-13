@@ -1,3 +1,15 @@
+/// ══════════════════════════════════════════════════
+/// GitBackupService — Git 远程备份底层实现
+/// ══════════════════════════════════════════════════
+/// 完整 git 操作：init / isGitRepo / commit(带 ISO 时间戳) / push / pull
+///   / clone / log(解析 %H|%s|%ad|%an) / checkout / resetHard 等。
+/// 含参数校验：_isValidGitParam 拒绝 `-` 开头，_isValidUrl 限定
+///   https/http/ssh/@ 形式，_isValidCommitHash 要求 ≥4 位 hex。
+/// Web 平台全部禁用。
+/// ──────────────────────────────────────────────────
+
+library;
+
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
@@ -88,7 +100,7 @@ class GitBackupService {
   Future<GitResult> init() async {
     try {
       await _ensureDir();
-      return _runGit(['init']);
+      return await _runGit(['init']);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -109,7 +121,7 @@ class GitBackupService {
       }
       final result1 = await _runGit(['config', 'user.name', name]);
       if (!result1.success) return result1;
-      return _runGit(['config', 'user.email', email]);
+      return await _runGit(['config', 'user.email', email]);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -130,9 +142,9 @@ class GitBackupService {
       }
       final hasRemote = await _hasRemote(name);
       if (hasRemote) {
-        return _runGit(['remote', 'set-url', name, url]);
+        return await _runGit(['remote', 'set-url', name, url]);
       }
-      return _runGit(['remote', 'add', name, url]);
+      return await _runGit(['remote', 'add', name, url]);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -151,7 +163,7 @@ class GitBackupService {
           stderr: '无效的远程仓库名称',
         );
       }
-      return _runGit(['remote', 'remove', name]);
+      return await _runGit(['remote', 'remove', name]);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -176,7 +188,7 @@ class GitBackupService {
 
   Future<GitResult> addAll() async {
     try {
-      return _runGit(['add', '-A']);
+      return await _runGit(['add', '-A']);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -188,7 +200,7 @@ class GitBackupService {
 
   Future<GitResult> status() async {
     try {
-      return _runGit(['status', '--porcelain']);
+      return await _runGit(['status', '--porcelain']);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -226,7 +238,7 @@ class GitBackupService {
       }
       final now = DateTime.now().toIso8601String();
       final msg = '$message ($now)';
-      return _runGit(['commit', '-m', msg]);
+      return await _runGit(['commit', '-m', msg]);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -246,7 +258,7 @@ class GitBackupService {
         );
       }
       final targetBranch = branch ?? await getCurrentBranch() ?? 'main';
-      return _runGit(['push', '-u', remote, targetBranch]);
+      return await _runGit(['push', '-u', remote, targetBranch]);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -266,7 +278,7 @@ class GitBackupService {
         );
       }
       final targetBranch = branch ?? await getCurrentBranch() ?? 'main';
-      return _runGit(['pull', remote, targetBranch]);
+      return await _runGit(['pull', remote, targetBranch]);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -309,7 +321,7 @@ class GitBackupService {
         );
       }
 
-      return _runGit(['clone', url, '.']);
+      return await _runGit(['clone', url, '.']);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -364,7 +376,7 @@ class GitBackupService {
           stderr: '无效的 commit hash',
         );
       }
-      return _runGit(['checkout', commitHash]);
+      return await _runGit(['checkout', commitHash]);
     } catch (e) {
       return GitResult(
         exitCode: -1,
@@ -383,7 +395,7 @@ class GitBackupService {
           stderr: '无效的 commit hash',
         );
       }
-      return _runGit(['reset', '--hard', commitHash]);
+      return await _runGit(['reset', '--hard', commitHash]);
     } catch (e) {
       return GitResult(
         exitCode: -1,

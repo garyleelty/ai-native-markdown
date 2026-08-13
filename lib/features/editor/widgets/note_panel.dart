@@ -1,3 +1,13 @@
+/// ══════════════════════════════════════════════════
+/// NotePanel — 笔记编辑面板
+/// ══════════════════════════════════════════════════
+/// 三模式编辑（source / livePreview / preview）、Markdown 语法高亮、
+/// wiki 链接补全与悬停预览、搜索替换栏、撤销/重做（EditorSession）、
+/// 自动保存与滚动偏移 300ms 防抖写回（按 noteId 定位面板）。
+/// ──────────────────────────────────────────────────
+
+library;
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -135,9 +145,16 @@ class _NotePanelState extends ConsumerState<NotePanel> {
       // 防抖写回，避免高频更新触发全局 rebuild
       _scrollSaveTimer?.cancel();
       _scrollSaveTimer = Timer(const Duration(milliseconds: 300), () {
-        ref
-            .read(paneStackProvider.notifier)
-            .updatePaneScrollOffset(idx, offset);
+        // 回调时面板可能已关闭/堆叠，索引可能已失效，需按 noteId 重新解析
+        final currentIdx = ref
+            .read(paneStackProvider)
+            .panes
+            .indexWhere((p) => p.noteId == widget.noteId);
+        if (currentIdx >= 0) {
+          ref
+              .read(paneStackProvider.notifier)
+              .updatePaneScrollOffset(currentIdx, offset);
+        }
       });
     }
   }

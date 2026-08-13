@@ -1,3 +1,13 @@
+/// ══════════════════════════════════════════════════
+/// SlidingPanesContainer — 横向滑动面板容器
+/// ══════════════════════════════════════════════════
+/// Andy Matuschak 风格：最多 2 个可见面板，超出自动堆叠；
+/// 面板可关闭 / 激活 / 拖动比例；标题支持双击内联编辑，
+/// 编辑态中途被移出栈时草稿保留（PaneState.titleEditingDraft）。
+/// ──────────────────────────────────────────────────
+
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/aeromind_theme.dart';
@@ -22,6 +32,18 @@ import '../../../providers/sidebar_provider.dart';
 ///  3. 左侧垂直标题堆栈支持点击回弹
 ///  4. 滚动位置同步至 PaneStackNotifier
 /// ──────────────────────────────────────────────────
+/// 计算面板栈的结构性签名，用于选择性订阅。
+/// 仅包含会影响布局/渲染的字段（面板列表、激活索引、分屏比例、滚动），
+/// 刻意排除 titleEditingDraft，使标题编辑时不会触发整棵面板树重建。
+String _paneStructuralKey(PaneStackState s) {
+  final panes = s.panes
+      .map((p) =>
+          '${p.noteId}|${p.title}|${p.isStacked}|${p.editorMode}|${p.scrollOffset}')
+      .join(',');
+  return '${s.activeIndex}|${s.splitRatio}|${s.containerScrollX}|'
+      '${s.scrollRequest?.timestamp}|$panes';
+}
+
 class SlidingPanesContainer extends ConsumerStatefulWidget {
   /// 构建单个面板内容的回调
   final Widget Function(BuildContext context, String noteId, int index)
@@ -50,7 +72,11 @@ class _SlidingPanesContainerState
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final paneState = ref.watch(paneStackProvider);
+        // 仅当结构性字段变化时才重建整棵面板树。
+        // 标题编辑草稿 (titleEditingDraft) 变化不影响结构，
+        // 若直接 watch 整个 provider 会导致每次按键都重建所有面板（卡顿）。
+        ref.watch(paneStackProvider.select(_paneStructuralKey));
+        final paneState = ref.read(paneStackProvider);
 
         return Column(
           children: [
@@ -722,13 +748,10 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
 
   @override
   void dispose() {
-    // 编辑态中途销毁（面板被移出栈）时，保留当前草稿文本，
-    // 以便面板重新加入栈时能从 PaneState 恢复未完成的编辑。
-    if (_isEditing) {
-      ref
-          .read(paneStackProvider.notifier)
-          .setPaneTitleDraftByNoteId(widget.noteId, _controller.text);
-    }
+    // 注意：dispose 阶段不可再写入 provider —— 会触发
+    // "modify a provider while the widget tree was building" 崩溃。
+    // 草稿已在 _onControllerChanged 中实时同步到 PaneState，
+    // 因此面板堆叠/移除时草稿自然保留在 state 中，无需此处落库。
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -750,8 +773,12 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
   }
 
   void _onControllerChanged(String text) {
-    // 不在每次按键时写入 provider，避免触发整个面板树重建造成卡顿。
-    // 草稿仅在 _startEditing / _finishEditing / dispose 时落库。
+    // 实时同步草稿到 PaneState。面板树不会因此重建：
+    // SlidingPanesContainer 仅选择性订阅结构性字段，标题栏自身
+    // 因 _isEditing 订阅而重建属于必要开销（用于显示输入内容）。
+    ref
+        .read(paneStackProvider.notifier)
+        .setPaneTitleDraftByNoteId(widget.noteId, text);
   }
 
   Future<void> _finishEditing() async {

@@ -51,9 +51,13 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
   /// 打字指示器动画控制器
   late final AnimationController _typingController;
 
+  /// 在 dispose 阶段保存草稿用的 notifier（dispose 中不可再使用 ref）
+  late final AiChatNotifier _aiChatNotifier;
+
   @override
   void initState() {
     super.initState();
+    _aiChatNotifier = ref.read(aiChatProvider.notifier);
     // 从 provider 恢复输入草稿
     final draft = ref.read(aiChatProvider).inputDraft;
     _inputController = TextEditingController(text: draft);
@@ -66,7 +70,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
 
   @override
   void dispose() {
-    ref.read(aiChatProvider.notifier).setInputDraft(_inputController.text);
+    _aiChatNotifier.setInputDraft(_inputController.text);
     _inputController.removeListener(_onInputChanged);
     _inputController.dispose();
     _scrollController.dispose();

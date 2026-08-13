@@ -1,3 +1,14 @@
+/// ══════════════════════════════════════════════════
+/// FileService — 文件系统同步
+/// ══════════════════════════════════════════════════
+/// 把笔记同步为磁盘上的 .md 文件（vault 默认 ~/Aeromind，web 为 /aeromind）：
+///   - syncToFile 仅非 Web 且有 filePath 时执行
+///   - _safePath 路径穿越防护（p.isWithin 校验，非法路径抛 SecurityException）
+///   - generateId = 相对路径 hashCode base36；generateNewId = UUID v4
+/// ──────────────────────────────────────────────────
+
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';

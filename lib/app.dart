@@ -1,3 +1,16 @@
+/// ══════════════════════════════════════════════════
+/// app.dart — App Shell（应用外壳）
+/// ══════════════════════════════════════════════════
+/// 职责：
+///   - 整体布局：侧边栏 + Sliding Panes + AI 面板 + 状态栏 + 覆盖层
+///   - 全局快捷键（HardwareKeyboard 处理器，不依赖焦点层级）
+///   - 插件注册与初始化（5 个内置插件 + PluginApiImpl）
+///   - 命令面板 action 绑定（bindActions 解耦命令定义与 Widget 层）
+///   - 知识图谱覆盖层
+/// ──────────────────────────────────────────────────
+
+library;
+
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';

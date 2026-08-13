@@ -1,3 +1,14 @@
+/// ══════════════════════════════════════════════════
+/// Note Provider — 笔记数据层
+/// ══════════════════════════════════════════════════
+/// 基于 Repository 模式：NoteRepository 抽象 + LocalNoteRepository (Hive)
+///   - noteRepositoryProvider / noteByIdProvider / allNotesProvider
+///   - noteSearchProvider（全文/标题/标签搜索）
+///   - noteNotifierProvider（CRUD 变更通知，changes 流）
+/// ──────────────────────────────────────────────────
+
+library;
+
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';

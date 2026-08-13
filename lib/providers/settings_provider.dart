@@ -1,3 +1,14 @@
+/// ══════════════════════════════════════════════════
+/// Settings Provider — 应用设置
+/// ══════════════════════════════════════════════════
+/// AppSettings 持久化到 Hive meta box：
+///   - 自动保存(2s) / 识别延迟(500ms) / 识别策略(local|remote|hybrid)
+///   - 字体大小 / 主题 / 远程 LLM 配置 / AI 面板可见性 / Mermaid 开关
+///   - clearAllData() 一键清除全部本地数据
+/// ──────────────────────────────────────────────────
+
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/services/hive_service.dart';

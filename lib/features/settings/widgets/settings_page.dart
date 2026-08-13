@@ -255,7 +255,8 @@ class _AISectionState extends ConsumerState<_AISection> {
     _apiKeyCtrl = TextEditingController(text: s.llmApiKey);
     _modelCtrl = TextEditingController(text: s.llmModel);
     // 当 provider 外部变化时，反向同步到控制器（避免控制器与 provider 不一致）
-    ref.listen(settingsProvider, (previous, next) {
+    // 注意：initState 中不可用 ref.listen（仅限 build），须用 listenManual
+    ref.listenManual(settingsProvider, (previous, next) {
       if (!mounted) return;
       if (_endpointCtrl.text != next.llmApiEndpoint) {
         _endpointCtrl.text = next.llmApiEndpoint;
@@ -528,7 +529,7 @@ class _StorageSectionState extends ConsumerState<_StorageSection> {
     _userEmailController = TextEditingController(text: s.userEmail);
     _branchController = TextEditingController(text: s.branch);
     // 当 provider 外部变化时（如异步加载完成、远程恢复），反向同步到控制器
-    ref.listen(gitBackupProvider, (previous, next) {
+    ref.listenManual(gitBackupProvider, (previous, next) {
       if (!mounted) return;
       if (_remoteUrlController.text != next.remoteUrl) {
         _remoteUrlController.text = next.remoteUrl;

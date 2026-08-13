@@ -96,6 +96,8 @@ class EditorSessionCollection {
       String noteId, EditorSessionState Function(EditorSessionState) updater) {
     final current = get(noteId);
     final next = updater(current);
+    // 未发生变化（updater 返回原实例）时复用自身，避免无谓的 state 通知
+    if (identical(current, next)) return this;
     final newSessions = Map<String, EditorSessionState>.from(sessions);
     newSessions[noteId] = next;
     return EditorSessionCollection(sessions: newSessions);

@@ -1,3 +1,13 @@
+/// ══════════════════════════════════════════════════
+/// Git Backup Provider — Git 远程备份
+/// ══════════════════════════════════════════════════
+/// 基于 GitBackupService，配置持久化到 Hive meta box `git_backup_config`：
+///   - initRepo / backup / restore / updateConfig / loadHistory
+///   - Web 平台全部禁用
+/// ──────────────────────────────────────────────────
+
+library;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aeromind/core/services/git_backup_service.dart';
