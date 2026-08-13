@@ -19,6 +19,7 @@ import '../../../core/theme/aeromind_theme.dart';
 import '../../../core/widgets/toolbar_button.dart';
 import '../../../core/widgets/chip_button.dart';
 import '../../../providers/ai_provider.dart';
+import '../../../providers/ai_chat_provider.dart';
 import '../../../providers/pane_provider.dart';
 
 /// 发送消息意图 (用于 Shortcuts + Actions 处理 Enter 键)
@@ -43,18 +44,9 @@ class AiChatPanel extends ConsumerStatefulWidget {
 
 class _AiChatPanelState extends ConsumerState<AiChatPanel>
     with SingleTickerProviderStateMixin {
-  final TextEditingController _inputController = TextEditingController();
+  late final TextEditingController _inputController;
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
-
-  /// 本地显示的消息列表
-  final List<ChatMessage> _messages = [];
-
-  /// 是否正在等待 AI 响应
-  bool _isLoading = false;
-
-  /// 输入框是否有内容（控制发送按钮显示）
-  bool _hasInputText = false;
 
   /// 打字指示器动画控制器
   late final AnimationController _typingController;
@@ -62,6 +54,9 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
   @override
   void initState() {
     super.initState();
+    // 从 provider 恢复输入草稿
+    final draft = ref.read(aiChatProvider).inputDraft;
+    _inputController = TextEditingController(text: draft);
     _inputController.addListener(_onInputChanged);
     _typingController = AnimationController(
       vsync: this,
@@ -71,6 +66,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
 
   @override
   void dispose() {
+    ref.read(aiChatProvider.notifier).setInputDraft(_inputController.text);
     _inputController.removeListener(_onInputChanged);
     _inputController.dispose();
     _scrollController.dispose();
@@ -81,11 +77,12 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
 
   void _onInputChanged() {
     if (mounted) {
-      setState(() {
-        _hasInputText = _inputController.text.trim().isNotEmpty;
-      });
+      setState(() {});
     }
   }
+
+  /// 输入框是否有内容（从 controller 派生）
+  bool get _hasInputText => _inputController.text.trim().isNotEmpty;
 
   /// 获取已激活的 AiChatPlugin 实例
   AiChatPlugin? get _plugin {
@@ -111,44 +108,30 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
   Future<void> _sendMessage() async {
     final text = _inputController.text.trim();
     final plugin = _plugin;
-    if (text.isEmpty || plugin == null || _isLoading) return;
+    final chatNotifier = ref.read(aiChatProvider.notifier);
+    final currentLoading = ref.read(aiChatProvider).isLoading;
+    if (text.isEmpty || plugin == null || currentLoading) return;
 
-    _isLoading = true;
+    chatNotifier.setLoading(true);
     _inputController.clear();
+    ref.read(aiChatProvider.notifier).setInputDraft('');
 
-    setState(() {
-      _messages.add(ChatMessage(
-        role: 'user',
-        content: text,
-        timestamp: DateTime.now(),
-      ));
-    });
+    chatNotifier.addUserMessage(text);
     _scrollToBottom();
 
     try {
       final response = await plugin.chat(text);
       if (mounted) {
-        setState(() {
-          _messages.add(ChatMessage(
-            role: 'assistant',
-            content: response,
-            timestamp: DateTime.now(),
-          ));
-        });
+        ref.read(aiChatProvider.notifier).addAssistantMessage(response);
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _messages.add(ChatMessage(
-            role: 'assistant',
-            content: 'AI 响应失败: $e',
-            timestamp: DateTime.now(),
-          ));
-        });
+        ref.read(aiChatProvider.notifier)
+            .addAssistantMessage('AI 响应失败: $e');
       }
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        ref.read(aiChatProvider.notifier).setLoading(false);
         _scrollToBottom();
         _inputFocusNode.requestFocus();
       }
@@ -158,9 +141,8 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
   /// 清除对话
   void _clearConversation() {
     _plugin?.clearHistory();
-    setState(() {
-      _messages.clear();
-    });
+    ref.read(aiChatProvider.notifier).clearMessages();
+    ref.read(aiChatProvider.notifier).setInputDraft('');
   }
 
   /// 发送快速操作消息
@@ -336,7 +318,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
             ),
             const SizedBox(height: AeroSpacing.xs),
             Text(
-              '按 Cmd/Ctrl+Shift+P 打开插件管理',
+              '按 Cmd/Ctrl+Option/Alt+P 打开插件管理',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AeroColors.textMuted,
                     fontSize: 11,
@@ -350,7 +332,10 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
 
   /// 消息列表
   Widget _buildMessageList(BuildContext context) {
-    if (_messages.isEmpty) {
+    final chatState = ref.watch(aiChatProvider);
+    final messages = chatState.messages;
+    final isLoading = chatState.isLoading;
+    if (messages.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(AeroSpacing.xl),
@@ -409,12 +394,12 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(AeroSpacing.sm),
-      itemCount: _messages.length + (_isLoading ? 1 : 0),
+      itemCount: messages.length + (isLoading ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index == _messages.length && _isLoading) {
+        if (index == messages.length && isLoading) {
           return _buildLoadingBubble(context);
         }
-        return _buildMessageBubble(context, _messages[index]);
+        return _buildMessageBubble(context, messages[index]);
       },
     );
   }
@@ -632,7 +617,7 @@ class _AiChatPanelState extends ConsumerState<AiChatPanel>
               ),
             ),
           ),
-          if (_hasInputText && !_isLoading) ...[
+          if (_hasInputText && !ref.watch(aiChatProvider).isLoading) ...[
             const SizedBox(width: AeroSpacing.xs),
             _SendButton(
               onTap: _sendMessage,

@@ -50,3 +50,6 @@ app.*.map.json
 .claude/
 dogfood-output/
 skills-lock.json
+
+# 调试截图产物
+tmp_screenshot*.jpg

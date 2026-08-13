@@ -34,7 +34,7 @@ void main() {
     });
 
     test('copyWith clearSelectedTag 清除选中标签', () {
-      final state = const SidebarState(selectedTag: 'flutter');
+      const state = SidebarState(selectedTag: 'flutter');
       expect(state.selectedTag, 'flutter');
 
       final cleared = state.copyWith(clearSelectedTag: true);
@@ -42,7 +42,7 @@ void main() {
     });
 
     test('copyWith clearSelectedNoteId 清除选中笔记', () {
-      final state = const SidebarState(selectedNoteId: 'note-1');
+      const state = SidebarState(selectedNoteId: 'note-1');
       expect(state.selectedNoteId, 'note-1');
 
       final cleared = state.copyWith(clearSelectedNoteId: true);

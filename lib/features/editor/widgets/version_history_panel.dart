@@ -39,7 +39,8 @@ class VersionHistoryPanel extends StatefulWidget {
 
 class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
   /// 适配 FutureBuilder：getVersions 本身是同步方法，包裹成 Future
-  late final Future<List<VersionSnapshot>> _versionsFuture;
+  /// 非 final 以支持手动刷新
+  Future<List<VersionSnapshot>>? _versionsFuture;
 
   /// 当前展开的版本 ID（null 表示全部折叠）
   String? _expandedVersionId;
@@ -52,13 +53,13 @@ class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
   @override
   void initState() {
     super.initState();
-    _versionsFuture = _loadVersions();
+    _reloadVersions();
   }
 
-  Future<List<VersionSnapshot>> _loadVersions() {
-    // VersionService.getVersions 是同步方法，这里包裹成 Future
-    // 以便 FutureBuilder 统一处理加载态
-    return Future.value(VersionService.getVersions(widget.noteId));
+  void _reloadVersions() {
+    setState(() {
+      _versionsFuture = Future.value(VersionService.getVersions(widget.noteId));
+    });
   }
 
   Future<void> _handleRestore(VersionSnapshot version) async {
@@ -160,6 +161,14 @@ class _VersionHistoryPanelState extends State<VersionHistoryPanel> {
             ),
           ),
           const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.refresh, size: AeroIconSize.md, color: AeroColors.textSecondary),
+            tooltip: '刷新版本列表',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            splashRadius: 16,
+            onPressed: _reloadVersions,
+          ),
           IconButton(
             icon: const Icon(Icons.close, size: AeroIconSize.md, color: AeroColors.textSecondary),
             tooltip: '关闭',

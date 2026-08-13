@@ -20,16 +20,14 @@ class GraphControls extends ConsumerStatefulWidget {
 }
 
 class _GraphControlsState extends ConsumerState<GraphControls> {
-  /// 搜索框控制器
+  /// 搜索框控制器（文本内容从 provider 恢复，避免重建时丢失）
   late TextEditingController _searchController;
-
-  /// 连接数过滤的当前值
-  double _minConnectionsValue = 0;
 
   @override
   void initState() {
     super.initState();
-    _searchController = TextEditingController();
+    final initialQuery = ref.read(graphProvider).searchQuery;
+    _searchController = TextEditingController(text: initialQuery);
   }
 
   @override
@@ -244,6 +242,8 @@ class _GraphControlsState extends ConsumerState<GraphControls> {
 
   /// 连接数过滤
   Widget _buildConnectionFilter(BuildContext context, GraphState state) {
+    // 直接从 provider state 读取，确保与外部修改同步
+    final minConnectionsValue = state.minConnections.toDouble();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Column(
@@ -255,7 +255,7 @@ class _GraphControlsState extends ConsumerState<GraphControls> {
                   size: 14, color: AeroColors.textMuted),
               const SizedBox(width: 6),
               Text(
-                '最少连接数: ${_minConnectionsValue.toInt()}',
+                '最少连接数: ${minConnectionsValue.toInt()}',
                 style: Theme.of(context).textTheme.labelSmall,
               ),
             ],
@@ -271,12 +271,11 @@ class _GraphControlsState extends ConsumerState<GraphControls> {
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
             ),
             child: Slider(
-              value: _minConnectionsValue,
+              value: minConnectionsValue.clamp(0, 10),
               min: 0,
               max: 10,
               divisions: 10,
               onChanged: (value) {
-                setState(() => _minConnectionsValue = value);
                 ref.read(graphProvider.notifier).setMinConnections(value.toInt());
               },
             ),

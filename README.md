@@ -710,7 +710,7 @@ flutter build linux --release
 | `Cmd/Ctrl + T` | 模板画廊 |
 | `Cmd/Ctrl + D` | 打开今天的日记 |
 | `Cmd/Ctrl + B` | 切换侧边栏 |
-| `Cmd/Ctrl + Shift + P` | 插件管理 |
+| `Cmd/Ctrl + Option/Alt + P` | 插件管理 |
 | `Cmd/Ctrl + F` | 搜索 |
 | `Cmd/Ctrl + B` (编辑器内) | 加粗 |
 | `Cmd/Ctrl + I` (编辑器内) | 斜体 |

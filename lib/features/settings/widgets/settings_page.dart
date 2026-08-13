@@ -33,7 +33,9 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  int _selectedSection = 0;
+  int get _selectedSection => ref.watch(settingsPageSectionProvider);
+  set _selectedSection(int value) =>
+      ref.read(settingsPageSectionProvider.notifier).set(value);
 
   static const _sections = [
     _SectionDef(icon: Icons.tune, label: '通用'),
@@ -77,7 +79,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         final section = _sections[index];
                         final isSelected = index == _selectedSection;
                         return InkWell(
-                          onTap: () => setState(() => _selectedSection = index),
+                          onTap: () => _selectedSection = index,
                           child: Container(
                             height: 36,
                             padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.lg),
@@ -252,6 +254,19 @@ class _AISectionState extends ConsumerState<_AISection> {
     _endpointCtrl = TextEditingController(text: s.llmApiEndpoint);
     _apiKeyCtrl = TextEditingController(text: s.llmApiKey);
     _modelCtrl = TextEditingController(text: s.llmModel);
+    // 当 provider 外部变化时，反向同步到控制器（避免控制器与 provider 不一致）
+    ref.listen(settingsProvider, (previous, next) {
+      if (!mounted) return;
+      if (_endpointCtrl.text != next.llmApiEndpoint) {
+        _endpointCtrl.text = next.llmApiEndpoint;
+      }
+      if (_apiKeyCtrl.text != next.llmApiKey) {
+        _apiKeyCtrl.text = next.llmApiKey;
+      }
+      if (_modelCtrl.text != next.llmModel) {
+        _modelCtrl.text = next.llmModel;
+      }
+    });
   }
 
   @override
@@ -499,21 +514,34 @@ class _StorageSection extends ConsumerStatefulWidget {
 }
 
 class _StorageSectionState extends ConsumerState<_StorageSection> {
-  final _remoteUrlController = TextEditingController();
-  final _userNameController = TextEditingController();
-  final _userEmailController = TextEditingController();
-  final _branchController = TextEditingController();
+  late final TextEditingController _remoteUrlController;
+  late final TextEditingController _userNameController;
+  late final TextEditingController _userEmailController;
+  late final TextEditingController _branchController;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    final s = ref.read(gitBackupProvider);
+    _remoteUrlController = TextEditingController(text: s.remoteUrl);
+    _userNameController = TextEditingController(text: s.userName);
+    _userEmailController = TextEditingController(text: s.userEmail);
+    _branchController = TextEditingController(text: s.branch);
+    // 当 provider 外部变化时（如异步加载完成、远程恢复），反向同步到控制器
+    ref.listen(gitBackupProvider, (previous, next) {
       if (!mounted) return;
-      final state = ref.read(gitBackupProvider);
-      _remoteUrlController.text = state.remoteUrl;
-      _userNameController.text = state.userName;
-      _userEmailController.text = state.userEmail;
-      _branchController.text = state.branch;
+      if (_remoteUrlController.text != next.remoteUrl) {
+        _remoteUrlController.text = next.remoteUrl;
+      }
+      if (_userNameController.text != next.userName) {
+        _userNameController.text = next.userName;
+      }
+      if (_userEmailController.text != next.userEmail) {
+        _userEmailController.text = next.userEmail;
+      }
+      if (_branchController.text != next.branch) {
+        _branchController.text = next.branch;
+      }
     });
   }
 

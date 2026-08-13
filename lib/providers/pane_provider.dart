@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/sliding_panes/models/pane_state.dart';
+import 'editor_session_provider.dart';
 
 // ──────────────────────────────────────────────
 // 面板栈状态管理 (Riverpod Notifier)
@@ -97,7 +98,10 @@ class PaneStackNotifier extends Notifier<PaneStackState> {
   // ── 关闭面板 ──
   void closePane(int index) {
     if (index < 0 || index >= state.panes.length) return;
+    final removedNoteId = state.panes[index].noteId;
     final updatedPanes = [...state.panes]..removeAt(index);
+    // 清理对应的编辑器会话状态，避免内存泄漏
+    ref.read(editorSessionProvider.notifier).removeSession(removedNoteId);
     if (updatedPanes.isEmpty) {
       state = state.copyWith(
         panes: const [],
@@ -229,6 +233,45 @@ class PaneStackNotifier extends Notifier<PaneStackState> {
     final updatedPanes = [...state.panes];
     updatedPanes[index] = updatedPanes[index].copyWith(title: newTitle);
     state = state.copyWith(panes: updatedPanes);
+  }
+
+  // ── 更新面板编辑器模式 ──
+  // 持久化到 PaneState，避免面板堆叠/恢复时模式丢失
+  void setPaneEditorMode(int index, EditorMode mode) {
+    if (index < 0 || index >= state.panes.length) return;
+    final updatedPanes = [...state.panes];
+    updatedPanes[index] = updatedPanes[index].copyWith(editorMode: mode);
+    state = state.copyWith(panes: updatedPanes);
+  }
+
+  // ── 按 noteId 更新编辑器模式 ──
+  void setPaneEditorModeByNoteId(String noteId, EditorMode mode) {
+    final index = state.panes.indexWhere((p) => p.noteId == noteId);
+    if (index >= 0) {
+      setPaneEditorMode(index, mode);
+    }
+  }
+
+  // ── 更新面板标题编辑草稿 ──
+  // 持久化到 PaneState，避免面板堆叠/恢复时草稿丢失
+  void setPaneTitleDraft(int index, String? draft) {
+    if (index < 0 || index >= state.panes.length) return;
+    final updatedPanes = [...state.panes];
+    if (draft == null) {
+      updatedPanes[index] =
+          updatedPanes[index].copyWith(clearTitleDraft: true);
+    } else {
+      updatedPanes[index] =
+          updatedPanes[index].copyWith(titleEditingDraft: draft);
+    }
+    state = state.copyWith(panes: updatedPanes);
+  }
+
+  void setPaneTitleDraftByNoteId(String noteId, String? draft) {
+    final index = state.panes.indexWhere((p) => p.noteId == noteId);
+    if (index >= 0) {
+      setPaneTitleDraft(index, draft);
+    }
   }
 
   // ── 打开所有面板的标题列表 (供 AI 上下文使用) ──

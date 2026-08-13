@@ -515,7 +515,7 @@ class CommandRegistry {
         id: 'settings.plugins',
         name: '插件管理',
         icon: Icons.extension_outlined,
-        shortcut: 'Ctrl+Shift+P',
+        shortcut: 'Ctrl+Alt+P',
         category: CommandCategory.settings,
         description: '打开插件管理面板',
       ),

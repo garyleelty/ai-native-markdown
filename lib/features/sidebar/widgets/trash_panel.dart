@@ -9,14 +9,14 @@ import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../providers/note_provider.dart';
 
-/// 回收站版本号 — 在恢复/删除后递增以触发 FutureBuilder 重建
+/// 回收站版本号 — 在恢复/删除后递增以触发重新加载
 final _trashVersionProvider = StateProvider<int>((ref) => 0);
 
 /// 回收站面板
 ///
 /// 展示已删除的笔记列表，支持恢复、彻底删除与清空。
 /// 数据来源: [TrashService]；恢复的笔记通过 [noteRepositoryProvider] 落盘。
-class TrashPanel extends ConsumerWidget {
+class TrashPanel extends ConsumerStatefulWidget {
   /// 恢复笔记后刷新笔记树
   final VoidCallback onRestore;
 
@@ -29,114 +29,32 @@ class TrashPanel extends ConsumerWidget {
     required this.onClose,
   });
 
+  @override
+  ConsumerState<TrashPanel> createState() => _TrashPanelState();
+}
+
+class _TrashPanelState extends ConsumerState<TrashPanel> {
   static final DateFormat _dateFormat = DateFormat('yyyy-MM-dd HH:mm');
 
-  /// 从 trashId 中提取删除时间
-  /// trashId 格式: <原ID>_trash_<毫秒时间戳>
-  DateTime _extractDeletedTime(String trashId) {
-    final parts = trashId.split('_trash_');
-    if (parts.length == 2) {
-      final ms = int.tryParse(parts[1]);
-      if (ms != null) {
-        return DateTime.fromMillisecondsSinceEpoch(ms);
-      }
-    }
-    return DateTime.now();
-  }
-
-  /// 生成内容预览 (前 80 字符，压缩空白与换行)
-  String _buildPreview(String markdown) {
-    final cleaned = markdown
-        .replaceAll(RegExp(r'\n+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    if (cleaned.isEmpty) return '（无内容）';
-    if (cleaned.length <= 80) return cleaned;
-    return '${cleaned.substring(0, 80)}…';
-  }
-
-  /// 异步加载回收站笔记 (配合 FutureBuilder)
-  Future<List<NoteModel>> _loadTrashed() async {
-    return TrashService.getAllTrashed();
-  }
-
-  // ── 操作 ──────────────────────────────────────────
-
-  Future<void> _restoreNote(BuildContext context, WidgetRef ref, NoteModel note) async {
-    try {
-      final restored = await TrashService.restore(note.id);
-      if (restored != null) {
-        await ref.read(noteRepositoryProvider).saveNote(restored);
-      }
-      ref.read(_trashVersionProvider.notifier).state++;
-      onRestore();
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('恢复笔记失败: $e'), duration: const Duration(seconds: 2)),
-        );
-      }
-    }
-  }
-
-  Future<void> _deletePermanently(
-    BuildContext context,
-    WidgetRef ref,
-    String trashId,
-  ) async {
-    final confirmed = await showConfirmDialog(
-      context,
-      title: '彻底删除',
-      content: '此操作不可撤销，确定要彻底删除该笔记吗？',
-      confirmText: '删除',
-      type: ConfirmDialogType.danger,
-      isDestructive: true,
-    );
-    if (confirmed == true) {
-      try {
-        await TrashService.deletePermanently(trashId);
-        ref.read(_trashVersionProvider.notifier).state++;
-        onRestore();
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('彻底删除失败: $e'), duration: const Duration(seconds: 2)),
-          );
-        }
-      }
-    }
-  }
-
-  Future<void> _emptyTrash(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showConfirmDialog(
-      context,
-      title: '清空回收站',
-      content: '将永久删除回收站中的所有笔记，此操作不可撤销。',
-      confirmText: '清空',
-      type: ConfirmDialogType.danger,
-      isDestructive: true,
-    );
-    if (confirmed == true) {
-      try {
-        await TrashService.emptyTrash();
-        ref.read(_trashVersionProvider.notifier).state++;
-        onRestore();
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('清空回收站失败: $e'), duration: const Duration(seconds: 2)),
-          );
-        }
-      }
-    }
-  }
-
-  // ── 构建 ──────────────────────────────────────────
+  /// Future 只在 initState 和版本号变化时重建，避免每次 build 都重新加载
+  late Future<List<NoteModel>> _trashedFuture;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // 监听版本号以在恢复/删除后触发重建
-    ref.watch(_trashVersionProvider);
+  void initState() {
+    super.initState();
+    _trashedFuture = _loadTrashed();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 监听版本号：恢复/删除后重新加载，避免每次 build 都重建 Future
+    ref.listen<int>(_trashVersionProvider, (previous, next) {
+      if (previous != next) {
+        setState(() {
+          _trashedFuture = _loadTrashed();
+        });
+      }
+    });
 
     return Container(
       decoration: const BoxDecoration(
@@ -151,7 +69,7 @@ class TrashPanel extends ConsumerWidget {
           const Divider(height: 1, color: AeroColors.divider),
           Expanded(
             child: FutureBuilder<List<NoteModel>>(
-              future: _loadTrashed(),
+              future: _trashedFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -182,16 +100,117 @@ class TrashPanel extends ConsumerWidget {
                     color: AeroColors.divider,
                   ),
                   itemBuilder: (context, index) =>
-                      _buildNoteTile(context, ref, notes[index]),
+                      _buildNoteTile(context, notes[index]),
                 );
               },
             ),
           ),
-          _buildFooter(context, ref),
+          _buildFooter(context),
         ],
       ),
     );
   }
+
+  /// 从 trashId 中提取删除时间
+  /// trashId 格式: <原ID>_trash_<毫秒时间戳>
+  DateTime _extractDeletedTime(String trashId) {
+    final parts = trashId.split('_trash_');
+    if (parts.length == 2) {
+      final ms = int.tryParse(parts[1]);
+      if (ms != null) {
+        return DateTime.fromMillisecondsSinceEpoch(ms);
+      }
+    }
+    return DateTime.now();
+  }
+
+  /// 生成内容预览 (前 80 字符，压缩空白与换行)
+  String _buildPreview(String markdown) {
+    final cleaned = markdown
+        .replaceAll(RegExp(r'\n+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (cleaned.isEmpty) return '（无内容）';
+    if (cleaned.length <= 80) return cleaned;
+    return '${cleaned.substring(0, 80)}…';
+  }
+
+  /// 异步加载回收站笔记
+  Future<List<NoteModel>> _loadTrashed() async {
+    return TrashService.getAllTrashed();
+  }
+
+  // ── 操作 ──────────────────────────────────────────
+
+  Future<void> _restoreNote(BuildContext context, NoteModel note) async {
+    try {
+      final restored = await TrashService.restore(note.id);
+      if (restored != null) {
+        await ref.read(noteRepositoryProvider).saveNote(restored);
+      }
+      ref.read(_trashVersionProvider.notifier).state++;
+      widget.onRestore();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('恢复笔记失败: $e'), duration: const Duration(seconds: 2)),
+        );
+      }
+    }
+  }
+
+  Future<void> _deletePermanently(
+    BuildContext context,
+    String trashId,
+  ) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: '彻底删除',
+      content: '此操作不可撤销，确定要彻底删除该笔记吗？',
+      confirmText: '删除',
+      type: ConfirmDialogType.danger,
+      isDestructive: true,
+    );
+    if (confirmed == true) {
+      try {
+        await TrashService.deletePermanently(trashId);
+        ref.read(_trashVersionProvider.notifier).state++;
+        widget.onRestore();
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('彻底删除失败: $e'), duration: const Duration(seconds: 2)),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _emptyTrash(BuildContext context) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: '清空回收站',
+      content: '将永久删除回收站中的所有笔记，此操作不可撤销。',
+      confirmText: '清空',
+      type: ConfirmDialogType.danger,
+      isDestructive: true,
+    );
+    if (confirmed == true) {
+      try {
+        await TrashService.emptyTrash();
+        ref.read(_trashVersionProvider.notifier).state++;
+        widget.onRestore();
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('清空回收站失败: $e'), duration: const Duration(seconds: 2)),
+          );
+        }
+      }
+    }
+  }
+
+  // ── 构建 ──────────────────────────────────────────
 
   Widget _buildHeader() {
     return Container(
@@ -214,7 +233,7 @@ class TrashPanel extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.close, size: 18, color: AeroColors.textSecondary),
             tooltip: '关闭',
-            onPressed: onClose,
+            onPressed: widget.onClose,
           ),
         ],
       ),
@@ -237,7 +256,7 @@ class TrashPanel extends ConsumerWidget {
     );
   }
 
-  Widget _buildNoteTile(BuildContext context, WidgetRef ref, NoteModel note) {
+  Widget _buildNoteTile(BuildContext context, NoteModel note) {
     final deletedTime = _extractDeletedTime(note.id);
     final preview = _buildPreview(note.rawMarkdown);
 
@@ -293,7 +312,7 @@ class TrashPanel extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               TextButton.icon(
-                onPressed: () => _restoreNote(context, ref, note),
+                onPressed: () => _restoreNote(context, note),
                 icon: const Icon(Icons.restore, size: 16, color: AeroColors.accentGreen),
                 label: const Text(
                   '恢复',
@@ -305,7 +324,7 @@ class TrashPanel extends ConsumerWidget {
                 ),
               ),
               TextButton.icon(
-                onPressed: () => _deletePermanently(context, ref, note.id),
+                onPressed: () => _deletePermanently(context, note.id),
                 icon: const Icon(Icons.delete_forever, size: 16, color: AeroColors.accentOrange),
                 label: const Text(
                   '彻底删除',
@@ -323,7 +342,7 @@ class TrashPanel extends ConsumerWidget {
     );
   }
 
-  Widget _buildFooter(BuildContext context, WidgetRef ref) {
+  Widget _buildFooter(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
         color: AeroColors.bgElevated,
@@ -333,7 +352,7 @@ class TrashPanel extends ConsumerWidget {
       child: SizedBox(
         width: double.infinity,
         child: OutlinedButton.icon(
-          onPressed: () => _emptyTrash(context, ref),
+          onPressed: () => _emptyTrash(context),
           icon: const Icon(Icons.delete_sweep, color: AeroColors.accentOrange),
           label: const Text(
             '清空回收站',

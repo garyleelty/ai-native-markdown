@@ -29,7 +29,7 @@ const List<ShortcutItem> kAllShortcuts = [
   ShortcutItem(keys: 'Cmd/Ctrl + T', description: '模板画廊', category: '全局'),
   ShortcutItem(keys: 'Cmd/Ctrl + D', description: '今天的日记', category: '全局'),
   ShortcutItem(keys: 'Cmd/Ctrl + B', description: '切换侧边栏', category: '全局'),
-  ShortcutItem(keys: 'Cmd/Ctrl + Shift + P', description: '插件管理', category: '全局'),
+  ShortcutItem(keys: 'Cmd/Ctrl + Option/Alt + P', description: '插件管理', category: '全局'),
   ShortcutItem(keys: 'Escape', description: '关闭覆盖层', category: '全局'),
   ShortcutItem(
       keys: 'Cmd/Ctrl + ,', description: '打开设置', category: '全局'),

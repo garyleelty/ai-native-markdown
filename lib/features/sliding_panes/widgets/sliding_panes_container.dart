@@ -678,12 +678,38 @@ class _PaneTitleBar extends ConsumerStatefulWidget {
 class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
   late final TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
-  bool _isEditing = false;
+
+  /// 是否处于编辑态（从 PaneState.titleEditingDraft 派生）
+  bool get _isEditing =>
+      ref.watch(paneStackProvider).panes
+          .where((p) => p.noteId == widget.noteId)
+          .firstOrNull
+          ?.titleEditingDraft !=
+      null;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.title);
+    // 从 PaneState 恢复草稿（如有），否则用面板标题
+    final draft = _readDraft();
+    _controller = TextEditingController(text: draft ?? widget.title);
+    if (draft != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _focusNode.requestFocus();
+        _controller.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _controller.text.length,
+        );
+      });
+    }
+  }
+
+  String? _readDraft() {
+    final paneState = ref.read(paneStackProvider);
+    final idx = paneState.panes.indexWhere((p) => p.noteId == widget.noteId);
+    if (idx < 0) return null;
+    return paneState.panes[idx].titleEditingDraft;
   }
 
   @override
@@ -696,15 +722,23 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
 
   @override
   void dispose() {
+    // 编辑态中途销毁（面板被移出栈）时，保留当前草稿文本，
+    // 以便面板重新加入栈时能从 PaneState 恢复未完成的编辑。
+    if (_isEditing) {
+      ref
+          .read(paneStackProvider.notifier)
+          .setPaneTitleDraftByNoteId(widget.noteId, _controller.text);
+    }
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
   void _startEditing() {
-    setState(() {
-      _isEditing = true;
-    });
+    ref
+        .read(paneStackProvider.notifier)
+        .setPaneTitleDraftByNoteId(widget.noteId, _controller.text);
+    setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _focusNode.requestFocus();
@@ -715,12 +749,20 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
     });
   }
 
+  void _onControllerChanged(String text) {
+    // 不在每次按键时写入 provider，避免触发整个面板树重建造成卡顿。
+    // 草稿仅在 _startEditing / _finishEditing / dispose 时落库。
+  }
+
   Future<void> _finishEditing() async {
     final newTitle = _controller.text.trim();
     if (newTitle.isEmpty) {
       _controller.text = widget.title;
+      ref
+          .read(paneStackProvider.notifier)
+          .setPaneTitleDraftByNoteId(widget.noteId, null);
       if (mounted) {
-        setState(() => _isEditing = false);
+        setState(() {});
       }
       return;
     }
@@ -728,6 +770,9 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
     if (newTitle != widget.title) {
       try {
         ref.read(paneStackProvider.notifier).updatePaneTitle(widget.index, newTitle);
+        ref
+            .read(paneStackProvider.notifier)
+            .setPaneTitleDraftByNoteId(widget.noteId, null);
         final repo = ref.read(noteRepositoryProvider);
         final note = await repo.getNote(widget.noteId);
         if (note != null) {
@@ -755,20 +800,26 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
           await ref.read(sidebarProvider.notifier).loadNoteTree();
         }
         if (mounted) {
-          setState(() => _isEditing = false);
+          setState(() {});
         }
       } catch (e) {
-        _controller.text = widget.title;
+        ref
+            .read(paneStackProvider.notifier)
+            .setPaneTitleDraftByNoteId(widget.noteId, null);
         if (mounted) {
-          setState(() => _isEditing = false);
+          _controller.text = widget.title;
+          setState(() {});
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('重命名失败: $e'), duration: const Duration(seconds: 2)),
           );
         }
       }
     } else {
+      ref
+          .read(paneStackProvider.notifier)
+          .setPaneTitleDraftByNoteId(widget.noteId, null);
       if (mounted) {
-        setState(() => _isEditing = false);
+        setState(() {});
       }
     }
   }
@@ -814,6 +865,7 @@ class _PaneTitleBarState extends ConsumerState<_PaneTitleBar> {
                       contentPadding: EdgeInsets.zero,
                       isDense: true,
                     ),
+                    onChanged: _onControllerChanged,
                     onSubmitted: (_) => _finishEditing(),
                     onTapOutside: (_) => _finishEditing(),
                   )

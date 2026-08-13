@@ -7,6 +7,15 @@ import '../../../providers/template_provider.dart';
 import '../../../providers/pane_provider.dart';
 import '../../../providers/note_provider.dart';
 
+/// 日历视图当前显示月份的全局状态
+/// ─────────────────────────────────────
+/// 持久化到 Provider 中，避免侧边栏视图切换时 CalendarView 重建导致月份丢失。
+final calendarDisplayMonthProvider =
+    StateProvider<DateTime>((ref) {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month);
+});
+
 /// ══════════════════════════════════════════════════
 /// CalendarView — 日历视图 (日记导航)
 /// ══════════════════════════════════════════════════
@@ -26,16 +35,17 @@ class CalendarView extends ConsumerStatefulWidget {
 }
 
 class _CalendarViewState extends ConsumerState<CalendarView> {
-  late DateTime _displayMonth;
   List<int> _daysWithNotes = [];
   bool _isLoading = true;
   int _loadVersion = 0;
 
+  /// 当前显示的月份（从全局 provider 读取，持久化跨视图切换）
+  DateTime get _displayMonth =>
+      ref.watch(calendarDisplayMonthProvider);
+
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _displayMonth = DateTime(now.year, now.month);
     _loadMonthData();
   }
 
@@ -46,9 +56,11 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
     }
     try {
       final service = ref.read(dailyNoteServiceProvider);
+      // 在非 build 方法中用 ref.read 读取月份，避免 ref.watch 告警
+      final month = ref.read(calendarDisplayMonthProvider);
       final days = await service.getDaysWithNotes(
-        _displayMonth.year,
-        _displayMonth.month,
+        month.year,
+        month.month,
       );
       if (mounted && version == _loadVersion) {
         setState(() {
@@ -62,31 +74,29 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
   }
 
   void _prevMonth() {
-    setState(() {
-      _displayMonth =
-          DateTime(_displayMonth.year, _displayMonth.month - 1);
-    });
+    final m = ref.read(calendarDisplayMonthProvider);
+    ref.read(calendarDisplayMonthProvider.notifier).state =
+        DateTime(m.year, m.month - 1);
     _loadMonthData();
   }
 
   void _nextMonth() {
-    setState(() {
-      _displayMonth =
-          DateTime(_displayMonth.year, _displayMonth.month + 1);
-    });
+    final m = ref.read(calendarDisplayMonthProvider);
+    ref.read(calendarDisplayMonthProvider.notifier).state =
+        DateTime(m.year, m.month + 1);
     _loadMonthData();
   }
 
   void _goToToday() {
     final now = DateTime.now();
-    setState(() {
-      _displayMonth = DateTime(now.year, now.month);
-    });
+    ref.read(calendarDisplayMonthProvider.notifier).state =
+        DateTime(now.year, now.month);
     _loadMonthData();
   }
 
   Future<void> _openNoteForDay(int day) async {
-    final date = DateTime(_displayMonth.year, _displayMonth.month, day);
+    final m = ref.read(calendarDisplayMonthProvider);
+    final date = DateTime(m.year, m.month, day);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     if (date.isAfter(today)) return;

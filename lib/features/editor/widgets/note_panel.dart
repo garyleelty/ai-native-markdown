@@ -14,10 +14,12 @@ import '../../../providers/ai_provider.dart';
 import '../../../providers/note_provider.dart';
 import '../../../providers/sidebar_provider.dart';
 import '../../../providers/pane_provider.dart';
+import '../../../providers/editor_session_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../services/editor_service.dart';
 import '../services/syntax_highlighter.dart';
 import '../../quick_switcher/services/fuzzy_matcher.dart';
+import '../../sliding_panes/models/pane_state.dart' show EditorMode;
 import 'entity_text_editor.dart';
 import 'live_markdown_editor.dart';
 import 'wiki_link_completer.dart';
@@ -53,17 +55,15 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   DateTime? _lastHandledScrollRequest;
   bool _noteNotFound = false;
 
-  // 撤销/重做
-  final List<_HistoryItem> _undoStack = [];
-  final List<_HistoryItem> _redoStack = [];
+  // 撤销/重做内部标志位（历史本身存储在 EditorSessionProvider 中）
   bool _isUndoRedo = false;
-  static const int _maxHistorySize = 100;
 
-  // 搜索替换
-  bool _showSearchBar = false;
-  final TextEditingController _searchController = TextEditingController();
-  final TextEditingController _replaceController = TextEditingController();
-  bool _showReplace = false;
+  // 上一次记录到历史栈的文本值（用于计算撤销时的「前一步」状态）
+  TextEditingValue _lastRecordedValue = TextEditingValue.empty;
+
+  // 搜索替换控制器（文本内容持久化到 EditorSessionProvider）
+  late final TextEditingController _searchController;
+  late final TextEditingController _replaceController;
 
   // wiki link 悬浮预览
   WikiLinkHoverHandler? _wikiLinkHover;
@@ -82,16 +82,67 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     return _wikiLinkSuggestions.isEmpty ? 1 : _wikiLinkSuggestions.length + 1;
   }
 
+  /// 当前笔记的编辑器会话状态（监听变化以驱动 UI 重建）
+  EditorSessionState get _session =>
+      ref.watch(editorSessionProvider).get(widget.noteId);
+
   @override
   void initState() {
     super.initState();
     _textController = MarkdownHighlightController();
+    _lastRecordedValue = _textController.value;
     _focusNode = FocusNode();
     _scrollController = ScrollController();
     _textController.addListener(_onControllerTextChanged);
     HardwareKeyboard.instance.addHandler(_handleHardwareKey);
+    // 从 PaneState 恢复编辑器模式，避免面板重建后丢失
+    final paneState = ref.read(paneStackProvider);
+    final paneIndex = paneState.panes.indexWhere((p) => p.noteId == widget.noteId);
+    if (paneIndex >= 0) {
+      _editorMode = paneState.panes[paneIndex].editorMode;
+    }
+    // 从 EditorSessionProvider 恢复搜索替换栏状态和文本
+    final session = ref.read(editorSessionProvider).get(widget.noteId);
+    _searchController = TextEditingController(text: session.searchText);
+    _replaceController = TextEditingController(text: session.replaceText);
+    // 滚动位置持久化：监听变化并写回 PaneState
+    _scrollController.addListener(_onScrollChanged);
+    // 在首帧后恢复滚动位置（此时 controller 已 attach）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ps = ref.read(paneStackProvider);
+      final idx = ps.panes.indexWhere((p) => p.noteId == widget.noteId);
+      if (idx >= 0 && _scrollController.hasClients) {
+        final offset = ps.panes[idx].scrollOffset;
+        if (offset > 0) {
+          _scrollController.jumpTo(
+            offset.clamp(0.0, _scrollController.position.maxScrollExtent),
+          );
+        }
+      }
+    });
     _loadNote();
   }
+
+  void _onScrollChanged() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    final idx = ref
+        .read(paneStackProvider)
+        .panes
+        .indexWhere((p) => p.noteId == widget.noteId);
+    if (idx >= 0) {
+      // 防抖写回，避免高频更新触发全局 rebuild
+      _scrollSaveTimer?.cancel();
+      _scrollSaveTimer = Timer(const Duration(milliseconds: 300), () {
+        ref
+            .read(paneStackProvider.notifier)
+            .updatePaneScrollOffset(idx, offset);
+      });
+    }
+  }
+
+  Timer? _scrollSaveTimer;
 
   void _onControllerTextChanged() {
     if (_editorMode == EditorMode.livePreview) {
@@ -106,8 +157,16 @@ class _NotePanelState extends ConsumerState<NotePanel> {
       _autoSaveTimer?.cancel();
       final prevText = _rawMarkdown;
       final prevHasUnsaved = _hasUnsavedChanges;
-      _undoStack.clear();
-      _redoStack.clear();
+      // 切换到新笔记时，从 PaneState 恢复目标笔记的编辑器模式
+      final paneState = ref.read(paneStackProvider);
+      final paneIndex = paneState.panes.indexWhere((p) => p.noteId == widget.noteId);
+      if (paneIndex >= 0) {
+        _editorMode = paneState.panes[paneIndex].editorMode;
+      }
+      // 从 EditorSessionProvider 恢复目标笔记的搜索替换栏文本
+      final session = ref.read(editorSessionProvider).get(widget.noteId);
+      _searchController.text = session.searchText;
+      _replaceController.text = session.replaceText;
       if (prevHasUnsaved) {
         _doSave(prevText).whenComplete(() {
           if (mounted) _loadNote();
@@ -121,6 +180,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   @override
   void dispose() {
     _autoSaveTimer?.cancel();
+    _scrollSaveTimer?.cancel();
     if (_hasUnsavedChanges) {
       final textToSave = _rawMarkdown;
       _saveSilently(textToSave);
@@ -128,6 +188,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     _wikiLinkVisible = false;
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     _textController.removeListener(_onControllerTextChanged);
+    _scrollController.removeListener(_onScrollChanged);
     _textController.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
@@ -216,7 +277,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
         const Divider(height: 1, thickness: 0.5),
 
         // ── 搜索替换栏 ──
-        if (_showSearchBar) _buildSearchBar(),
+        if (_session.showSearchBar) _buildSearchBar(),
 
         // ── 编辑/阅读区域 ──
         Expanded(
@@ -296,6 +357,15 @@ class _NotePanelState extends ConsumerState<NotePanel> {
         _hasUnsavedChanges = false;
         _textController.text = note.rawMarkdown;
       });
+      // 加载完成后重置撤销历史与基准值，避免残留旧笔记的撤销步骤
+      // （设置 _textController.text 会触发监听并误记一次历史，此处清空重来）
+      ref.read(editorSessionProvider.notifier).clearHistory(widget.noteId);
+      _lastRecordedValue = _textController.value;
+      // 恢复搜索高亮：若会话中搜索栏开启且有关键词，重新计算匹配
+      final session = ref.read(editorSessionProvider).get(widget.noteId);
+      if (session.showSearchBar && session.searchText.isNotEmpty) {
+        _updateMatches();
+      }
       _triggerEntityRecognition(note.rawMarkdown);
       ref.read(sidebarProvider.notifier).updateOutline(widget.noteId, note.rawMarkdown);
       ref.read(sidebarProvider.notifier).loadBacklinks(widget.noteId);
@@ -316,9 +386,14 @@ class _NotePanelState extends ConsumerState<NotePanel> {
 
   /// 文本变化时防抖触发 AI 实体识别
   void _onTextChanged(String text) {
-    // 保存历史记录 (撤销/重做)
+    // 保存历史记录 (撤销/重做) —— 持久化到 EditorSessionProvider
     if (!_isUndoRedo) {
-      _addToHistory(_textController.value);
+      // 记录「变更前」的值，使 undo 能精确回退一步（而非先弹出当前值）
+      final prev = _lastRecordedValue;
+      ref
+          .read(editorSessionProvider.notifier)
+          .addToHistory(widget.noteId, prev);
+      _lastRecordedValue = _textController.value;
     }
 
     _rawMarkdown = text;
@@ -331,37 +406,24 @@ class _NotePanelState extends ConsumerState<NotePanel> {
     _checkWikiLinkTrigger(text);
 
     // 更新搜索匹配
-    if (_showSearchBar && _searchController.text.isNotEmpty) {
+    final session = ref.read(editorSessionProvider).get(widget.noteId);
+    if (session.showSearchBar && _searchController.text.isNotEmpty) {
       _updateMatches();
     }
   }
 
   // ── 撤销/重做 ──
-
-  void _addToHistory(TextEditingValue value) {
-    if (_undoStack.isNotEmpty && _undoStack.last.value.text == value.text) {
-      return;
-    }
-    _undoStack.add(_HistoryItem(
-      value: value,
-      timestamp: DateTime.now(),
-    ));
-    if (_undoStack.length > _maxHistorySize) {
-      _undoStack.removeAt(0);
-    }
-    _redoStack.clear();
-  }
+  // 历史栈持久化在 EditorSessionProvider 中，避免面板重建时丢失
 
   void _undo() {
-    if (_undoStack.isEmpty) return;
+    final next = ref
+        .read(editorSessionProvider.notifier)
+        .undo(widget.noteId, _textController.value);
+    if (next == null) return;
     _isUndoRedo = true;
-    final item = _undoStack.removeLast();
-    _redoStack.add(_HistoryItem(
-      value: _textController.value,
-      timestamp: DateTime.now(),
-    ));
-    _textController.value = item.value;
-    _rawMarkdown = item.value.text;
+    _textController.value = next;
+    _lastRecordedValue = next;
+    _rawMarkdown = next.text;
     _triggerEntityRecognition(_rawMarkdown);
     _autoSave(_rawMarkdown);
     ref.read(sidebarProvider.notifier).updateOutline(widget.noteId, _rawMarkdown);
@@ -369,15 +431,14 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   }
 
   void _redo() {
-    if (_redoStack.isEmpty) return;
+    final next = ref
+        .read(editorSessionProvider.notifier)
+        .redo(widget.noteId, _textController.value);
+    if (next == null) return;
     _isUndoRedo = true;
-    final item = _redoStack.removeLast();
-    _undoStack.add(_HistoryItem(
-      value: _textController.value,
-      timestamp: DateTime.now(),
-    ));
-    _textController.value = item.value;
-    _rawMarkdown = item.value.text;
+    _textController.value = next;
+    _lastRecordedValue = next;
+    _rawMarkdown = next.text;
     _triggerEntityRecognition(_rawMarkdown);
     _autoSave(_rawMarkdown);
     ref.read(sidebarProvider.notifier).updateOutline(widget.noteId, _rawMarkdown);
@@ -946,6 +1007,10 @@ class _NotePanelState extends ConsumerState<NotePanel> {
         }
       }
     });
+    // 持久化到 PaneState，避免面板堆叠/恢复时丢失
+    ref
+        .read(paneStackProvider.notifier)
+        .setPaneEditorModeByNoteId(widget.noteId, mode);
   }
 
   // ── 格式化操作方法 ──
@@ -1161,7 +1226,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
           ),
           _SearchIntent: CallbackAction<_SearchIntent>(
             onInvoke: (_) {
-              if (!_showSearchBar) _toggleSearchBar();
+              if (!_session.showSearchBar) _toggleSearchBar();
               return null;
             },
           ),
@@ -1171,7 +1236,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                 setState(() => _dismissWikiLinkCompleter());
                 return null;
               }
-              if (_showSearchBar) _toggleSearchBar();
+              if (_session.showSearchBar) _toggleSearchBar();
               return null;
             },
           ),
@@ -1427,15 +1492,19 @@ class _NotePanelState extends ConsumerState<NotePanel> {
   // ──────────────────────────────────────────────
 
   void _toggleSearchBar() {
-    setState(() {
-      _showSearchBar = !_showSearchBar;
-      if (!_showSearchBar) {
-        _showReplace = false;
-        _textController.clearSearch();
-        _searchController.clear();
-        _replaceController.clear();
-      }
-    });
+    final sessionNotifier = ref.read(editorSessionProvider.notifier);
+    final currentlyVisible = _session.showSearchBar;
+    sessionNotifier.setShowSearchBar(widget.noteId, !currentlyVisible);
+    if (currentlyVisible) {
+      // 关闭搜索栏时清空状态
+      sessionNotifier.setShowReplace(widget.noteId, false);
+      sessionNotifier.setSearchText(widget.noteId, '');
+      sessionNotifier.setReplaceText(widget.noteId, '');
+      _textController.clearSearch();
+      _searchController.clear();
+      _replaceController.clear();
+    }
+    setState(() {});
   }
 
   Widget _buildSearchBar() {
@@ -1491,7 +1560,12 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                         minHeight: 0,
                       ),
                     ),
-                    onChanged: (_) => _updateMatches(),
+                    onChanged: (value) {
+                      ref
+                          .read(editorSessionProvider.notifier)
+                          .setSearchText(widget.noteId, value);
+                      _updateMatches();
+                    },
                     onSubmitted: (_) => _findNext(),
                   ),
                 ),
@@ -1520,7 +1594,7 @@ class _NotePanelState extends ConsumerState<NotePanel> {
               ),
             ],
           ),
-          if (_showReplace) ...[
+          if (_session.showReplace) ...[
             const SizedBox(height: AeroSpacing.xs),
             Row(
               children: [
@@ -1530,6 +1604,11 @@ class _NotePanelState extends ConsumerState<NotePanel> {
                     child: TextField(
                       controller: _replaceController,
                       style: const TextStyle(fontSize: 12),
+                      onChanged: (value) {
+                        ref
+                            .read(editorSessionProvider.notifier)
+                            .setReplaceText(widget.noteId, value);
+                      },
                       decoration: InputDecoration(
                         hintText: '替换为...',
                         hintStyle: const TextStyle(
@@ -1577,9 +1656,13 @@ class _NotePanelState extends ConsumerState<NotePanel> {
           Row(
             children: [
               InkWell(
-                onTap: () => setState(() => _showReplace = !_showReplace),
+                onTap: () {
+                  ref
+                      .read(editorSessionProvider.notifier)
+                      .setShowReplace(widget.noteId, !_session.showReplace);
+                },
                 child: Text(
-                  _showReplace ? '隐藏替换' : '显示替换',
+                  _session.showReplace ? '隐藏替换' : '显示替换',
                   style: const TextStyle(
                     fontSize: 11,
                     color: AeroColors.accentBlue,
@@ -2010,26 +2093,6 @@ class _LinkedNotePreview extends StatelessWidget {
       ),
     );
   }
-}
-
-// ── 历史记录项 ──
-
-class _HistoryItem {
-  final TextEditingValue value;
-  final DateTime timestamp;
-
-  _HistoryItem({
-    required this.value,
-    required this.timestamp,
-  });
-}
-
-// ── 编辑器模式 ──
-
-enum EditorMode {
-  source,    // 源码模式
-  livePreview, // 实时预览
-  preview,   // 阅读模式
 }
 
 // ── 编辑器快捷键 Intent ──

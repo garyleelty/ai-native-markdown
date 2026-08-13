@@ -217,7 +217,7 @@ flutter test test/unit/entity_recognizer_test.dart
 | `Cmd/Ctrl + T` | 模板画廊 |
 | `Cmd/Ctrl + D` | 打开今天的日记 |
 | `Cmd/Ctrl + B` | 切换侧边栏 |
-| `Cmd/Ctrl + Shift + P` | 插件管理 |
+| `Cmd/Ctrl + Option/Alt + P` | 插件管理 |
 | `Escape` | 关闭所有覆盖层 |
 
 ## 测试覆盖

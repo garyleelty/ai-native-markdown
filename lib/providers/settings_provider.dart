@@ -211,3 +211,31 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
 final settingsProvider =
     NotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);
+
+/// 设置页左侧选中的分区索引（持久化到 Hive，避免关闭后重置）
+const _kSettingsSectionKey = 'settings_page_section';
+
+final settingsPageSectionProvider =
+    NotifierProvider<_SettingsSectionNotifier, int>(
+  _SettingsSectionNotifier.new,
+);
+
+class _SettingsSectionNotifier extends Notifier<int> {
+  @override
+  int build() => _load();
+
+  static int _load() {
+    try {
+      return HiveService.metaBox.get(_kSettingsSectionKey) as int? ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  void set(int index) {
+    state = index;
+    try {
+      HiveService.metaBox.put(_kSettingsSectionKey, index);
+    } catch (_) {}
+  }
+}

@@ -166,7 +166,7 @@ void main() {
       expect(callbackCount, 0);
 
       // 等待 debounce 完成
-      await Future.delayed(const Duration(milliseconds: 200));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
 
       expect(callbackCount, 1);
       expect(receivedEntities, isNotNull);

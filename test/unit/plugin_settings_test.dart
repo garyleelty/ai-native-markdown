@@ -6,6 +6,7 @@
 /// - 未写入时默认值回退（getString 返回 null，UI 层用 ?? defaultValue）
 ///
 /// 使用真实 Hive 初始化（参考 plugin_registry_test.dart），不使用 mock。
+library;
 
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,19 +63,16 @@ void main() {
 
       // 模拟 UI 层 string 类型的默认值回退
       const String defaultValue = 'default-value';
-      final String uiValue =
-          storage.getString('missing_key') ?? defaultValue;
+      final String uiValue = storage.getString('missing_key') ?? defaultValue;
       expect(uiValue, 'default-value');
 
       // 写入后使用真实值
       await storage.putString('missing_key', 'real-value');
-      final String uiValue2 =
-          storage.getString('missing_key') ?? defaultValue;
+      final String uiValue2 = storage.getString('missing_key') ?? defaultValue;
       expect(uiValue2, 'real-value');
     });
 
-    test('未写入时 getBool 返回 null，UI 层用 ?? (defaultValue == true) 回退',
-        () async {
+    test('未写入时 getBool 返回 null，UI 层用 ?? (defaultValue == true) 回退', () async {
       final storage = await PluginStorage.create('com.test.bool.default');
 
       expect(storage.getBool('flag'), isNull);

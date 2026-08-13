@@ -1055,12 +1055,15 @@ class _SearchView extends ConsumerStatefulWidget {
 }
 
 class _SearchViewState extends ConsumerState<_SearchView> {
-  final _controller = TextEditingController();
+  late final TextEditingController _controller;
   final _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
+    // 从 sidebarProvider 恢复上次的搜索词，避免视图切换时输入框清空
+    final initialQuery = ref.read(sidebarProvider).searchQuery;
+    _controller = TextEditingController(text: initialQuery);
     _controller.addListener(_onTextChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;

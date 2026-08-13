@@ -1,4 +1,14 @@
 
+/// 编辑器模式（源码 / 实时预览 / 阅读）
+/// ─────────────────────────────────────
+/// 提升到此处以便在 PaneState 中持久化，
+/// 避免面板堆叠/恢复时 NotePanel 重建导致模式丢失。
+enum EditorMode {
+  source,      // 源码模式
+  livePreview, // 实时预览
+  preview,     // 阅读模式
+}
+
 /// 滑动面板栈中单个面板的状态快照
 /// ─────────────────────────────────────
 /// 对应一篇笔记在 SlidingPanesContainer 中的视图状态
@@ -8,12 +18,16 @@ class PaneState {
   final bool isStacked;          // 是否已被折叠到左侧堆栈
   final double scrollOffset;     // 面板内部 Markdown 的纵向滚动偏移
   final DateTime openedAt;       // 打开时间戳 (用于排序)
+  final EditorMode editorMode;   // 当前编辑器模式（持久化，避免重建丢失）
+  final String? titleEditingDraft; // 标题编辑草稿（null 表示未在编辑）
 
   PaneState({
     required this.noteId,
     required this.title,
     this.isStacked = false,
     this.scrollOffset = 0.0,
+    this.editorMode = EditorMode.source,
+    this.titleEditingDraft,
     DateTime? openedAt,
   }) : openedAt = openedAt ?? DateTime.now();
 
@@ -22,12 +36,18 @@ class PaneState {
     String? title,
     bool? isStacked,
     double? scrollOffset,
+    EditorMode? editorMode,
+    String? titleEditingDraft,
+    bool clearTitleDraft = false,
   }) {
     return PaneState(
       noteId: noteId ?? this.noteId,
       title: title ?? this.title,
       isStacked: isStacked ?? this.isStacked,
       scrollOffset: scrollOffset ?? this.scrollOffset,
+      editorMode: editorMode ?? this.editorMode,
+      titleEditingDraft:
+          clearTitleDraft ? null : (titleEditingDraft ?? this.titleEditingDraft),
       openedAt: openedAt,
     );
   }

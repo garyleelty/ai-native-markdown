@@ -197,7 +197,7 @@ class _AppShellState extends ConsumerState<_AppShell>
 - **快速跳转**：按 `Cmd/Ctrl + O` 打开 Quick Switcher
 - **命令面板**：按 `Cmd/Ctrl + K` 查看所有可用命令
 - **双向链接**：使用 `[[笔记名称]]` 创建双向链接，点击可跳转
-- **AI 对话**：按 `Cmd/Ctrl + Shift + P` 打开插件管理，配置 AI 聊天插件
+- AI 对话：按 `Cmd/Ctrl + Option/Alt + P` 打开插件管理，配置 AI 聊天插件
 
 ## 核心功能
 
@@ -208,7 +208,7 @@ class _AppShellState extends ConsumerState<_AppShell>
 | 模板画廊 | `Cmd/Ctrl + T` |
 | 今日日记 | `Cmd/Ctrl + D` |
 | 切换侧边栏 | `Cmd/Ctrl + B` |
-| 插件管理 | `Cmd/Ctrl + Shift + P` |
+| 插件管理 | `Cmd/Ctrl + Option/Alt + P` |
 
 ## 双向链接示例
 
@@ -614,10 +614,10 @@ class _AppShellState extends ConsumerState<_AppShell>
       return true;
     }
 
-    // Cmd+Shift+P / Ctrl+Shift+P: 插件管理
-    if (isMeta &&
-        HardwareKeyboard.instance.isShiftPressed &&
-        event.logicalKey == LogicalKeyboardKey.keyP) {
+    // Cmd+Option+P / Ctrl+Alt+P: 插件管理
+    // 注：不使用 Cmd+Shift+P，因为它与 VS Code 命令面板冲突
+    final isAlt = HardwareKeyboard.instance.isAltPressed;
+    if (isMeta && isAlt && event.logicalKey == LogicalKeyboardKey.keyP) {
       final pluginState = ref.read(pluginManagerProvider);
       if (pluginState.isOpen) {
         ref.read(pluginManagerProvider.notifier).close();
