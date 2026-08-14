@@ -53,7 +53,7 @@ class PredictiveLinkService {
     if (currentContent.trim().isEmpty) return [];
 
     final results = <PredictiveLink>[];
-    final currentWords = _extractKeywords(currentContent.toLowerCase());
+    final currentWords = extractKeywords(currentContent.toLowerCase());
 
     for (final note in allNotes) {
       if (note.id == currentNoteId) continue;
@@ -62,7 +62,7 @@ class PredictiveLinkService {
       String reason = '';
 
       // 1. 关键词相似度
-      final noteWords = _extractKeywords(note.content.toLowerCase());
+      final noteWords = extractKeywords(note.content.toLowerCase());
       final intersection = currentWords.intersection(noteWords);
       if (intersection.isNotEmpty && currentWords.isNotEmpty) {
         final keywordScore = intersection.length /
@@ -86,7 +86,7 @@ class PredictiveLinkService {
       }
 
       // 3. 标题词出现在正文中
-      final titleWords = _extractKeywords(note.title.toLowerCase());
+      final titleWords = extractKeywords(note.title.toLowerCase());
       final titleInContent =
           titleWords.where((w) => currentWords.contains(w)).length;
       if (titleInContent > 0 && titleWords.isNotEmpty) {
@@ -110,7 +110,7 @@ class PredictiveLinkService {
   }
 
   /// 提取关键词 (中文片段 + 英文单词，去停用词)
-  static Set<String> _extractKeywords(String text) {
+  static Set<String> extractKeywords(String text) {
     final cleaned = text
         .replaceAll(RegExp(r'[\[\]()#*`>_~\-|]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
