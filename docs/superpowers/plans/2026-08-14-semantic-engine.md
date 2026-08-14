@@ -190,37 +190,49 @@ Expected: FAIL（找不到 ModelTier）
 
 - [ ] **Step 3: 实现**
 
+> **Spike 实测修正（必须遵守）**：import 是 `package:onnxruntime_v2/onnxruntime_v2.dart`（非 `onnxruntime.dart`）；模型仓库**无 vocab.json**，词表文件是 `vocab.txt`（每行一个 token，行号即 token id）；small 模型实际维度 **512**；small model.onnx SHA-256 = `69a0b846f4f116b5e6aabf9546ea6754d02264f3211a13a1bd69b31b8040749a`。
+
 ```dart
 // lib/features/semantic_engine/models/model_tier.dart
 /// 语义模型档位
 enum ModelTier {
   /// 轻量: bge-small-zh-v1.5 (512 维)
-  light('bge-small-zh-v1.5', 512, '~95MB（fp32，可后续换 int8 ~25MB）'),
+  light(
+    'bge-small-zh-v1.5',
+    512,
+    '~95MB fp32（可换 int8 ~25MB）',
+    '69a0b846f4f116b5e6aabf9546ea6754d02264f3211a13a1bd69b31b8040749a',
+  ),
   /// 高质量: bge-base-zh-v1.5 (768 维)
-  base('bge-base-zh-v1.5', 768, '~180MB（fp32）');
+  base(
+    'bge-base-zh-v1.5',
+    768,
+    '~180MB fp32',
+    '', // spike 仅确认 URL 可达；首次下载时记录后填入
+  );
 
-  const ModelTier(this.id, this.dims, this.sizeLabel);
+  const ModelTier(this.id, this.dims, this.sizeLabel, this.modelHash);
 
   final String id;
   final int dims;
   final String sizeLabel;
+  final String modelHash;
 
   String get onnxUrl =>
       'https://huggingface.co/Xenova/$id/resolve/main/onnx/model.onnx';
 
+  /// 词表文件：repo 无 vocab.json，真实文件是 vocab.txt（每行一个 token，行号即 id）
   String get vocabUrl =>
-      'https://huggingface.co/Xenova/$id/resolve/main/vocab.json';
+      'https://huggingface.co/Xenova/$id/resolve/main/vocab.txt';
 
-  /// SHA-256；Task 1 spike 记录后填入，null 表示跳过校验（仅告警）
-  String? get expectedHash => null;
+  /// SHA-256；base 档位在首次下载后补齐
+  String? get expectedHash => modelHash.isEmpty ? null : modelHash;
 
   static ModelTier byId(String id) =>
       ModelTier.values.firstWhere((t) => t.id == id,
           orElse: () => ModelTier.light);
 }
 ```
-
-> 注意：spike 若确认 int8 量化版可达，可把 URL 换成量化产物并把体积文案更新，hash 一并填上。fp32 先跑通流程。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -303,6 +315,14 @@ void main() {
     expect(t.inputIds.length, lessThanOrEqualTo(64));
     expect(t.inputIds.last, tokenizer.sepId);
   });
+
+  test('fromVocabTxt 按行号映射 token id', () {
+    final t = BertTokenizer.fromVocabTxt('[PAD]\n[UNK]\n[CLS]\n[SEP]\nflutter\ndart');
+    final enc = t.encode('flutter dart');
+    expect(enc.inputIds, containsAll([4, 5]));
+    expect(enc.inputIds.first, 2); // [CLS] 行号 2
+    expect(enc.inputIds.last, 3);  // [SEP] 行号 3
+  });
 }
 ```
 
@@ -323,6 +343,20 @@ class BertTokenizer {
 
   factory BertTokenizer.fromVocab(Map<String, int> vocab) =>
       BertTokenizer._(vocab);
+
+  /// 从 vocab.txt 加载（每行一个 token，行号即 id；BERT 标准格式）
+  factory BertTokenizer.fromVocabTxt(String content) {
+    final lines = content
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    final vocab = <String, int>{};
+    for (var i = 0; i < lines.length; i++) {
+      vocab[lines[i]] = i;
+    }
+    return BertTokenizer._(vocab);
+  }
 
   static const String clsToken = '[CLS]';
   static const String sepToken = '[SEP]';
@@ -1501,7 +1535,7 @@ class OnnxEmbedder implements Embedder {
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-import 'package:onnxruntime_v2/onnxruntime.dart';
+import 'package:onnxruntime_v2/onnxruntime_v2.dart';
 import 'bert_tokenizer.dart';
 
 /// isolate 入口：常驻 worker，owns OrtEnv + Session
@@ -1514,15 +1548,17 @@ void embeddingWorkerEntry(List<Object?> args) async {
   final response = ReceivePort();
   control.send(response.sendPort);
 
-  final vocabRaw = jsonDecode(await File(vocabPath).readAsString()) as Map<String, dynamic>;
-  final tokenizer = BertTokenizer.fromVocab(
-      vocabRaw.map((k, v) => MapEntry(k, v as int)));
+  // 词表文件是 vocab.txt（每行一个 token）
+  final vocabText = await File(vocabPath).readAsString();
+  final tokenizer = BertTokenizer.fromVocabTxt(vocabText);
 
   OrtEnv.instance.init();
   final opts = OrtSessionOptions();
-  opts.appendDefaultProviders();
+  // spike 实测：appendDefaultProviders() 是 async
+  await opts.appendDefaultProviders();
   final bytes = await File(modelPath).readAsBytes();
-  final session = await OrtSession.fromBuffer(bytes, opts);
+  // spike 实测：fromBuffer 是同步
+  final session = OrtSession.fromBuffer(bytes, opts);
 
   await for (final req in response) {
     if (req is! List || req.length != 2) continue;
@@ -1531,26 +1567,30 @@ void embeddingWorkerEntry(List<Object?> args) async {
     final reply = response.sendPort;
     try {
       final tokens = tokenizer.encode(text);
+      final seq = tokens.inputIds.length;
       final ids = OrtValueTensor.createTensorWithDataList(
-          tokens.inputIds, [1, tokens.inputIds.length]);
+          tokens.inputIds, [1, seq]);
       final mask = OrtValueTensor.createTensorWithDataList(
-          tokens.attentionMask, [1, tokens.attentionMask.length]);
+          tokens.attentionMask, [1, seq]);
       final seg = OrtValueTensor.createTensorWithDataList(
-          tokens.tokenTypeIds, [1, tokens.tokenTypeIds.length]);
+          tokens.tokenTypeIds, [1, seq]);
       final runOpts = OrtRunOptions();
       final outputs = await session.runAsync(runOpts, {
         'input_ids': ids, 'attention_mask': mask, 'token_type_ids': seg,
       });
       final hidden = outputs![0]!;
-      final data = hidden.asFloat32List(); // [seq, dims]
-      final seq = tokens.inputIds.length;
+      // spike 实测：无 asFloat32List()，value 为嵌套 List
+      final value = hidden.value;
+      final outer = value as List;
+      final inner = outer.isEmpty ? <Object?>[] : (outer.first as List);
       final pooled = List<double>.filled(dims, 0);
       var active = 0;
-      for (var s = 0; s < seq; s++) {
+      for (var s = 0; s < seq && s < inner.length; s++) {
         if (tokens.attentionMask[s] == 0) continue;
         active++;
-        for (var d = 0; d < dims; d++) {
-          pooled[d] += data[s * dims + d];
+        final row = inner[s] as List;
+        for (var d = 0; d < dims && d < row.length; d++) {
+          pooled[d] += (row[d] as num).toDouble();
         }
       }
       if (active > 0) {
