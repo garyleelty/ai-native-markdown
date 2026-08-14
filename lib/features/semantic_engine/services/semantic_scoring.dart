@@ -5,9 +5,10 @@ library;
 import 'dart:math';
 import '../../../core/models/predictive_link.dart';
 
-/// 计算两个向量的余弦相似度，返回 [0,1]
+/// 计算两个向量的余弦相似度，范围 [-1,1]
 ///
-/// 向量维度不一致或存在零向量时返回 0。
+/// 向量维度不一致或存在零向量时返回 0。BERT 嵌入可含负分量，故不截断到
+/// [0,1]，下游阈值基于 [-1,1] 标定。
 double cosineSimilarity(List<double> a, List<double> b) {
   if (a.length != b.length || a.isEmpty) return 0;
   var dot = 0.0, na = 0.0, nb = 0.0;
@@ -28,7 +29,7 @@ List<double> l2Normalize(List<double> v) {
   for (final x in v) {
     norm += x * x;
   }
-  if (norm == 0) return v;
+  if (norm == 0) return List.of(v);
   final n = sqrt(norm);
   return v.map((x) => x / n).toList();
 }
@@ -65,7 +66,6 @@ class SemanticScoring {
     required List<String> targetTags,
     required String sourceContent,
     required String targetTitle,
-    required String targetContent,
   }) {
     final semantic = cosineSimilarity(sourceVector, targetVector);
 
