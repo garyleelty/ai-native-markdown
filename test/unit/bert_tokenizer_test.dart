@@ -26,9 +26,18 @@ void main() {
     expect(t.inputIds.contains(2026), isTrue); // ##kit
   });
 
-  test('中文逐字切分后 WordPiece 合并', () {
+  test('中文按字切分（BERT-Chinese 行为）', () {
     final t = tokenizer.encode('开发学');
-    expect(t.inputIds, containsAll([3001, 3004])); // 开发 + ##学
+    expect(
+      t.inputIds,
+      [tokenizer.clsId, 3001, 3002, 3003, tokenizer.sepId],
+    ); // 开 + 发 + 学
+  });
+
+  test('正常输入不产生 ## 前缀的中文字符', () {
+    final t = tokenizer.encode('开发');
+    expect(t.inputIds, [tokenizer.clsId, 3001, 3002, tokenizer.sepId]);
+    expect(t.inputIds, isNot(containsAll([3004, 3005]))); // 不出现 ##开 / ##发
   });
 
   test('OOV 词映射为 [UNK]', () {
@@ -46,6 +55,14 @@ void main() {
     final long = List.filled(800, 'flutter').join(' ');
     final t = tokenizer.encode(long, maxLength: 64);
     expect(t.inputIds.length, lessThanOrEqualTo(64));
+    expect(t.inputIds.last, tokenizer.sepId);
+  });
+
+  test('单个超长词触发中间截断分支（保 [CLS]/[SEP]）', () {
+    final long = List.filled(200, '开发学').join(); // 600 个中文字符
+    final t = tokenizer.encode(long, maxLength: 64);
+    expect(t.inputIds.length, 64);
+    expect(t.inputIds.first, tokenizer.clsId);
     expect(t.inputIds.last, tokenizer.sepId);
   });
 

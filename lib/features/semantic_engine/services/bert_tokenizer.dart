@@ -5,7 +5,8 @@
 /// - fromVocab     从 token→id 映射构建（测试/轻量场景）
 /// - fromVocabTxt  从 vocab.txt 加载（每行一个 token，行号即 id）
 /// - encode        输出 [CLS] + 子词 + [SEP] 及注意力掩码
-/// - 中文逐字切分后按 WordPiece 合并；未登录词映射为 [UNK]
+/// - 中文按字切分（BERT-Chinese 原生行为），英文/数字整词按 WordPiece 合并；
+///   未登录词映射为 [UNK]
 /// ──────────────────────────────────────────────────
 library;
 
@@ -16,7 +17,7 @@ class BertTokenizer {
   BertTokenizer._(this._vocab);
 
   factory BertTokenizer.fromVocab(Map<String, int> vocab) =>
-      BertTokenizer._(vocab);
+      BertTokenizer._(Map.of(vocab));
 
   /// 从 vocab.txt 加载（每行一个 token，行号即 id；BERT 标准格式）
   factory BertTokenizer.fromVocabTxt(String content) {
@@ -42,7 +43,12 @@ class BertTokenizer {
   int get unkId => _vocab[unkToken] ?? 100;
   int get padId => _vocab[padToken] ?? 0;
 
+  /// 编码为模型输入。
+  ///
+  /// [maxLength] 为最大总长度（含 [CLS] 与 [SEP]），须 >= 2；
+  /// 超出时保 [CLS]/[SEP]，中间截断。
   TokenIds encode(String text, {int maxLength = 512}) {
+    assert(maxLength >= 2, 'maxLength 至少为 2，需容纳 [CLS] 与 [SEP]');
     final tokens = <String>[clsToken];
     for (final word in _basicTokenize(text)) {
       tokens.addAll(_wordPiece(word));
@@ -68,17 +74,30 @@ class BertTokenizer {
     );
   }
 
-  /// 粗切分：中文/英文/数字按空白切分，中文连续片段保持整体
-  /// 交由 WordPiece 在整段中文上做最长匹配合并（如 开发学 → 开发 + ##学）
+  /// 粗切分：英文/数字按空白切分为整词，中文按字切分（BERT-Chinese 行为）
+  /// 中文每个字符独立成词（如 开发学 → 开 发 学），英文再由 WordPiece 合并
   List<String> _basicTokenize(String text) {
     final cleaned = text
         .toLowerCase()
         .replaceAll(RegExp(r'[^\w\u4e00-\u9fff]+'), ' ')
         .trim();
+    final cjk = RegExp(r'[\u4e00-\u9fff]');
     final out = <String>[];
     for (final part in cleaned.split(RegExp(r'\s+'))) {
       if (part.isEmpty) continue;
-      out.add(part);
+      final buf = StringBuffer();
+      for (final ch in part.split('')) {
+        if (cjk.hasMatch(ch)) {
+          if (buf.isNotEmpty) {
+            out.add(buf.toString());
+            buf.clear();
+          }
+          out.add(ch);
+        } else {
+          buf.write(ch);
+        }
+      }
+      if (buf.isNotEmpty) out.add(buf.toString());
     }
     return out;
   }
