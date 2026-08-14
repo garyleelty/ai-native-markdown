@@ -32,6 +32,7 @@ dependencies:
   uuid: ^4.3.3
   intl: ^0.19.0
   collection: ^1.18.0
+  crypto: ^3.0.0               # 纯 Dart SHA-256（模型下载校验）
 
   # ── 语义引擎 ──
   onnxruntime_v2: ^1.23.2+2      # ONNX 运行时 (本地向量推理)

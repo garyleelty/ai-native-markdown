@@ -10,6 +10,16 @@
 library;
 
 import 'dart:io';
+import 'package:crypto/crypto.dart';
+
+/// 服务器忽略 Range 请求（对 start>0 仍返回完整 200 body）时抛出的异常，
+/// 用于让服务端从头重下，避免把完整文件追加到已有 .part 上造成内容重复。
+class RangeIgnoredException implements Exception {
+  final Uri? uri;
+  const RangeIgnoredException([this.uri]);
+  @override
+  String toString() => uri == null ? 'RangeIgnoredException' : 'RangeIgnoredException: $uri';
+}
 
 /// 字节下载器抽象（可注入以便测试）
 abstract class Downloader {
@@ -26,6 +36,9 @@ class HttpDownloader implements Downloader {
       final req = await client.getUrl(url);
       if (start > 0) req.headers.set(HttpHeaders.rangeHeader, 'bytes=$start-');
       final resp = await req.close();
+      if (start > 0 && resp.statusCode == 200) {
+        throw RangeIgnoredException(url); // 服务器忽略 Range，返回了完整内容
+      }
       if (resp.statusCode != 200 && resp.statusCode != 206) {
         throw HttpException('下载失败: HTTP ${resp.statusCode}', uri: url);
       }
@@ -57,22 +70,40 @@ class ModelDownloadService {
   Future<void> download({required void Function(double) onProgress}) async {
     final dest = File(destPath);
     if (await dest.exists()) {
-      if (expectedSha256 != null && await _sha256(dest) == expectedSha256) {
+      if (expectedSha256 == null) {
+        onProgress(1); // 无 hash 配置：视为有效，直接跳过
+        return;
+      }
+      if (await _sha256(dest) == expectedSha256) {
         onProgress(1);
         return;
       }
-      await dest.delete(); // 损坏或 hash 未知时重下
+      await dest.delete(); // hash 不匹配：删除损坏文件后重下
     }
     final part = File('$destPath.part');
     var start = 0;
     if (await part.exists()) start = await part.length();
     var written = start;
     var total = start;
-    final contentLength = await downloader.fetchRange(url, start, (chunk) {
-      _writeSync(part, chunk);
-      written += chunk.length;
-      onProgress(total > 0 ? (written / total).clamp(0.0, 1.0) : 0.0);
-    });
+    int contentLength;
+    try {
+      contentLength = await downloader.fetchRange(url, start, (chunk) {
+        _writeSync(part, chunk);
+        written += chunk.length;
+        onProgress(total > 0 ? (written / total).clamp(0.0, 1.0) : 0.0);
+      });
+    } on RangeIgnoredException {
+      // 服务器忽略 Range 返回完整内容：作废 .part，从头重下，避免内容重复
+      await part.delete();
+      start = 0;
+      written = 0;
+      total = 0;
+      contentLength = await downloader.fetchRange(url, 0, (chunk) {
+        _writeSync(part, chunk);
+        written += chunk.length;
+        onProgress(total > 0 ? (written / total).clamp(0.0, 1.0) : 0.0);
+      });
+    }
     total = contentLength;
     // 校正进度到 100%
     onProgress(1);
@@ -94,8 +125,7 @@ class ModelDownloadService {
   }
 
   Future<String> _sha256(File f) async {
-    final proc = await Process.run('shasum', ['-a', '256', f.path]);
-    final out = (proc.stdout as String).trim();
-    return out.split(' ').first;
+    final bytes = await f.readAsBytes();
+    return sha256.convert(bytes).toString();
   }
 }
