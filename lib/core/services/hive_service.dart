@@ -9,13 +9,14 @@ import '../models/entity_highlight_adapter.dart';
 /// 职责:
 ///   1. 调用 Hive.initFlutter() 初始化 Hive 存储路径
 ///   2. 注册所有自定义 TypeAdapter
-///   3. 打开 noteBox (LazyBox<NoteModel>) 和 metaBox (Box)
+///   3. 打开 noteBox (LazyBox<NoteModel>)、metaBox/versionBox/trashBox (Box)、vectorBox (Box)
 ///   4. 提供全局单例访问入口
 ///
 /// 设计:
 ///   - 使用 LazyBox 延迟加载，仅在访问时反序列化，节省内存
 ///   - noteBox: 以笔记 ID 为 key，NoteModel 为 value
 ///   - metaBox: 存储应用级元数据 (如 vaultPath、上次同步时间等)
+///   - vectorBox: 语义引擎向量存储，key: noteId → {modelId, dims, vector, updatedAt}
 /// ──────────────────────────────────────────────────
 
 class HiveService {
@@ -24,12 +25,14 @@ class HiveService {
   static const String metaBoxName = 'meta';
   static const String versionBoxName = 'versions';
   static const String trashBoxName = 'trash';
+  static const String vectorBoxName = 'vectors';
 
   // ── LazyBox 实例 (延迟加载，内存友好) ──
   static late LazyBox<NoteModel> _noteBox;
   static late Box<dynamic> _metaBox;
   static late Box<dynamic> _versionBox;
   static late Box<NoteModel> _trashBox;
+  static late Box<dynamic> _vectorBox;
 
   // ── 初始化标记 ──
   static bool _initialized = false;
@@ -62,6 +65,13 @@ class HiveService {
     return _trashBox;
   }
 
+  /// 获取语义引擎向量存储 Box (只读)
+  /// key: noteId → {modelId, dims, vector, updatedAt}
+  static Box<dynamic> get vectorBox {
+    _assertInitialized();
+    return _vectorBox;
+  }
+
   /// 初始化 Hive 数据库
   ///
   /// 必须在 runApp() 之前调用，且在 WidgetsFlutterBinding.ensureInitialized() 之后
@@ -70,7 +80,7 @@ class HiveService {
   ///   1. 初始化 Hive 存储路径 (由 path_provider 提供)
   ///   2. 注册 NoteModel、EntityHighlight、EntityType 的 TypeAdapter
   ///   3. 打开 LazyBox<NoteModel> (笔记数据)
-  ///   4. 打开 Box<dynamic> (元数据)
+  ///   4. 打开 Box<dynamic> (元数据、版本历史、回收站、向量)
   static Future<void> initHive({String? testPath}) async {
     if (_initialized) return;
 
@@ -110,6 +120,11 @@ class HiveService {
     } else {
       _trashBox = await Hive.openBox<NoteModel>(trashBoxName);
     }
+    if (Hive.isBoxOpen(vectorBoxName)) {
+      _vectorBox = Hive.box<dynamic>(vectorBoxName);
+    } else {
+      _vectorBox = await Hive.openBox<dynamic>(vectorBoxName);
+    }
 
     _initialized = true;
   }
@@ -122,6 +137,7 @@ class HiveService {
     await _metaBox.close();
     await _versionBox.close();
     await _trashBox.close();
+    await _vectorBox.close();
     await Hive.close();
     _initialized = false;
   }
@@ -140,6 +156,7 @@ class HiveService {
     await _metaBox.clear();
     await _versionBox.clear();
     await _trashBox.clear();
+    await _vectorBox.clear();
   }
 
   /// 断言已初始化，未初始化则抛出异常
