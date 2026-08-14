@@ -25,6 +25,7 @@ void main() {
     expect(got, isNotNull);
     expect(got!.vector, [0.1, 0.2, 0.3]);
     expect(got.modelId, 'bge-small-zh-v1.5');
+    expect(got.updatedAt, DateTime(2026, 1, 1));
   });
 
   test('覆盖 upsert', () async {
@@ -52,5 +53,47 @@ void main() {
         noteId: 'n$i', modelId: 'm', vector: [i.toDouble()], updatedAt: DateTime(2026, 1, 1)));
     }
     expect((await store.getAll()).length, 3);
+  });
+
+  test('get 不存在的 key 返回 null', () async {
+    expect(await store.get('missing'), isNull);
+  });
+
+  test('向量含非数字元素的记录被跳过', () async {
+    HiveService.vectorBox.put('bad', {
+      'modelId': 'm',
+      'vector': [0.1, 'oops', 0.3],
+      'updatedAt': DateTime(2026, 1, 1).toIso8601String(),
+    });
+    await store.upsert(NoteVectorRecord(
+      noteId: 'good', modelId: 'm', vector: [1], updatedAt: DateTime(2026, 1, 1)));
+    expect(await store.get('bad'), isNull);
+    final all = await store.getAll();
+    expect(all.length, 1);
+    expect(all.single.noteId, 'good');
+  });
+
+  test('vector 非 List 的记录被跳过', () async {
+    HiveService.vectorBox.put('bad', {
+      'modelId': 'm',
+      'vector': 'not-a-list',
+      'updatedAt': DateTime(2026, 1, 1).toIso8601String(),
+    });
+    await store.upsert(NoteVectorRecord(
+      noteId: 'good', modelId: 'm', vector: [1], updatedAt: DateTime(2026, 1, 1)));
+    expect(await store.get('bad'), isNull);
+    expect((await store.getAll()).single.noteId, 'good');
+  });
+
+  test('updatedAt 无法解析的记录被跳过', () async {
+    HiveService.vectorBox.put('bad', {
+      'modelId': 'm',
+      'vector': [0.1],
+      'updatedAt': 'garbage-date',
+    });
+    await store.upsert(NoteVectorRecord(
+      noteId: 'good', modelId: 'm', vector: [1], updatedAt: DateTime(2026, 1, 1)));
+    expect(await store.get('bad'), isNull);
+    expect((await store.getAll()).single.noteId, 'good');
   });
 }

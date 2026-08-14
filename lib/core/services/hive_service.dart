@@ -16,7 +16,7 @@ import '../models/entity_highlight_adapter.dart';
 ///   - 使用 LazyBox 延迟加载，仅在访问时反序列化，节省内存
 ///   - noteBox: 以笔记 ID 为 key，NoteModel 为 value
 ///   - metaBox: 存储应用级元数据 (如 vaultPath、上次同步时间等)
-///   - vectorBox: 语义引擎向量存储，key: noteId → {modelId, dims, vector, updatedAt}
+///   - vectorBox: 语义引擎向量存储，key: noteId → {modelId, vector, updatedAt}
 /// ──────────────────────────────────────────────────
 
 class HiveService {
@@ -66,7 +66,7 @@ class HiveService {
   }
 
   /// 获取语义引擎向量存储 Box (只读)
-  /// key: noteId → {modelId, dims, vector, updatedAt}
+  /// key: noteId → {modelId, vector, updatedAt}
   static Box<dynamic> get vectorBox {
     _assertInitialized();
     return _vectorBox;

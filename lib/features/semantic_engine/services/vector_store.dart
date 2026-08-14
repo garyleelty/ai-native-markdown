@@ -2,8 +2,9 @@
 /// VectorStore — Hive 向量持久化
 /// ══════════════════════════════════════════════════
 /// 语义引擎的向量存储层:
-///   - 以 noteId 为 key 存储 {modelId, dims, vector, updatedAt}
+///   - 以 noteId 为 key 存储 {modelId, vector, updatedAt}
 ///   - 提供 upsert / get / remove / getAll / clear
+///   - 反序列化失败静默回退 (返回 null，跳过损坏记录)
 /// ──────────────────────────────────────────────────
 library;
 
@@ -32,14 +33,19 @@ class NoteVectorRecord {
   static NoteVectorRecord? fromMap(String noteId, dynamic raw) {
     if (raw is! Map) return null;
     final vec = raw['vector'];
-    if (vec is! List) return null;
-    return NoteVectorRecord(
-      noteId: noteId,
-      modelId: raw['modelId'] as String? ?? '',
-      vector: vec.map((e) => (e as num).toDouble()).toList(),
-      updatedAt: DateTime.tryParse(raw['updatedAt'] as String? ?? '') ??
-          DateTime.fromMillisecondsSinceEpoch(0),
-    );
+    if (vec is! List || !vec.every((e) => e is num)) return null;
+    try {
+      final updatedAt = DateTime.tryParse(raw['updatedAt'] as String? ?? '');
+      if (updatedAt == null) return null;
+      return NoteVectorRecord(
+        noteId: noteId,
+        modelId: raw['modelId'] as String? ?? '',
+        vector: vec.map((e) => (e as num).toDouble()).toList(),
+        updatedAt: updatedAt,
+      );
+    } on TypeError {
+      return null;
+    }
   }
 }
 
