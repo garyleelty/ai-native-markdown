@@ -52,18 +52,34 @@ void main() {
   });
 
   test('超长输入被截断到 maxLength', () {
-    final long = List.filled(800, 'flutter').join(' ');
-    final t = tokenizer.encode(long, maxLength: 64);
-    expect(t.inputIds.length, lessThanOrEqualTo(64));
-    expect(t.inputIds.last, tokenizer.sepId);
-  });
-
-  test('单个超长词触发中间截断分支（保 [CLS]/[SEP]）', () {
-    final long = List.filled(200, '开发学').join(); // 600 个中文字符
-    final t = tokenizer.encode(long, maxLength: 64);
+    // 59 个单字 CJK + 两个双子词英文词：第一次 flutterkit 停在 62（未达
+    // maxLength-1），第二次从 62 跳到 64 越过阈值，触发中间截断分支。
+    // 若未走截断分支，末尾会残留 ##kit，长度会是 65。
+    final overshoot = '${List.filled(59, '开').join()} flutterkit flutterkit';
+    final t = tokenizer.encode(overshoot, maxLength: 64);
     expect(t.inputIds.length, 64);
     expect(t.inputIds.first, tokenizer.clsId);
     expect(t.inputIds.last, tokenizer.sepId);
+    expect(t.inputIds[t.inputIds.length - 2], 2024); // 末尾 ##kit 已被裁剪
+  });
+
+  test('超长输入实际触发截断分支（保 [CLS]/[SEP]）', () {
+    // 61 个单字 CJK 恰好填到 maxLength-2，再接一个双子词英文词 flutterkit，
+    // 一次 addAll 从 62 跳到 64 越过 maxLength-1，触发中间截断分支。
+    final overshoot = '${List.filled(61, '开').join()} flutterkit';
+    final t = tokenizer.encode(overshoot, maxLength: 64);
+    expect(t.inputIds.length, 64);
+    expect(t.inputIds.first, tokenizer.clsId);
+    expect(t.inputIds.last, tokenizer.sepId);
+    expect(t.inputIds.contains(2024), isTrue); // flutter 保留
+    expect(t.inputIds.contains(2026), isFalse); // ##kit 已被裁剪
+  });
+
+  test('maxLength < 2 时抛出 ArgumentError', () {
+    expect(
+      () => tokenizer.encode('flutter', maxLength: 1),
+      throwsArgumentError,
+    );
   });
 
   test('fromVocabTxt 按行号映射 token id', () {

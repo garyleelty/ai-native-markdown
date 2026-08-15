@@ -45,10 +45,16 @@ class BertTokenizer {
 
   /// 编码为模型输入。
   ///
-  /// [maxLength] 为最大总长度（含 [CLS] 与 [SEP]），须 >= 2；
-  /// 超出时保 [CLS]/[SEP]，中间截断。
+  /// [maxLength] 为最大总长度（含 [CLS] 与 [SEP]），须 >= 2，
+  /// 否则抛出 [ArgumentError]；超出时保 [CLS]/[SEP]，中间截断。
   TokenIds encode(String text, {int maxLength = 512}) {
-    assert(maxLength >= 2, 'maxLength 至少为 2，需容纳 [CLS] 与 [SEP]');
+    if (maxLength < 2) {
+      throw ArgumentError.value(
+        maxLength,
+        'maxLength',
+        '至少为 2 才能容纳 [CLS] 与 [SEP]',
+      );
+    }
     final tokens = <String>[clsToken];
     for (final word in _basicTokenize(text)) {
       tokens.addAll(_wordPiece(word));
