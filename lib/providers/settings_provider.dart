@@ -29,6 +29,11 @@ class AppSettings {
   final bool aiChatPanelVisible;
   final bool mermaidEnabled;
 
+  /// 语义引擎开关
+  final bool semanticEngineEnabled;
+  /// 语义模型档位（ModelTier.id），默认 light
+  final String semanticModelTier;
+
   /// 远程 LLM 配置
   final String llmApiEndpoint;
   final String llmApiKey;
@@ -44,6 +49,8 @@ class AppSettings {
     this.themeMode = AppThemeMode.dark,
     this.aiChatPanelVisible = true,
     this.mermaidEnabled = false,
+    this.semanticEngineEnabled = false,
+    this.semanticModelTier = 'bge-small-zh-v1.5',
     this.llmApiEndpoint = '',
     this.llmApiKey = '',
     this.llmModel = 'gpt-3.5-turbo',
@@ -59,6 +66,8 @@ class AppSettings {
     AppThemeMode? themeMode,
     bool? aiChatPanelVisible,
     bool? mermaidEnabled,
+    bool? semanticEngineEnabled,
+    String? semanticModelTier,
     String? llmApiEndpoint,
     String? llmApiKey,
     String? llmModel,
@@ -75,6 +84,8 @@ class AppSettings {
       themeMode: themeMode ?? this.themeMode,
       aiChatPanelVisible: aiChatPanelVisible ?? this.aiChatPanelVisible,
       mermaidEnabled: mermaidEnabled ?? this.mermaidEnabled,
+      semanticEngineEnabled: semanticEngineEnabled ?? this.semanticEngineEnabled,
+      semanticModelTier: semanticModelTier ?? this.semanticModelTier,
       llmApiEndpoint: llmApiEndpoint ?? this.llmApiEndpoint,
       llmApiKey: llmApiKey ?? this.llmApiKey,
       llmModel: llmModel ?? this.llmModel,
@@ -93,6 +104,8 @@ class AppSettings {
       'themeMode': themeMode.name,
       'aiChatPanelVisible': aiChatPanelVisible,
       'mermaidEnabled': mermaidEnabled,
+      'semanticEngineEnabled': semanticEngineEnabled,
+      'semanticModelTier': semanticModelTier,
       'llmApiEndpoint': llmApiEndpoint,
       'llmApiKey': llmApiKey,
       'llmModel': llmModel,
@@ -121,6 +134,9 @@ class AppSettings {
       ),
       aiChatPanelVisible: map['aiChatPanelVisible'] as bool? ?? true,
       mermaidEnabled: map['mermaidEnabled'] as bool? ?? false,
+      semanticEngineEnabled: map['semanticEngineEnabled'] as bool? ?? false,
+      semanticModelTier:
+          map['semanticModelTier'] as String? ?? 'bge-small-zh-v1.5',
       llmApiEndpoint: map['llmApiEndpoint'] as String? ?? '',
       llmApiKey: map['llmApiKey'] as String? ?? '',
       llmModel: map['llmModel'] as String? ?? 'gpt-3.5-turbo',
@@ -189,6 +205,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void setMermaidEnabled(bool enabled) {
     state = state.copyWith(mermaidEnabled: enabled);
+    _persist();
+  }
+
+  void setSemanticEngineEnabled(bool value) {
+    state = state.copyWith(semanticEngineEnabled: value);
+    _persist();
+  }
+
+  void setSemanticModelTier(String tierId) {
+    state = state.copyWith(semanticModelTier: tierId);
     _persist();
   }
 
