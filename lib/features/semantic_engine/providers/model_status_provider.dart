@@ -26,15 +26,17 @@ class ModelStatusState {
     this.currentModelId,
   });
 
+  static const Object _unset = Object();
+
   ModelStatusState copyWith({
     SemanticEngineStatus? status,
     double? progress,
-    String? error,
+    Object? error = _unset,
     String? currentModelId,
   }) => ModelStatusState(
         status: status ?? this.status,
         progress: progress ?? this.progress,
-        error: error ?? this.error,
+        error: identical(error, _unset) ? this.error : error as String?,
         currentModelId: currentModelId ?? this.currentModelId,
       );
 }
@@ -53,11 +55,12 @@ class ModelStatusNotifier extends Notifier<ModelStatusState> {
   void updateDownloadProgress(double p) =>
       state = state.copyWith(progress: p.clamp(0, 1));
 
-  void finishDownload(String modelId) => state = ModelStatusState(
-        status: SemanticEngineStatus.ready, progress: 1, currentModelId: modelId);
+  void finishDownload(String modelId) => _markReady(modelId);
 
   void startReindex() => state = state.copyWith(status: SemanticEngineStatus.reindexing);
-  void finishReindex(String modelId) => state = ModelStatusState(
+  void finishReindex(String modelId) => _markReady(modelId);
+
+  void _markReady(String modelId) => state = ModelStatusState(
         status: SemanticEngineStatus.ready, progress: 1, currentModelId: modelId);
 
   void fail(String message) => state = state.copyWith(status: SemanticEngineStatus.error, error: message);
