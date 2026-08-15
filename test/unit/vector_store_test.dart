@@ -96,4 +96,25 @@ void main() {
     expect(await store.get('bad'), isNull);
     expect((await store.getAll()).single.noteId, 'good');
   });
+
+  test('缺失 vector 键的记录被跳过', () async {
+    HiveService.vectorBox.put('bad', {'modelId': 'm'});
+    await store.upsert(NoteVectorRecord(
+      noteId: 'good', modelId: 'm', vector: [1], updatedAt: DateTime(2026, 1, 1)));
+    expect(await store.get('bad'), isNull);
+    final all = await store.getAll();
+    expect(all.length, 1);
+    expect(all.single.noteId, 'good');
+  });
+
+  test('缺失 updatedAt 键的记录被跳过', () async {
+    HiveService.vectorBox.put('bad', {
+      'modelId': 'm',
+      'vector': [0.1],
+    });
+    await store.upsert(NoteVectorRecord(
+      noteId: 'good', modelId: 'm', vector: [1], updatedAt: DateTime(2026, 1, 1)));
+    expect(await store.get('bad'), isNull);
+    expect((await store.getAll()).single.noteId, 'good');
+  });
 }
