@@ -607,6 +607,46 @@ class _SemanticEngineTile extends ConsumerWidget {
               style: TextStyle(color: AeroColors.textMuted, fontSize: 11)),
         );
       case SemanticEngineStatus.idle:
+        // 冷启动/切换开关后磁盘上已有模型，直接显示已就绪并提供删除入口
+        if (status.currentModelId != null) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle_outline,
+                    size: AeroIconSize.sm, color: AeroColors.accentGreen),
+                const SizedBox(width: AeroSpacing.sm),
+                Expanded(
+                  child: Text(
+                    '模型已就绪（${status.currentModelId}）',
+                    style: const TextStyle(color: AeroColors.textMuted, fontSize: 11),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => notifier.deleteModel(),
+                  child: const Text('删除模型',
+                      style: TextStyle(color: AeroColors.accentRed)),
+                ),
+              ],
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text('模型尚未下载',
+                    style: TextStyle(color: AeroColors.textMuted, fontSize: 11)),
+              ),
+              TextButton(
+                onPressed: () => notifier.downloadCurrentTier(),
+                child: const Text('下载模型',
+                    style: TextStyle(color: AeroColors.accentBlue)),
+              ),
+            ],
+          ),
+        );
       case SemanticEngineStatus.notEnabled:
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),

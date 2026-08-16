@@ -53,7 +53,8 @@ class ModelStatusNotifier extends Notifier<ModelStatusState> {
   @override
   ModelStatusState build() => const ModelStatusState();
 
-  void enable() => state = const ModelStatusState(status: SemanticEngineStatus.idle);
+  // 保留 currentModelId：磁盘上已有模型时冷启动后仍是「已就绪」
+  void enable() => state = state.copyWith(status: SemanticEngineStatus.idle);
   void disable() => state = const ModelStatusState(status: SemanticEngineStatus.notEnabled);
 
   void startDownload() => state = state.copyWith(
@@ -75,6 +76,8 @@ class ModelStatusNotifier extends Notifier<ModelStatusState> {
 
   /// 下载当前档位模型（onnx + vocab.txt），完成后进入 ready
   Future<void> downloadCurrentTier() async {
+    // 单飞保护：同一帧内两次调用会写同一个 .part 文件导致损坏
+    if (state.status == SemanticEngineStatus.downloading) return;
     final settings = ref.read(settingsProvider);
     final tier = ModelTier.byId(settings.semanticModelTier);
     startDownload();
@@ -111,14 +114,25 @@ class ModelStatusNotifier extends Notifier<ModelStatusState> {
 
   /// 删除已下载的模型文件，回到 idle
   Future<void> deleteModel() async {
+    // 以已下载模型（state.currentModelId）定位文件，避免档位切换后删错文件
+    final tier = state.currentModelId != null
+        ? ModelTier.byId(state.currentModelId!)
+        : ModelTier.byId(ref.read(settingsProvider).semanticModelTier);
     try {
       final dir = await getApplicationSupportDirectory();
-      final tier = ModelTier.byId(ref.read(settingsProvider).semanticModelTier);
-      final model = File('${dir.path}/${tier.id}.onnx');
-      final vocab = File('${dir.path}/${tier.id}-vocab.txt');
-      if (await model.exists()) await model.delete();
-      if (await vocab.exists()) await vocab.delete();
-    } catch (_) {}
+      final files = [
+        File('${dir.path}/${tier.id}.onnx'),
+        File('${dir.path}/${tier.id}-vocab.txt'),
+        // 未完成的下载残留 .part 文件一并清理
+        File('${dir.path}/${tier.id}.onnx.part'),
+        File('${dir.path}/${tier.id}-vocab.txt.part'),
+      ];
+      for (final f in files) {
+        if (await f.exists()) await f.delete();
+      }
+    } catch (_) {
+      return; // 删除失败时保持当前状态，不误报已清除
+    }
     state = const ModelStatusState(status: SemanticEngineStatus.idle);
   }
 }
