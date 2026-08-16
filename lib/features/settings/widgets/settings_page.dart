@@ -14,6 +14,8 @@ import '../../../core/widgets/modal_overlay.dart';
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/plugin/plugin_registry.dart';
 import '../../../features/ai_engine/services/entity_recognizer.dart';
+import '../../../features/semantic_engine/models/model_tier.dart';
+import '../../../features/semantic_engine/providers/model_status_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/git_backup_provider.dart';
 
@@ -287,6 +289,13 @@ class _AISectionState extends ConsumerState<_AISection> {
       padding: const EdgeInsets.all(AeroSpacing.xl),
       children: [
         _SettingsGroup(
+          title: '本地语义引擎',
+          children: [
+            _SemanticEngineTile(),
+          ],
+        ),
+        const SizedBox(height: AeroSpacing.lg),
+        _SettingsGroup(
           title: '实体识别',
           children: [
             _SettingsTile(
@@ -466,6 +475,155 @@ class _AISectionState extends ConsumerState<_AISection> {
         return '远程 LLM (高延迟)';
       case RecognitionStrategy.hybrid:
         return '混合模式 (推荐)';
+    }
+  }
+}
+
+/// 本地语义引擎设置项
+class _SemanticEngineTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final status = ref.watch(modelStatusProvider);
+    final settingsNotifier = ref.read(settingsProvider.notifier);
+    final modelNotifier = ref.read(modelStatusProvider.notifier);
+
+    return Column(
+      children: [
+        _SettingsTile(
+          title: '启用语义推荐',
+          subtitle: '下载本地模型进行语义级推荐与搜索（需网络，首次约 100MB）',
+          trailing: Switch(
+            value: settings.semanticEngineEnabled,
+            activeThumbColor: AeroColors.accentPurple,
+            onChanged: (v) {
+              settingsNotifier.setSemanticEngineEnabled(v);
+              if (v) {
+                modelNotifier.enable();
+              } else {
+                modelNotifier.disable();
+              }
+            },
+          ),
+        ),
+        if (settings.semanticEngineEnabled) ...[
+          const Divider(height: 1, thickness: 1, color: AeroColors.divider),
+          _SettingsTile(
+            title: '模型档位',
+            subtitle: '轻量更快 · 高质量更准',
+            trailing: DropdownButton<String>(
+              value: ModelTier.byId(settings.semanticModelTier).id,
+              onChanged: (value) {
+                if (value != null) {
+                  settingsNotifier.setSemanticModelTier(value);
+                }
+              },
+              dropdownColor: AeroColors.bgElevated,
+              style: const TextStyle(
+                color: AeroColors.textPrimary,
+                fontSize: 12,
+              ),
+              underline: const SizedBox.shrink(),
+              items: ModelTier.values.map((tier) {
+                return DropdownMenuItem(
+                  value: tier.id,
+                  child: Text(tier.dims == 512 ? '轻量 (512维)' : '高质量 (768维)'),
+                );
+              }).toList(),
+            ),
+          ),
+          _buildStatusArea(context, ref, status),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildStatusArea(BuildContext context, WidgetRef ref, ModelStatusState status) {
+    final notifier = ref.read(modelStatusProvider.notifier);
+    switch (status.status) {
+      case SemanticEngineStatus.ready:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
+          child: Row(
+            children: [
+              const Icon(Icons.check_circle_outline,
+                  size: AeroIconSize.sm, color: AeroColors.accentGreen),
+              const SizedBox(width: AeroSpacing.sm),
+              Expanded(
+                child: Text(
+                  '模型已就绪（${status.currentModelId ?? ''}）',
+                  style: const TextStyle(color: AeroColors.textMuted, fontSize: 11),
+                ),
+              ),
+              TextButton(
+                onPressed: () => notifier.deleteModel(),
+                child: const Text('删除模型',
+                    style: TextStyle(color: AeroColors.accentRed)),
+              ),
+            ],
+          ),
+        );
+      case SemanticEngineStatus.downloading:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LinearProgressIndicator(value: status.progress),
+              const SizedBox(height: AeroSpacing.xs),
+              Text(
+                '下载中 ${(status.progress * 100).round()}%',
+                style: const TextStyle(color: AeroColors.textMuted, fontSize: 11),
+              ),
+            ],
+          ),
+        );
+      case SemanticEngineStatus.error:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
+          child: Row(
+            children: [
+              const Icon(Icons.error_outline,
+                  size: AeroIconSize.sm, color: AeroColors.accentOrange),
+              const SizedBox(width: AeroSpacing.sm),
+              Expanded(
+                child: Text(
+                  status.error ?? '下载失败',
+                  style: const TextStyle(color: AeroColors.accentOrange, fontSize: 11),
+                ),
+              ),
+              TextButton(
+                onPressed: () => notifier.downloadCurrentTier(),
+                child: const Text('重试',
+                    style: TextStyle(color: AeroColors.accentOrange)),
+              ),
+            ],
+          ),
+        );
+      case SemanticEngineStatus.reindexing:
+        return const Padding(
+          padding: EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
+          child: Text('正在重建索引…',
+              style: TextStyle(color: AeroColors.textMuted, fontSize: 11)),
+        );
+      case SemanticEngineStatus.idle:
+      case SemanticEngineStatus.notEnabled:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AeroSpacing.md, vertical: AeroSpacing.sm),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text('模型尚未下载',
+                    style: TextStyle(color: AeroColors.textMuted, fontSize: 11)),
+              ),
+              TextButton(
+                onPressed: () => notifier.downloadCurrentTier(),
+                child: const Text('下载模型',
+                    style: TextStyle(color: AeroColors.accentBlue)),
+              ),
+            ],
+          ),
+        );
     }
   }
 }
