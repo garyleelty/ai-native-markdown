@@ -16,6 +16,8 @@ import '../core/services/file_service.dart';
 import '../core/services/trash_service.dart';
 import '../features/sidebar/models/sidebar_state.dart';
 import '../features/editor/services/editor_service.dart';
+import '../features/semantic_engine/providers/semantic_search_provider.dart';
+import '../features/semantic_engine/providers/model_status_provider.dart';
 import 'note_provider.dart';
 import 'pane_provider.dart';
 
@@ -324,8 +326,34 @@ class SidebarNotifier extends Notifier<SidebarState> {
       final repo = ref.read(noteRepositoryProvider);
       final allNotes = await repo.getAllNotes();
       final response = SearchService.searchNotes(allNotes, query);
+      final results = List<SearchResult>.of(response.results);
+
+      // 语义引擎就绪时合并语义搜索结果，去重后按分数排序
+      final status = ref.read(modelStatusProvider);
+      if (status.status == SemanticEngineStatus.ready &&
+          status.currentModelId != null) {
+        final hits = await ref.read(semanticSearchProvider(query).future);
+        final existingIds = results.map((r) => r.note.id).toSet();
+        final byId = {for (final n in allNotes) n.id: n};
+        for (final hit in hits) {
+          if (existingIds.contains(hit.noteId)) continue;
+          final note = byId[hit.noteId];
+          if (note == null) continue;
+          results.add(SearchResult(
+            note: note,
+            matches: const [],
+            preview: note.rawMarkdown.length > 100
+                ? note.rawMarkdown.substring(0, 100)
+                : note.rawMarkdown,
+            score: hit.score * 100,
+          ));
+          existingIds.add(hit.noteId);
+        }
+        results.sort((a, b) => b.score.compareTo(a.score));
+      }
+
       state = state.copyWith(
-        searchResults: response.results,
+        searchResults: results,
         isSearching: false,
         searchMessage: response.message,
       );
