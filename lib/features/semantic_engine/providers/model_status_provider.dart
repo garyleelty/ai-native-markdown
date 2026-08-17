@@ -12,9 +12,11 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../providers/note_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../models/model_tier.dart';
 import '../services/model_download_service.dart';
+import 'vector_index_provider.dart';
 
 /// 语义引擎状态
 enum SemanticEngineStatus { notEnabled, idle, downloading, ready, reindexing, error }
@@ -67,6 +69,22 @@ class ModelStatusNotifier extends Notifier<ModelStatusState> {
 
   void startReindex() => state = state.copyWith(status: SemanticEngineStatus.reindexing);
   void finishReindex(String modelId) => _markReady(modelId);
+
+  /// 档位切换后确保索引模型一致：模型已就绪时触发全量重嵌入
+  Future<void> ensureModelForTier(String tierId) async {
+    if (state.currentModelId == tierId) return;
+    if (state.status != SemanticEngineStatus.ready) return;
+    startReindex();
+    try {
+      final repo = ref.read(noteRepositoryProvider);
+      final notes = await repo.getAllNotes();
+      final idx = ref.read(vectorIndexProvider.notifier);
+      await idx.reindexAll(notes, tierId, onProgress: (done, total) {});
+      finishReindex(tierId);
+    } catch (e) {
+      fail('重嵌入失败: $e');
+    }
+  }
 
   void _markReady(String modelId) => state = ModelStatusState(
         status: SemanticEngineStatus.ready, progress: 1, currentModelId: modelId);

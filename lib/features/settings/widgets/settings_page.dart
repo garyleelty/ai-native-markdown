@@ -516,6 +516,7 @@ class _SemanticEngineTile extends ConsumerWidget {
               onChanged: (value) {
                 if (value != null) {
                   settingsNotifier.setSemanticModelTier(value);
+                  modelNotifier.ensureModelForTier(value);
                 }
               },
               dropdownColor: AeroColors.bgElevated,

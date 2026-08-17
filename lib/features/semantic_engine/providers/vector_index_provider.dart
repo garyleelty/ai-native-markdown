@@ -3,6 +3,7 @@
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/models/note_model.dart';
 import '../services/embedding_service.dart';
 import '../services/semantic_scoring.dart';
 import '../services/vector_store.dart';
@@ -94,14 +95,30 @@ class VectorIndexNotifier extends Notifier<VectorIndexState> {
   }
 
   /// 删除某笔记的向量（内存 + Hive）
-  Future<void> remove(String noteId) async {
-    await state.store.remove(noteId);
+  Future<void> remove(String noteId) async {    await state.store.remove(noteId);
     final next = Map<String, List<double>>.from(state.vectors)..remove(noteId);
     state = VectorIndexState(
       modelId: state.modelId,
       vectors: next,
       store: state.store,
     );
+  }
+
+  /// 全量重嵌入：对全部笔记以指定模型档位重新嵌入并覆盖旧向量
+  ///
+  /// 无嵌入器（回退模式）时各条 embedAndStore 会跳过，仅上报进度。
+  Future<void> reindexAll(
+    List<NoteModel> notes,
+    String modelId, {
+    required void Function(int done, int total) onProgress,
+  }) async {
+    var done = 0;
+    for (final note in notes) {
+      await embedAndStore(note.id, '${note.title}\n${note.rawMarkdown}',
+          modelId: modelId);
+      done++;
+      onProgress(done, notes.length);
+    }
   }
 
   /// 返回与指定笔记最相似的前 k 个邻居（推荐用）
