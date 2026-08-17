@@ -14,6 +14,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/note_model.dart';
 import '../core/models/predictive_link.dart';
 import '../features/ai_engine/services/entity_recognizer.dart';
+import '../features/semantic_engine/providers/model_status_provider.dart';
+import '../features/semantic_engine/providers/vector_index_provider.dart';
+import '../features/semantic_engine/services/semantic_scoring.dart';
 import 'pane_provider.dart';
 import 'note_provider.dart';
 import 'settings_provider.dart';
@@ -170,6 +173,46 @@ final predictiveLinksProvider =
   final allNotes = await repo.getAllNotes();
   if (allNotes.isEmpty) return [];
 
+  // ── 语义路径（模型就绪）──
+  final status = ref.watch(modelStatusProvider);
+  if (status.status == SemanticEngineStatus.ready &&
+      status.currentModelId != null) {
+    final idx = ref.read(vectorIndexProvider.notifier);
+    await idx.load();
+    final srcVec = idx.vectorOf(noteId);
+    if (srcVec != null) {
+      final neighbors = await idx.nearest(noteId, k: 20);
+      final byId = {for (final n in allNotes) n.id: n};
+      final links = <PredictiveLink>[];
+      for (final nb in neighbors) {
+        final target = byId[nb.noteId];
+        if (target == null) continue;
+        final targetVec = idx.vectorOf(target.id);
+        if (targetVec == null) continue;
+        final s = SemanticScoring.score(
+          sourceVector: srcVec,
+          targetVector: targetVec,
+          sourceTags: currentNote.tags,
+          targetTags: target.tags,
+          sourceContent: currentNote.rawMarkdown,
+          targetTitle: target.title,
+        );
+        if (s.total >= SemanticScoring.minThreshold) {
+          links.add(PredictiveLink(
+            sourceNoteId: noteId,
+            targetNoteId: target.id,
+            targetTitle: target.title,
+            relevance: s.total.clamp(0.0, 1.0),
+            reason: s.reason,
+          ));
+        }
+      }
+      links.sort((a, b) => b.relevance.compareTo(a.relevance));
+      if (links.isNotEmpty) return links.take(5).toList();
+    }
+  }
+
+  // ── 回退：TF-IDF ──
   final noteInfos = allNotes
       .map((n) => NoteInfoForLink(
             id: n.id,
