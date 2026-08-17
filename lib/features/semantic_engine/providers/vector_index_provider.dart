@@ -35,6 +35,9 @@ class VectorIndexState {
 
 /// 内存向量索引 Notifier
 class VectorIndexNotifier extends Notifier<VectorIndexState> {
+  /// 语义检索的余弦相似度最低阈值
+  static const double minCosine = 0.15;
+
   @override
   VectorIndexState build() {
     // 启动时不阻塞，首次调用前 load()
@@ -42,14 +45,18 @@ class VectorIndexNotifier extends Notifier<VectorIndexState> {
   }
 
   /// 从 Hive 加载全部向量到内存
+  ///
+  /// 记录中模型档位不一致（如中断的重索引）时 modelId 置空，
+  /// 使 needsReindex 恒为 true，强制触发重嵌入。
   Future<void> load() async {
     final records = await state.store.getAll();
     final map = <String, List<double>>{};
-    String? modelId;
+    final modelIds = <String>{};
     for (final r in records) {
       map[r.noteId] = r.vector;
-      modelId = r.modelId;
+      if (r.modelId.isNotEmpty) modelIds.add(r.modelId);
     }
+    final modelId = modelIds.length == 1 ? modelIds.first : null;
     state = VectorIndexState(modelId: modelId, vectors: map, store: state.store);
   }
 
@@ -57,20 +64,21 @@ class VectorIndexNotifier extends Notifier<VectorIndexState> {
   List<double>? vectorOf(String noteId) => state.vectors[noteId];
 
   /// 模型档位与当前已索引模型不一致时需要重嵌入
-  bool needsReindex(String modelId) =>
-      state.modelId != null && state.modelId != modelId;
+  ///
+  /// 空库（modelId 为 null）视为未索引，任何目标模型都触发重嵌入。
+  bool needsReindex(String modelId) => state.modelId != modelId;
 
   /// 对文本嵌入并持久化到 Hive，同时更新内存索引
   ///
-  /// 无嵌入器（回退模式）时直接返回，不产生任何副作用。
-  Future<void> embedAndStore(
+  /// 无嵌入器（回退模式）时跳过并返回 false；成功嵌入返回 true。
+  Future<bool> embedAndStore(
     String noteId,
     String text, {
     required String modelId,
   }) async {
     final embedder = ref.read(embedderProvider);
-    if (embedder == null) return;
-    final v = await embedder.embed(text);
+    if (embedder == null) return false;
+    final v = List<double>.of(await embedder.embed(text));
     await state.store.upsert(NoteVectorRecord(
       noteId: noteId,
       modelId: modelId,
@@ -82,6 +90,7 @@ class VectorIndexNotifier extends Notifier<VectorIndexState> {
       vectors: {...state.vectors, noteId: v},
       store: state.store,
     );
+    return true;
   }
 
   /// 删除某笔记的向量（内存 + Hive）
@@ -112,7 +121,7 @@ class VectorIndexNotifier extends Notifier<VectorIndexState> {
   Future<List<Neighbor>> search(List<double> queryVector, {int k = 10}) async {
     final scored = state.vectors.entries
         .map((e) => Neighbor(e.key, cosineSimilarity(queryVector, e.value)))
-        .where((n) => n.score > 0.15)
+        .where((n) => n.score > minCosine)
         .toList()
       ..sort((a, b) => b.score.compareTo(a.score));
     return scored.take(k).toList();
