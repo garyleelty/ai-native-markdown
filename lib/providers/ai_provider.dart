@@ -165,6 +165,9 @@ final predictiveLinksProvider =
     FutureProvider.family<List<PredictiveLink>, String>((ref, noteId) async {
   final repo = ref.read(noteRepositoryProvider);
 
+  // 提前注册依赖：避免异步间隙中状态变化导致失活的计算不失效
+  final status = ref.watch(modelStatusProvider);
+
   final currentNote = await repo.getNote(noteId);
   if (currentNote == null || currentNote.rawMarkdown.trim().isEmpty) {
     return [];
@@ -174,7 +177,6 @@ final predictiveLinksProvider =
   if (allNotes.isEmpty) return [];
 
   // ── 语义路径（模型就绪）──
-  final status = ref.watch(modelStatusProvider);
   if (status.status == SemanticEngineStatus.ready &&
       status.currentModelId != null) {
     final idx = ref.read(vectorIndexProvider.notifier);
@@ -185,6 +187,7 @@ final predictiveLinksProvider =
       final byId = {for (final n in allNotes) n.id: n};
       final links = <PredictiveLink>[];
       for (final nb in neighbors) {
+        if (nb.noteId == noteId) continue; // 防御：跳过自身
         final target = byId[nb.noteId];
         if (target == null) continue;
         final targetVec = idx.vectorOf(target.id);
