@@ -70,15 +70,30 @@ class ModelStatusNotifier extends Notifier<ModelStatusState> {
   void startReindex() => state = state.copyWith(status: SemanticEngineStatus.reindexing);
   void finishReindex(String modelId) => _markReady(modelId);
 
-  /// 档位切换后确保索引模型一致：模型已就绪时触发全量重嵌入
+  /// 确保向量索引与指定档位一致：换档时先下载目标模型，再触发全量重嵌入。
   Future<void> ensureModelForTier(String tierId) async {
-    if (state.currentModelId == tierId) return;
+    // 已在途：避免并发
+    if (state.status == SemanticEngineStatus.downloading ||
+        state.status == SemanticEngineStatus.reindexing) {
+      return;
+    }
     if (state.status != SemanticEngineStatus.ready) return;
+
+    final idx = ref.read(vectorIndexProvider.notifier);
+    await idx.load();
+
+    if (state.currentModelId != tierId) {
+      // 目标档位模型尚未下载：先下载（downloadCurrentTier 读 settings，
+      // 其 finishDownload 后会再次调用本方法触发重嵌入）
+      await downloadCurrentTier();
+      return;
+    }
+    if (!idx.needsReindex(tierId)) return;
+
     startReindex();
     try {
       final repo = ref.read(noteRepositoryProvider);
       final notes = await repo.getAllNotes();
-      final idx = ref.read(vectorIndexProvider.notifier);
       await idx.reindexAll(notes, tierId, onProgress: (done, total) {});
       finishReindex(tierId);
     } catch (e) {
@@ -125,6 +140,8 @@ class ModelStatusNotifier extends Notifier<ModelStatusState> {
       );
       await vocabSvc.download(onProgress: (_) {});
       finishDownload(tier.id);
+      // 下载完成：确保向量索引与本档位一致（首次全量嵌入 / 换档后重嵌入）
+      await ensureModelForTier(tier.id);
     } catch (e) {
       fail('模型下载失败: $e');
     }
