@@ -26,12 +26,20 @@ enum ModelTier {
   final String sizeLabel;
   final String modelHash;
 
-  String get onnxUrl =>
-      'https://huggingface.co/Xenova/$id/resolve/main/onnx/model.onnx';
+  String get _repoPath => 'Xenova/$id/resolve/main';
+
+  String get onnxPath => '$_repoPath/onnx/model.onnx';
+
+  String get vocabPath => '$_repoPath/vocab.txt';
+
+  String get onnxUrl => 'https://huggingface.co/$onnxPath';
 
   /// 词表文件：repo 无 vocab.json，真实文件是 vocab.txt（每行一个 token，行号即 id）
-  String get vocabUrl =>
-      'https://huggingface.co/Xenova/$id/resolve/main/vocab.txt';
+  String get vocabUrl => 'https://huggingface.co/$vocabPath';
+
+  /// 指定镜像 host 的下载地址（hf-mirror.com 等）
+  String downloadUrl(String host, {required bool vocab}) =>
+      'https://$host/${vocab ? vocabPath : onnxPath}';
 
   /// SHA-256；base 档位在首次下载后补齐
   String? get expectedHash => modelHash.isEmpty ? null : modelHash;

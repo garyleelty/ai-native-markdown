@@ -33,6 +33,8 @@ class AppSettings {
   final bool semanticEngineEnabled;
   /// 语义模型档位（ModelTier.id），默认 light
   final String semanticModelTier;
+  /// 下载镜像源（默认开：huggingface 不可达时走 hf-mirror.com）
+  final bool semanticModelMirror;
 
   /// 远程 LLM 配置
   final String llmApiEndpoint;
@@ -51,6 +53,7 @@ class AppSettings {
     this.mermaidEnabled = false,
     this.semanticEngineEnabled = false,
     this.semanticModelTier = 'bge-small-zh-v1.5',
+    this.semanticModelMirror = true,
     this.llmApiEndpoint = '',
     this.llmApiKey = '',
     this.llmModel = 'gpt-3.5-turbo',
@@ -68,6 +71,7 @@ class AppSettings {
     bool? mermaidEnabled,
     bool? semanticEngineEnabled,
     String? semanticModelTier,
+    bool? semanticModelMirror,
     String? llmApiEndpoint,
     String? llmApiKey,
     String? llmModel,
@@ -86,6 +90,7 @@ class AppSettings {
       mermaidEnabled: mermaidEnabled ?? this.mermaidEnabled,
       semanticEngineEnabled: semanticEngineEnabled ?? this.semanticEngineEnabled,
       semanticModelTier: semanticModelTier ?? this.semanticModelTier,
+      semanticModelMirror: semanticModelMirror ?? this.semanticModelMirror,
       llmApiEndpoint: llmApiEndpoint ?? this.llmApiEndpoint,
       llmApiKey: llmApiKey ?? this.llmApiKey,
       llmModel: llmModel ?? this.llmModel,
@@ -106,6 +111,7 @@ class AppSettings {
       'mermaidEnabled': mermaidEnabled,
       'semanticEngineEnabled': semanticEngineEnabled,
       'semanticModelTier': semanticModelTier,
+      'semanticModelMirror': semanticModelMirror,
       'llmApiEndpoint': llmApiEndpoint,
       'llmApiKey': llmApiKey,
       'llmModel': llmModel,
@@ -137,6 +143,7 @@ class AppSettings {
       semanticEngineEnabled: map['semanticEngineEnabled'] as bool? ?? false,
       semanticModelTier:
           map['semanticModelTier'] as String? ?? 'bge-small-zh-v1.5',
+      semanticModelMirror: map['semanticModelMirror'] as bool? ?? true,
       llmApiEndpoint: map['llmApiEndpoint'] as String? ?? '',
       llmApiKey: map['llmApiKey'] as String? ?? '',
       llmModel: map['llmModel'] as String? ?? 'gpt-3.5-turbo',
@@ -215,6 +222,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void setSemanticModelTier(String tierId) {
     state = state.copyWith(semanticModelTier: tierId);
+    _persist();
+  }
+
+  void setSemanticModelMirror(bool value) {
+    state = state.copyWith(semanticModelMirror: value);
     _persist();
   }
 

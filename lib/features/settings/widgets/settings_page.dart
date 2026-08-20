@@ -533,6 +533,16 @@ class _SemanticEngineTile extends ConsumerWidget {
               }).toList(),
             ),
           ),
+          const Divider(height: 1, thickness: 1, color: AeroColors.divider),
+          _SettingsTile(
+            title: '使用镜像源',
+            subtitle: 'huggingface.co 不可达时改用 hf-mirror.com 下载',
+            trailing: Switch(
+              value: settings.semanticModelMirror,
+              activeThumbColor: AeroColors.accentPurple,
+              onChanged: settingsNotifier.setSemanticModelMirror,
+            ),
+          ),
           _buildStatusArea(context, ref, status),
         ],
       ],

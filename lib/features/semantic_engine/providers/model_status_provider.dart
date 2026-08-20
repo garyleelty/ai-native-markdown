@@ -113,13 +113,15 @@ class ModelStatusNotifier extends Notifier<ModelStatusState> {
     if (state.status == SemanticEngineStatus.downloading) return;
     final settings = ref.read(settingsProvider);
     final tier = ModelTier.byId(settings.semanticModelTier);
+    // 镜像源：huggingface 不可达时走 hf-mirror.com
+    final host = settings.semanticModelMirror ? 'hf-mirror.com' : 'huggingface.co';
     startDownload();
     try {
       final dir = await getApplicationSupportDirectory();
       final modelPath = '${dir.path}/${tier.id}.onnx';
       final vocabPath = '${dir.path}/${tier.id}-vocab.txt';
       final svc = ModelDownloadService(
-        url: Uri.parse(tier.onnxUrl),
+        url: Uri.parse(tier.downloadUrl(host, vocab: false)),
         destPath: modelPath,
         downloader: HttpDownloader(),
         expectedSha256: tier.expectedHash,
@@ -133,7 +135,7 @@ class ModelStatusNotifier extends Notifier<ModelStatusState> {
       });
       // vocab 复用同一服务（不校验哈希）
       final vocabSvc = ModelDownloadService(
-        url: Uri.parse(tier.vocabUrl),
+        url: Uri.parse(tier.downloadUrl(host, vocab: true)),
         destPath: vocabPath,
         downloader: HttpDownloader(),
         expectedSha256: null,

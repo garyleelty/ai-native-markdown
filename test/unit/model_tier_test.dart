@@ -39,5 +39,19 @@ void main() {
       );
       expect(ModelTier.base.expectedHash, isNull);
     });
+    test('镜像源 downloadUrl 替换 host', () {
+      expect(
+        ModelTier.light.downloadUrl('hf-mirror.com', vocab: false),
+        'https://hf-mirror.com/Xenova/bge-small-zh-v1.5/resolve/main/onnx/model.onnx',
+      );
+      expect(
+        ModelTier.light.downloadUrl('hf-mirror.com', vocab: true),
+        'https://hf-mirror.com/Xenova/bge-small-zh-v1.5/resolve/main/vocab.txt',
+      );
+      expect(
+        ModelTier.base.downloadUrl('hf-mirror.com', vocab: false),
+        'https://hf-mirror.com/Xenova/bge-base-zh-v1.5/resolve/main/onnx/model.onnx',
+      );
+    });
   });
 }
