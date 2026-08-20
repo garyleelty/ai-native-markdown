@@ -2288,17 +2288,19 @@ git commit -m "feat(semantic): 档位切换自动重嵌入"
 **Files:**
 - Modify: `README.md` 或 `CLAUDE.md`（文档，可选）
 
-- [ ] **Step 1: 静态分析**
+- [x] **Step 1: 静态分析**
 
 Run: `dart analyze`
 Expected: No issues found（若有语义引擎相关告警，逐一修复）
+结果：`dart analyze lib/` → No issues found。
 
-- [ ] **Step 2: 全量测试**
+- [x] **Step 2: 全量测试**
 
 Run: `flutter test`
 Expected: 全部通过（含既有 predictive_link / search_service 等回归）
+结果：185/185 通过（原 182 + 新增 embedder_manager_test 3 用例）。
 
-- [ ] **Step 3: 人工冒烟**
+- [x] **Step 3: 人工冒烟（已构建验证，交互部分需人工执行）**
 
 ```bash
 flutter run -d macos
@@ -2308,11 +2310,16 @@ flutter run -d macos
 - 侧边栏搜索：语义相关补充条目出现
 - 切换档位：触发重嵌入提示
 
-- [ ] **Step 4: 文档更新（可选）**
+`flutter build macos --debug --no-tree-shake-icons` 构建通过（生产嵌入器接线已随 Task 13 提交 `cdffb41`）。
+已知遗留：libonnxruntime.1.21.0.dylib 面向 macOS 13.3 编译，app 目标 11.0 → ld 警告（非错误），旧系统运行时可能失败（Task 1 记录的风险）。
+交互式 UI 冒烟（下载/搜索/推荐）需在真机环境人工执行。
+
+- [x] **Step 4: 文档更新（可选）**
 
 在 `CLAUDE.md` 待完善清单勾掉「Isar 向量索引接通」相关说明，改为「语义引擎（Hive 向量）已接通」，或按实际调整。
+已完成：CLAUDE.md 存储表 Isar 行改为「Hive … + 向量索引（语义引擎）」；待完善清单移除 Isar 接通项。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add -A
