@@ -172,8 +172,7 @@ class MyPlugin extends BasePlugin {
 | 层 | 存储 | 用途 |
 |---|---|---|
 | 文件系统 | `.md` 文件 | 原始 Markdown 内容 |
-| Hive | KV 存储 | 笔记元数据 + 插件存储 |
-| Isar | 本地 DB | 向量索引，语义搜索 (待接通) |
+| Hive | KV 存储 | 笔记元数据 + 插件存储 + 向量索引（语义引擎） |
 
 ## 技术栈
 
@@ -236,7 +235,6 @@ test/
 
 ## 待完善
 
-- [ ] Isar 向量索引接通 (语义搜索)
 - [ ] 远程 LLM 实体识别实际 API 调试
 - [ ] 更多内置插件 (日历、Pomodoro、Mermaid 图表)
 - [ ] Widget 测试覆盖

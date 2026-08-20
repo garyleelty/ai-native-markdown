@@ -7,6 +7,7 @@
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'embedder_manager_provider.dart';
 import 'model_status_provider.dart';
 import 'vector_index_provider.dart';
 
@@ -23,7 +24,9 @@ final semanticSearchProvider =
   if (query.trim().isEmpty) return const [];
   final status = ref.watch(modelStatusProvider);
   if (status.status != SemanticEngineStatus.ready) return const [];
-  final embedder = ref.read(embedderProvider);
+  var embedder = ref.read(embedderProvider);
+  // 生产首次搜索：等待嵌入器创建完成
+  embedder ??= await ref.read(embedderManagerProvider.notifier).ready();
   if (embedder == null) return const [];
   final index = ref.read(vectorIndexProvider);
   if (index.vectors.isEmpty) return const [];

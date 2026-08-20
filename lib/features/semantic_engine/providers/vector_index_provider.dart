@@ -7,12 +7,14 @@ import '../../../core/models/note_model.dart';
 import '../services/embedding_service.dart';
 import '../services/semantic_scoring.dart';
 import '../services/vector_store.dart';
+import 'embedder_manager_provider.dart';
 
 /// 嵌入器 Provider（生产用 OnnxEmbedder，测试 override）
 ///
-/// 默认返回 null（回退模式），由模型状态就绪后由外部创建并注入。
+/// 生产环境委托 EmbedderManager：模型就绪时返回已创建的真实嵌入器，
+/// 创建中/未就绪时为 null（回退模式）。测试 override 为 FakeEmbedder。
 final embedderProvider = Provider<Embedder?>((ref) {
-  return null;
+  return ref.watch(embedderManagerProvider);
 });
 
 /// 最近邻结果
@@ -72,12 +74,15 @@ class VectorIndexNotifier extends Notifier<VectorIndexState> {
   /// 对文本嵌入并持久化到 Hive，同时更新内存索引
   ///
   /// 无嵌入器（回退模式）时跳过并返回 false；成功嵌入返回 true。
+  /// 生产首次嵌入会等待 EmbedderManager 完成嵌入器创建。
   Future<bool> embedAndStore(
     String noteId,
     String text, {
     required String modelId,
   }) async {
-    final embedder = ref.read(embedderProvider);
+    var embedder = ref.read(embedderProvider);
+    // 生产首次嵌入：等待 EmbedderManager 完成嵌入器创建
+    embedder ??= await ref.read(embedderManagerProvider.notifier).ready();
     if (embedder == null) return false;
     final v = List<double>.of(await embedder.embed(text));
     await state.store.upsert(NoteVectorRecord(
