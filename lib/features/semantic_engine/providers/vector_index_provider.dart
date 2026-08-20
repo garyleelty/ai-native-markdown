@@ -14,7 +14,7 @@ import 'embedder_manager_provider.dart';
 /// 生产环境委托 EmbedderManager：模型就绪时返回已创建的真实嵌入器，
 /// 创建中/未就绪时为 null（回退模式）。测试 override 为 FakeEmbedder。
 final embedderProvider = Provider<Embedder?>((ref) {
-  return ref.watch(embedderManagerProvider);
+  return ref.watch(embedderManagerProvider).current;
 });
 
 /// 最近邻结果
@@ -82,7 +82,7 @@ class VectorIndexNotifier extends Notifier<VectorIndexState> {
   }) async {
     var embedder = ref.read(embedderProvider);
     // 生产首次嵌入：等待 EmbedderManager 完成嵌入器创建
-    embedder ??= await ref.read(embedderManagerProvider.notifier).ready();
+    embedder ??= await ref.read(embedderManagerProvider).ready();
     if (embedder == null) return false;
     final v = List<double>.of(await embedder.embed(text));
     await state.store.upsert(NoteVectorRecord(

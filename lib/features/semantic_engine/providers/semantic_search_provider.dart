@@ -26,7 +26,7 @@ final semanticSearchProvider =
   if (status.status != SemanticEngineStatus.ready) return const [];
   var embedder = ref.read(embedderProvider);
   // 生产首次搜索：等待嵌入器创建完成
-  embedder ??= await ref.read(embedderManagerProvider.notifier).ready();
+  embedder ??= await ref.read(embedderManagerProvider).ready();
   if (embedder == null) return const [];
   final index = ref.read(vectorIndexProvider);
   if (index.vectors.isEmpty) return const [];
