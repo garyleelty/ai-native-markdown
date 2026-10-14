@@ -1,5 +1,52 @@
 # AI Native Markdown
 
+**An AI-native Markdown editor that keeps your writing on your machine.**
+
+Built with Tauri 2 + Vue 3 + CodeMirror 6. Local-first: your files stay on
+disk, and AI assist works with either cloud APIs or a local model through
+Ollama / LM Studio — so it runs fully offline if you want it to.
+
+## Features
+
+- 📝 Live Markdown editing with synchronized preview
+- 🤖 AI writing assist — continue, polish, summarize, reformat
+- 📁 Local file management, no account required
+- 🎨 Clean modern UI, dark and light themes
+- 🔒 Local-first by default; offline models supported
+- ↔️ Collapsible three-pane layout with draggable panes
+
+## Stack
+
+| Layer | Tech |
+| --- | --- |
+| Frontend | Vue 3 + TypeScript + Vite |
+| Desktop | Tauri 2.0 (Rust) |
+| Editor | CodeMirror 6 |
+| Preview | Markdown-it + Highlight.js |
+| State | Pinia |
+
+## Getting started
+
+```bash
+npm install
+npm run dev          # dev server
+npm run tauri build  # desktop app
+```
+
+## AI providers
+
+- **Cloud**: OpenAI, Claude, Gemini, and other OpenAI-compatible endpoints
+- **Local**: Ollama, LM Studio
+- Switch and configure freely in settings
+
+## License
+
+MIT
+
+---
+
+## 中文说明
+
 一个 AI 原生的 Markdown 编辑器，基于 Tauri + Vue 3 + CodeMirror 6 构建。
 
 ## 功能特性
