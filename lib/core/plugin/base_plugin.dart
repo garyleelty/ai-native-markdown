@@ -9,6 +9,7 @@ library;
 import 'plugin_manifest.dart';
 import 'plugin_api.dart';
 import 'plugin_storage.dart';
+import 'plugin_effect.dart';
 import '../models/note_model.dart';
 
 /// 插件生命周期状态
@@ -33,6 +34,9 @@ enum PluginState {
 }
 
 /// 插件上下文 — 插件激活期间可访问的资源
+///
+/// 提供 Cordis 风格的可逆副作用 API：
+/// 插件执行副作用时同步登记逆操作，暂停/销毁时框架按 LIFO 自动回滚。
 class PluginContext {
   /// 插件清单
   final PluginManifest manifest;
@@ -46,12 +50,74 @@ class PluginContext {
   /// 当前插件状态
   final PluginState state;
 
-  const PluginContext({
+  /// 本插件已登记的副作用逆操作（disposer）
+  final EffectDisposer _disposer;
+
+  PluginContext({
     required this.manifest,
     required this.api,
     required this.storage,
     this.state = PluginState.active,
-  });
+  }) : _disposer = EffectDisposer();
+
+  /// 已登记逆操作数量
+  int get effectCount => _disposer.length;
+
+  /// 是否已回滚
+  bool get isRolledBack => _disposer.isRolledBack;
+
+  // ── 可逆副作用 API ──
+
+  /// 执行一个可逆副作用并登记其逆操作（生成器形式，支持部分回滚）
+  void effect(EffectCallback callback) => _disposer.effect(callback);
+
+  /// 直接登记一个逆操作
+  void disposable(EffectInverse inverse) => _disposer.disposable(inverse);
+
+  /// 注册一个命令（自动登记「注销命令」的逆操作）
+  void registerCommand(PluginCommand command) {
+    effect(() sync* {
+      api.registerCommand(command);
+      yield () => api.unregisterCommand(command.id);
+    });
+  }
+
+  /// 监听笔记打开事件（自动登记「取消监听」的逆操作）
+  void onNoteOpened(void Function(String noteId) callback) {
+    effect(() sync* {
+      api.onNoteOpened(callback);
+      yield () => api.offNoteOpened(callback);
+    });
+  }
+
+  /// 监听笔记保存事件（自动登记「取消监听」的逆操作）
+  void onNoteSaved(void Function(String noteId) callback) {
+    effect(() sync* {
+      api.onNoteSaved(callback);
+      yield () => api.offNoteSaved(callback);
+    });
+  }
+
+  /// 监听实体识别完成事件（自动登记「取消监听」的逆操作）
+  void onEntitiesRecognized(
+    void Function(String noteId, List<EntityHighlight> entities) callback,
+  ) {
+    effect(() sync* {
+      api.onEntitiesRecognized(callback);
+      yield () => api.offEntitiesRecognized(callback);
+    });
+  }
+
+  /// 监听面板栈变化事件（自动登记「取消监听」的逆操作）
+  void onPaneStackChanged(void Function(List<String> openNoteIds) callback) {
+    effect(() sync* {
+      api.onPaneStackChanged(callback);
+      yield () => api.offPaneStackChanged(callback);
+    });
+  }
+
+  /// 框架调用: 按 LIFO 顺序回滚全部副作用
+  Future<void> runRollback() => _disposer.rollback();
 }
 
 /// AeroMind 插件抽象基类
@@ -161,8 +227,12 @@ abstract class BasePlugin {
   }
 
   /// 框架调用: 暂停插件
+  ///
+  /// 自动按 LIFO 回滚激活期间登记的全部副作用（命令注销、
+  /// 事件取消订阅等），随后调用 [onPause] 钩子。
   Future<void> pause() async {
     _state = PluginState.paused;
+    await _context?.runRollback();
     await onPause();
   }
 
@@ -174,8 +244,11 @@ abstract class BasePlugin {
   }
 
   /// 框架调用: 销毁插件
+  ///
+  /// 自动按 LIFO 回滚激活期间登记的全部副作用，随后调用 [onDispose] 钩子。
   Future<void> dispose() async {
     _state = PluginState.disposed;
+    await _context?.runRollback();
     await onDispose();
     _context = null;
   }

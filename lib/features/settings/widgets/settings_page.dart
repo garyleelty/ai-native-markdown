@@ -13,6 +13,7 @@ import '../../../core/widgets/dialog_header.dart';
 import '../../../core/widgets/modal_overlay.dart';
 import '../../../core/widgets/confirm_dialog.dart';
 import '../../../core/plugin/plugin_registry.dart';
+import '../../../providers/plugin_provider.dart';
 import '../../../features/ai_engine/services/entity_recognizer.dart';
 import '../../../features/semantic_engine/models/model_tier.dart';
 import '../../../features/semantic_engine/providers/model_status_provider.dart';
@@ -685,6 +686,8 @@ class _PluginSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = PluginRegistry.instance;
     final manifests = registry.allManifests;
+    // watch 已激活集合，保证前端与插件状态同步
+    final activeIds = ref.watch(activePluginIdsProvider);
 
     return ListView(
       padding: const EdgeInsets.all(AeroSpacing.xl),
@@ -692,20 +695,17 @@ class _PluginSection extends ConsumerWidget {
         _SettingsGroup(
           title: '已安装插件 (${manifests.length})',
           children: manifests.map((manifest) {
-            final isActive = registry.isActive(manifest.id);
+            final isActive = activeIds.contains(manifest.id);
             return _SettingsTile(
               title: manifest.name,
               subtitle: 'v${manifest.version} · ${manifest.description}',
               trailing: Switch(
                 value: isActive,
-                onChanged: (_) async {
-                  if (isActive) {
-                    await registry.pausePlugin(manifest.id);
-                  } else {
-                    await registry.activatePlugin(manifest.id);
-                  }
-                  // ignore: use_build_context_synchronously
-                  (context as Element).markNeedsBuild();
+                // 统一走 PluginManagerNotifier，保证激活状态与前端联动
+                onChanged: (_) {
+                  ref
+                      .read(pluginManagerProvider.notifier)
+                      .togglePlugin(manifest.id);
                 },
                 activeThumbColor: AeroColors.accentCyan,
               ),

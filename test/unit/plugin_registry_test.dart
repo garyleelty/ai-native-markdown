@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:aeromind/core/plugin/plugin_registry.dart';
 import 'package:aeromind/core/plugin/base_plugin.dart';
@@ -7,6 +8,7 @@ import 'package:aeromind/core/plugin/plugin_manifest.dart';
 import 'package:aeromind/core/plugin/plugin_api.dart';
 import 'package:aeromind/core/models/note_model.dart';
 import 'package:aeromind/core/plugin/plugin_storage.dart';
+import 'package:aeromind/providers/plugin_provider.dart';
 
 /// 测试用的 Mock PluginApi
 class _MockPluginApi implements PluginApi {
@@ -266,6 +268,68 @@ void main() {
 
       expect(result, false);
       expect(registry.getState('com.test.dependent'), PluginState.registered);
+    });
+
+    test('activePluginIdsProvider 随插件切换激活状态刷新', () async {
+      final plugin = _TestPlugin();
+      await registry.register(plugin, autoActivate: false);
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      // 未激活时不包含该插件
+      expect(
+        container.read(activePluginIdsProvider).contains('com.test.simple'),
+        false,
+      );
+
+      // 切换一次 → 激活 → 集合包含该插件
+      await container
+          .read(pluginManagerProvider.notifier)
+          .togglePlugin('com.test.simple');
+      expect(
+        container.read(activePluginIdsProvider).contains('com.test.simple'),
+        true,
+      );
+      expect(registry.isActive('com.test.simple'), true);
+
+      // 再切换一次 → 暂停 → 集合不再包含
+      await container
+          .read(pluginManagerProvider.notifier)
+          .togglePlugin('com.test.simple');
+      expect(
+        container.read(activePluginIdsProvider).contains('com.test.simple'),
+        false,
+      );
+      expect(registry.getState('com.test.simple'), PluginState.paused);
+    });
+
+    test('activePluginIdsProvider 响应注册表事件（设置页直连路径）', () async {
+      final plugin = _TestPlugin();
+      await registry.register(plugin, autoActivate: false);
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      // 未激活时不包含该插件
+      expect(
+        container.read(activePluginIdsProvider).contains('com.test.simple'),
+        false,
+      );
+
+      // 模拟设置页直连 registry 激活（不经过 PluginManagerNotifier）
+      await registry.activatePlugin('com.test.simple');
+      expect(
+        container.read(activePluginIdsProvider).contains('com.test.simple'),
+        true,
+      );
+
+      // 直连暂停同样生效
+      await registry.pausePlugin('com.test.simple');
+      expect(
+        container.read(activePluginIdsProvider).contains('com.test.simple'),
+        false,
+      );
     });
   });
 }

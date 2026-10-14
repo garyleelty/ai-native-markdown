@@ -168,12 +168,13 @@ class PluginRegistry {
       }
     }
 
+    PluginContext? ctx;
     try {
       // 获取或创建存储
       _storages[pluginId] ??= await PluginStorage.create(pluginId);
 
       // 构建上下文
-      final ctx = PluginContext(
+      ctx = PluginContext(
         manifest: manifest,
         api: _api!,
         storage: _storages[pluginId]!,
@@ -183,10 +184,11 @@ class PluginRegistry {
       await plugin.activate(ctx);
       _states[pluginId] = PluginState.active;
 
-      // 注册插件提供的命令
+      // 注册插件提供的命令（走 ctx 的 effect 路径，
+      // 暂停/销毁时随逆操作自动注销，无需手工清理）
       final commands = plugin.getCommands();
       for (final cmd in commands) {
-        _api!.registerCommand(cmd);
+        ctx.registerCommand(cmd);
       }
 
       _emitEvent(PluginEvent(
@@ -198,6 +200,8 @@ class PluginRegistry {
       _log('插件 $pluginId 已激活');
       return true;
     } catch (e) {
+      // 激活失败时回滚已登记的部分副作用（部分回滚）
+      await ctx?.runRollback();
       _states[pluginId] = PluginState.error;
       _emitEvent(PluginEvent(
         type: PluginEventType.error,
@@ -210,17 +214,13 @@ class PluginRegistry {
   }
 
   /// 暂停指定插件
+  ///
+  /// 插件激活期间通过 ctx.effect 登记的副作用（命令、事件订阅等）
+  /// 由 BasePlugin.pause 自动按 LIFO 回滚，无需在此手工注销。
   Future<void> pausePlugin(String pluginId) async {
     final plugin = _plugins[pluginId];
     if (plugin == null) return;
     if (plugin.state != PluginState.active) return;
-
-    if (_api != null) {
-      final commands = plugin.getCommands();
-      for (final cmd in commands) {
-        _api!.unregisterCommand(cmd.id);
-      }
-    }
 
     await plugin.pause();
     _states[pluginId] = PluginState.paused;
@@ -250,9 +250,10 @@ class PluginRegistry {
     await plugin.resume(ctx);
     _states[pluginId] = PluginState.active;
 
+    // 注册插件提供的命令（走 effect 路径，暂停/销毁时自动注销）
     final commands = plugin.getCommands();
     for (final cmd in commands) {
-      _api!.registerCommand(cmd);
+      ctx.registerCommand(cmd);
     }
 
     await _savePluginEnabled(pluginId, true);
@@ -263,17 +264,11 @@ class PluginRegistry {
   }
 
   /// 销毁指定插件 (不可逆)
+  ///
+  /// 插件激活期间登记的副作用由 BasePlugin.dispose 自动按 LIFO 回滚。
   Future<void> disposePlugin(String pluginId) async {
     final plugin = _plugins[pluginId];
     if (plugin == null) return;
-
-    // 注销该插件注册的命令
-    if (_api != null) {
-      final commands = plugin.getCommands();
-      for (final cmd in commands) {
-        _api!.unregisterCommand(cmd.id);
-      }
-    }
 
     await plugin.dispose();
     _plugins.remove(pluginId);

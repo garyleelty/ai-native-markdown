@@ -132,6 +132,7 @@ class PluginManagerNotifier extends Notifier<PluginManagerState> {
     }
 
     _refreshPluginList();
+    // 激活状态变化由 activePluginIdsProvider 的事件监听自动同步
   }
 
   /// 卸载（销毁）指定插件，从注册表与列表中移除
@@ -151,6 +152,7 @@ class PluginManagerNotifier extends Notifier<PluginManagerState> {
 
     await registry.disposePlugin(pluginId);
     _refreshPluginList();
+    // 激活状态变化由 activePluginIdsProvider 的事件监听自动同步
   }
 
   /// 刷新插件列表
@@ -176,4 +178,39 @@ final pluginManagerProvider =
 /// 插件注册表 Provider (单例)
 final pluginRegistryProvider = Provider<PluginRegistry>((ref) {
   return PluginRegistry.instance;
+});
+
+/// 插件注册表事件版本号
+///
+/// 把外部注册表事件桥接进 Riverpod 变更通知：每次注册表状态变化
+/// 递增一次，供 [activePluginIdsProvider] 通过 ref.listen 感知并刷新。
+final pluginRegistryVersionProvider = StateProvider<int>((ref) {
+  final registry = PluginRegistry.instance;
+
+  void onRegistryEvent(PluginEvent event) {
+    // 递增版本号触发下方 ref.listen；此处不直接 invalidate，
+    // 避免在注册表遍历监听器时同步销毁 provider 导致 ConcurrentModification
+    ref.controller.state++;
+  }
+
+  registry.addListener(onRegistryEvent);
+  ref.onDispose(() => registry.removeListener(onRegistryEvent));
+  return 0;
+});
+
+/// 当前已激活插件 ID 集合
+///
+/// 插件前端（面板、图表渲染等）通过 watch 此 Provider 随激活状态
+/// 出现/消失。无论从插件管理面板还是设置页切换插件（绕过 Notifier
+/// 直连 registry 的路径），都会通过注册表事件桥接自动刷新。
+final activePluginIdsProvider = Provider<Set<String>>((ref) {
+  ref.listen(pluginRegistryVersionProvider, (prev, next) {
+    ref.invalidateSelf();
+  });
+
+  final registry = PluginRegistry.instance;
+  return registry.allManifests
+      .where((m) => registry.isActive(m.id))
+      .map((m) => m.id)
+      .toSet();
 });

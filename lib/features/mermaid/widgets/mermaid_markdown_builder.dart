@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:markdown/markdown.dart' as md;
+import '../../../core/builtin_plugins/mermaid_plugin.dart';
 import '../../../core/theme/aeromind_theme.dart';
+import '../../../providers/plugin_provider.dart';
 import '../services/mermaid_service.dart';
 
 /// ══════════════════════════════════════════════════
@@ -29,19 +32,26 @@ class MermaidMarkdownBuilder extends MarkdownElementBuilder {
 }
 
 /// 内联 Mermaid 组件 (用于 Markdown 渲染中)
-class MermaidInlineWidget extends StatefulWidget {
+class MermaidInlineWidget extends ConsumerStatefulWidget {
   final String code;
   const MermaidInlineWidget({super.key, required this.code});
 
   @override
-  State<MermaidInlineWidget> createState() => _MermaidInlineWidgetState();
+  ConsumerState<MermaidInlineWidget> createState() => _MermaidInlineWidgetState();
 }
 
-class _MermaidInlineWidgetState extends State<MermaidInlineWidget> {
+class _MermaidInlineWidgetState extends ConsumerState<MermaidInlineWidget> {
   final _service = MermaidService();
 
   @override
   Widget build(BuildContext context) {
+    // Mermaid 渲染插件未激活时不再渲染图表，仅显示代码
+    final mermaidActive = ref
+        .watch(activePluginIdsProvider)
+        .contains(MermaidRenderPlugin.pluginId);
+    if (!mermaidActive) {
+      return _buildCodeFallback();
+    }
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 10),
       child: Image.network(
@@ -82,50 +92,55 @@ class _MermaidInlineWidgetState extends State<MermaidInlineWidget> {
           );
         },
         errorBuilder: (context, error, stackTrace) {
-          return Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AeroColors.bgElevated,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                  color: AeroColors.accentOrange.withValues(alpha: 0.3), width: 0.5),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.account_tree_outlined,
-                        size: 12, color: AeroColors.accentPurple),
-                    SizedBox(width: 5),
-                    Text('Mermaid 图表',
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: AeroColors.textSecondary,
-                            fontWeight: FontWeight.w500)),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: AeroColors.bgSurface,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: SelectableText(
-                    widget.code,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      color: AeroColors.textSecondary,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
+          return _buildCodeFallback();
         },
+      ),
+    );
+  }
+
+  Widget _buildCodeFallback() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AeroColors.bgElevated,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+            color: AeroColors.accentOrange.withValues(alpha: 0.3), width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.account_tree_outlined,
+                  size: 12, color: AeroColors.accentPurple),
+              SizedBox(width: 5),
+              Text('Mermaid 图表',
+                  style: TextStyle(
+                      fontSize: 10,
+                      color: AeroColors.textSecondary,
+                      fontWeight: FontWeight.w500)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AeroColors.bgSurface,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: SelectableText(
+              widget.code,
+              style: const TextStyle(
+                fontSize: 10,
+                fontFamily: 'monospace',
+                color: AeroColors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

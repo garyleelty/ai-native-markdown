@@ -49,9 +49,15 @@ class WordCountPlugin extends BasePlugin {
 
   @override
   Future<void> onActivate(PluginContext ctx) async {
-    // 监听笔记打开事件，更新字数统计
-    ctx.api.onNoteOpened((noteId) async {
+    // 监听笔记打开事件，更新字数统计。
+    // 通过 ctx.effect 登记「取消监听」的逆操作，暂停/销毁时自动清理。
+    void onOpened(String noteId) async {
       await _updateStats(ctx, noteId);
+    }
+
+    ctx.effect(() sync* {
+      ctx.api.onNoteOpened(onOpened);
+      yield () => ctx.api.offNoteOpened(onOpened);
     });
   }
 

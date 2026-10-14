@@ -29,7 +29,8 @@ import '../../features/mermaid/services/mermaid_service.dart';
 /// ──────────────────────────────────────────────────
 
 class MermaidRenderPlugin extends BasePlugin {
-  static const String _id = 'builtin.mermaid-render';
+  static const String pluginId = 'builtin.mermaid-render';
+  static const String _id = pluginId;
   static const String _privacyKey = 'privacy_acknowledged';
   static const String _renderEnabledKey = 'render_enabled';
 

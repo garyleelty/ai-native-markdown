@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/builtin_plugins/mermaid_plugin.dart';
 import '../../../core/theme/aeromind_theme.dart';
 import '../../../core/widgets/toolbar_button.dart';
 import '../../../core/widgets/close_button.dart';
+import '../../../providers/plugin_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../services/mermaid_service.dart';
 
@@ -26,7 +28,11 @@ class _MermaidBlockWidgetState extends ConsumerState<MermaidBlockWidget> {
   @override
   Widget build(BuildContext context) {
     final type = _getDiagramType(widget.code);
-    final mermaidEnabled = ref.watch(
+    // 渲染插件未激活时不渲染图表，仅显示代码
+    final mermaidActive = ref
+        .watch(activePluginIdsProvider)
+        .contains(MermaidRenderPlugin.pluginId);
+    final enabled = ref.watch(
       settingsProvider.select((s) => s.mermaidEnabled),
     );
 
@@ -41,7 +47,9 @@ class _MermaidBlockWidgetState extends ConsumerState<MermaidBlockWidget> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildHeader(type),
-          mermaidEnabled ? _buildContent() : _buildConsentPrompt(),
+          !mermaidActive
+              ? _buildCodeFallback('Mermaid 渲染插件已停用，请在插件管理中启用')
+              : (enabled ? _buildContent() : _buildConsentPrompt()),
         ],
       ),
     );
@@ -93,10 +101,14 @@ class _MermaidBlockWidgetState extends ConsumerState<MermaidBlockWidget> {
           const Spacer(),
           Consumer(
             builder: (context, ref, _) {
-              final enabled = ref.watch(
-                settingsProvider.select((s) => s.mermaidEnabled),
-              );
-              if (!enabled) return const SizedBox.shrink();
+              final on =
+                  ref.watch(
+                    settingsProvider.select((s) => s.mermaidEnabled),
+                  ) &&
+                  ref
+                      .watch(activePluginIdsProvider)
+                      .contains(MermaidRenderPlugin.pluginId);
+              if (!on) return const SizedBox.shrink();
               return ToolbarButton(
                 icon: Icons.zoom_in,
                 tooltip: '放大查看',

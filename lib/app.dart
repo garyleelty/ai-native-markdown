@@ -931,6 +931,10 @@ class _AppShellState extends ConsumerState<_AppShell>
           body: LayoutBuilder(
             builder: (context, constraints) {
               final isAiPanelVisible = _computeAiPanelVisible(constraints.maxWidth);
+              // AI 对话面板是 ai-chat 插件的前端：插件未激活时不显示
+              final aiChatActive = ref
+                  .watch(activePluginIdsProvider)
+                  .contains(AiChatPlugin.pluginId);
 
               return Stack(
                 children: [
@@ -965,10 +969,11 @@ class _AppShellState extends ConsumerState<_AppShell>
                       ),
 
                       // ── 右侧: AI 上下文面板 ──
-                      AiChatPanel(
-                        isVisible: isAiPanelVisible,
-                        onToggle: _toggleAiPanel,
-                      ),
+                      if (aiChatActive)
+                        AiChatPanel(
+                          isVisible: isAiPanelVisible,
+                          onToggle: _toggleAiPanel,
+                        ),
                     ],
                   ),
 
