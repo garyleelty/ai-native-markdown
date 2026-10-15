@@ -122,7 +122,6 @@ const readOnlyCompartment = new Compartment()
 const livePreviewCompartment = new Compartment()
 const ghostTextCompartment = new Compartment()
 const inlineEditCompartment = new Compartment()
-let ignoreNextUpdate = false
 
 const aiActionCompartment = new Compartment()
 const activeHeadingFrom = ref(-1)
@@ -174,7 +173,6 @@ const createEditor = () => {
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           const content = update.state.doc.toString()
-          ignoreNextUpdate = true
           emit('update:modelValue', content)
           emit('update', content)
         }
@@ -236,20 +234,24 @@ const createEditor = () => {
   updateGhostTextConfig(settingsStore.ghostTextConfig)
 }
 
+// 外部（切文件 / 切 tab）更新 modelValue：只有确实与文档不同时才回写。
+//
+// 这里曾经用一个 `ignoreNextUpdate` 布尔标记来回避自反馈，但它只被
+// consume 一次，而 updateListener 每次 docChanged 都会置位 —— 只要某次
+// emit 之后外部值并没有变化（watcher 不触发），标记就会残留，把下一次
+// 真正的切文件静默吞掉，表现就是「点了 tab 要好几次才切过去」。
+// 现在只依据「modelValue 是否等于当前文档」判断，天然幂等、不会残留。
 watch(() => props.modelValue, (newValue) => {
-  if (ignoreNextUpdate) {
-    ignoreNextUpdate = false
-    return
-  }
-  if (editorView.value && newValue !== editorView.value.state.doc.toString()) {
-    editorView.value.dispatch({
-      changes: {
-        from: 0,
-        to: editorView.value.state.doc.length,
-        insert: newValue
-      }
-    })
-  }
+  const view = editorView.value
+  if (!view) return
+  if (newValue === view.state.doc.toString()) return
+  view.dispatch({
+    changes: {
+      from: 0,
+      to: view.state.doc.length,
+      insert: newValue
+    }
+  })
 })
 
 const wrapSelection = (before: string, after: string) => {

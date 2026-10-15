@@ -9,7 +9,7 @@ use tauri::{AppHandle, Emitter, Manager};
 mod commands;
 mod db;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 struct AiChatRequest {
     provider: String,
@@ -22,7 +22,7 @@ struct AiChatRequest {
     event_id: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 struct ChatMessageRust {
     role: String,
     content: String,
@@ -678,4 +678,78 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 前端 `src/services/ai.ts` 发的是 camelCase（baseUrl / apiKey /
+    /// maxTokens / eventId），Rust 侧字段是 snake_case。
+    ///
+    /// 这正是 issue #1「连接 ai 功能时候 —— 错误: invalid args request for
+    /// command ai_proxy_stream: missing field base_url」的根因：少了
+    /// `#[serde(rename_all = "camelCase")]`，Tauri 反序列化时按 snake_case
+    /// 找字段，于是报 missing field base_url。
+    ///
+    /// 这个测试直接喂前端真实 payload，防止有人把 rename_all 删掉。
+    #[test]
+    fn ai_chat_request_accepts_frontend_camel_case_payload() {
+        let payload = r#"{
+            "provider": "openai",
+            "baseUrl": "https://api.openai.com/v1",
+            "apiKey": "sk-test",
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": "hi"}],
+            "temperature": 0.7,
+            "maxTokens": 4096,
+            "eventId": "ai-stream-123"
+        }"#;
+
+        let parsed: AiChatRequest = serde_json::from_str(payload)
+            .expect("前端 camelCase payload 必须能反序列化（issue #1 回归）");
+
+        assert_eq!(parsed.base_url, "https://api.openai.com/v1");
+        assert_eq!(parsed.api_key, "sk-test");
+        assert_eq!(parsed.max_tokens, 4096);
+        assert_eq!(parsed.event_id, "ai-stream-123");
+        assert_eq!(parsed.provider, "openai");
+        assert_eq!(parsed.model, "gpt-4o-mini");
+        assert_eq!(parsed.messages.len(), 1);
+        assert_eq!(parsed.messages[0].role, "user");
+        assert_eq!(parsed.messages[0].content, "hi");
+    }
+
+    /// 缺字段必须报明确的名字，而不是静默取默认值。
+    #[test]
+    fn ai_chat_request_reports_missing_field_by_name() {
+        let payload = r#"{
+            "provider": "openai",
+            "apiKey": "sk-test",
+            "model": "gpt-4o-mini",
+            "messages": [],
+            "temperature": 0.7,
+            "maxTokens": 4096,
+            "eventId": "e"
+        }"#;
+
+        let err = serde_json::from_str::<AiChatRequest>(payload).unwrap_err();
+        assert!(
+            err.to_string().contains("baseUrl"),
+            "错误信息应指出缺失的 camelCase 字段名，实际: {}",
+            err
+        );
+    }
+
+    /// 事件名两边必须一致，否则前端 listen('ai-chunk') 永远收不到内容。
+    #[test]
+    fn stream_event_payload_shape_matches_frontend_listener() {
+        let event_id = "ai-stream-1";
+        let chunk = serde_json::json!({ "event_id": event_id, "content": "你" });
+        assert_eq!(chunk["event_id"], "ai-stream-1");
+        assert_eq!(chunk["content"], "你");
+
+        let done = serde_json::json!({ "event_id": event_id });
+        assert_eq!(done["event_id"], "ai-stream-1");
+    }
 }

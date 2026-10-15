@@ -94,11 +94,16 @@
               :key="tab.id"
               class="tab-item"
               :class="{ active: tab.id === editorStore.activeTabId, modified: tab.isModified }"
-              @click="editorStore.switchTab(tab.id)"
+              @click="handleTabSwitch(tab.id)"
             >
               <span class="tab-name">{{ tab.fileName }}</span>
               <button class="tab-close" @click.stop="handleCloseTab(tab.id)" aria-label="关闭标签页">×</button>
             </div>
+          </div>
+
+          <!-- 切换/保存指示器 -->
+          <div v-if="switching" class="switch-indicator" role="status" aria-live="polite">
+            <span class="switch-indicator-dot"></span> 正在打开…
           </div>
 
           <!-- 编辑器/预览视图 -->
@@ -179,6 +184,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useSettingsStore } from './stores/settings'
 import { useEditorStore } from './stores/editor'
+import { useFileSwitching, createDebouncedSave } from './composables/useFileSwitching'
 import Sidebar from './components/Sidebar.vue'
 import Editor from './components/Editor.vue'
 import Preview from './components/Preview.vue'
@@ -193,6 +199,19 @@ const selectedText = ref('')
 const showExportMenu = ref(false)
 const saveStatusMessage = ref('')
 const saveStatusClass = ref('')
+
+// 文件切换 / 自动保存统一走 composable：用序号丢弃过期的那一次调用，
+// 避免连续点击文件时编辑器被旧请求切回去（issue #2）。
+const { switching, lastError, selectFile, saveCurrentFile } = useFileSwitching(
+  editorStore,
+  {
+    readFile: (path) => sidebarRef.value.readFile(path),
+    saveFile: (path, content) => sidebarRef.value.saveFile(path, content),
+    setEditorContent: (content) => {
+      if (editorRef.value) editorRef.value.setContent(content)
+    },
+  },
+)
 
 const editorContent = computed({
   get: () => editorStore.content,
@@ -254,15 +273,77 @@ const exportAsHTML = async () => {
   showExportMenu.value = false
 }
 
-const handleFileSelect = async (filePath: string) => {
-  if (editorStore.isModified && editorStore.currentFile) {
-    await saveCurrentFile()
+// ── 保存状态显示（状态栏） ──
+const showSaving = () => {
+  saveStatusMessage.value = '正在保存...'
+  saveStatusClass.value = 'status-saving'
+}
+const showSaved = () => {
+  saveStatusMessage.value = '保存成功'
+  saveStatusClass.value = 'status-saved'
+  setTimeout(() => {
+    // 期间若有新的保存/切换则不抢走状态
+    if (saveStatusClass.value === 'status-saved') {
+      saveStatusMessage.value = ''
+      saveStatusClass.value = ''
+    }
+  }, 3000)
+}
+const showSaveError = (message: string) => {
+  saveStatusMessage.value = message
+  saveStatusClass.value = 'status-error'
+}
+const showOpened = (filePath: string) => {
+  saveStatusMessage.value = `已打开 ${filePath.split('/').pop()}`
+  saveStatusClass.value = 'status-saved'
+  setTimeout(() => {
+    if (saveStatusClass.value === 'status-saved') {
+      saveStatusMessage.value = ''
+      saveStatusClass.value = ''
+    }
+  }, 2000)
+}
+
+// ── 防抖自动保存 ──
+// 内容变化时重排；切换/关闭文件前调 autoSave.cancel() 作废，
+// 避免把新文件的内容写进旧路径（可用性报告 P1-6）。
+const autoSave = createDebouncedSave(2000, async () => {
+  if (!editorStore.currentFile) return
+  const path = editorStore.currentFile
+  showSaving()
+  const ok = await saveCurrentFile()
+  if (ok) {
+    lastError.value = ''
+    showSaved()
+  } else {
+    lastError.value = `保存 ${path} 失败`
+    showSaveError(lastError.value)
   }
-  
-  if (sidebarRef.value) {
-    const content = await sidebarRef.value.readFile(filePath)
-    editorStore.addTab(filePath, content)
-    if (editorRef.value) editorRef.value.setContent(content)
+})
+
+watch(() => editorStore.content, () => {
+  if (!editorStore.currentFile) return
+  autoSave.schedule()
+})
+
+const handleTabSwitch = (tabId: string) => {
+  // 同步切换前先作废在途的自动保存，避免写错文件
+  autoSave.cancel()
+  editorStore.switchTab(tabId)
+}
+
+const handleFileSelect = async (filePath: string) => {
+  // 先作废在途的自动保存：切换后 currentFile 已是新文件，
+  // 若旧定时器仍然触发，会把新内容写进旧路径（P1-6）
+  autoSave.cancel()
+  showSaving()
+  const result = await selectFile(filePath)
+  // 'stale'：期间又点了别的文件，由更晚的那次负责显示状态
+  if (result === 'stale') return
+  if (result === 'error' || lastError.value) {
+    showSaveError(lastError.value || `打开 ${filePath} 失败`)
+  } else {
+    showOpened(filePath)
   }
 }
 
@@ -273,45 +354,14 @@ const handleCloseTab = async (tabId: string) => {
       return
     }
   }
+  // 关闭会改变当前文件，作废在途的自动保存
+  autoSave.cancel()
   editorStore.closeTab(tabId)
   const activeTab = editorStore.getActiveTab()
   if (activeTab && editorRef.value) {
     editorRef.value.setContent(activeTab.content)
   }
 }
-
-const saveCurrentFile = async () => {
-  if (!editorStore.currentFile || !sidebarRef.value) {
-    return
-  }
-  
-  saveStatusMessage.value = '正在保存...'
-  saveStatusClass.value = 'status-saving'
-  
-  const success = await sidebarRef.value.saveFile(editorStore.currentFile, editorStore.content)
-  
-  if (success) {
-    editorStore.markSaved()
-    saveStatusMessage.value = '保存成功'
-    saveStatusClass.value = 'status-saved'
-    
-    setTimeout(() => {
-      saveStatusMessage.value = ''
-      saveStatusClass.value = ''
-    }, 3000)
-  } else {
-    saveStatusMessage.value = '保存失败'
-    saveStatusClass.value = 'status-error'
-  }
-}
-
-let saveTimer: number | null = null
-
-watch(() => editorStore.content, () => {
-  if (!editorStore.currentFile) return
-  if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(async () => { await saveCurrentFile() }, 2000)
-})
 
 const handleEditorUpdate = (content: string) => { editorStore.setContent(content) }
 const handleCursorChange = (line: number) => { editorStore.setCursor(line, 0) }
@@ -365,10 +415,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (saveTimer !== null) {
-    clearTimeout(saveTimer)
-    saveTimer = null
-  }
+  autoSave.cancel()
   stopResize()
 })
 </script>
@@ -745,6 +792,23 @@ onUnmounted(() => {
 }
 .status-unsaved {
   color: var(--warning);
+}
+
+/* ── 文件切换指示器（打开较大的文件时给出即时反馈） ── */
+.switch-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.switch-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--info);
+  animation: pulse 1.2s ease-in-out infinite;
 }
 .unsaved-dot {
   width: 6px;
